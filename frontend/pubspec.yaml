@@ -1,0 +1,21 @@
+name: ai_meeting_system
+description: AI-Based Smart Meeting Memory and Management System
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.2
+  livekit_client: ^2.11.0
+  provider: ^6.1.2
+  shared_preferences: ^2.3.2
+
+flutter:
+  uses-material-design: true
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0

@@ -1,0 +1,1506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MeetVault — AI-Powered Smart Meeting Memory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Outlined|Material+Symbols+Outlined" rel="stylesheet">
+  <style>
+    /* ==========================================================================
+       MEETVAULT SAAS DESIGN SYSTEM
+       Strict 60% White / 20% Black / 20% Orange Ratio
+       8px Base Grid System & Refined SaaS Polish
+       ========================================================================== */
+    :root {
+      /* Color Palette */
+      --bg-body: #f8fafc;
+      --bg-surface: #ffffff;
+      --bg-subtle: #f1f5f9;
+      --border-subtle: #e2e8f0;
+      --border-focus: #cbd5e1;
+      
+      --sidebar-bg: #0f172a;
+      --sidebar-hover: rgba(255, 255, 255, 0.06);
+      --sidebar-border: rgba(255, 255, 255, 0.08);
+
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --text-light: #94a3b8;
+
+      --orange-primary: #ff5722;
+      --orange-gradient: linear-gradient(135deg, #ff6d00 0%, #ff3d00 100%);
+      --orange-hover: #e64a19;
+      --orange-light: #fff1eb;
+      --border-orange: #ffd8c8;
+
+      /* Radii Design System */
+      --radius-xl: 16px;
+      --radius-lg: 12px;
+      --radius-md: 8px;
+      --radius-sm: 6px;
+
+      /* Professional Micro Shadows */
+      --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+      --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.05), 0 4px 12px rgba(15, 23, 42, 0.03);
+      --shadow-orange: 0 4px 14px rgba(255, 87, 34, 0.25);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif; }
+    
+    body {
+      background: var(--bg-body);
+      color: var(--text-main);
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Scrollbar Polish */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--orange-primary); }
+
+    /* SIDEBAR (EXACT 260px WIDTH & POSITION PRESERVED) */
+    aside {
+      width: 260px;
+      background: var(--sidebar-bg);
+      border-right: 1px solid var(--sidebar-border);
+      display: flex;
+      flex-direction: column;
+      padding: 20px 16px;
+      z-index: 10;
+      color: #ffffff;
+      flex-shrink: 0;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 4px 6px 20px 6px;
+      cursor: pointer;
+    }
+    .brand-logo {
+      width: 40px; height: 40px;
+      background: var(--orange-gradient);
+      border-radius: var(--radius-lg);
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 800; font-size: 1.25rem;
+      box-shadow: var(--shadow-orange);
+    }
+    .brand-title { font-weight: 800; font-size: 1.2rem; color: #ffffff; letter-spacing: -0.02em; }
+    .brand-title span { color: var(--orange-primary); }
+    .brand-sub { font-size: 0.68rem; color: var(--text-light); font-weight: 500; letter-spacing: -0.01em; }
+
+    /* New Meeting CTA Button */
+    .btn-new-meeting {
+      background: var(--orange-gradient);
+      color: #ffffff;
+      border: none;
+      height: 44px;
+      padding: 0 16px;
+      border-radius: var(--radius-md);
+      font-weight: 700;
+      font-size: 0.9rem;
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      box-shadow: var(--shadow-orange);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      margin-bottom: 20px;
+      width: 100%;
+    }
+    .btn-new-meeting:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(255, 87, 34, 0.35);
+    }
+
+    .nav-list { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+    .nav-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--text-light);
+      transition: all 0.15s ease;
+      letter-spacing: -0.01em;
+    }
+    .nav-item .material-symbols-outlined { font-size: 1.25rem; }
+    .nav-item:hover { background: var(--sidebar-hover); color: #ffffff; }
+    .nav-item.active {
+      background: var(--orange-light);
+      color: var(--orange-primary);
+      font-weight: 700;
+    }
+    .nav-item.active .material-symbols-outlined { color: var(--orange-primary); }
+
+    .nav-badge {
+      margin-left: auto;
+      background: var(--orange-primary);
+      color: #ffffff;
+      font-size: 0.65rem;
+      font-weight: 800;
+      padding: 2px 7px;
+      border-radius: 10px;
+      letter-spacing: 0.02em;
+    }
+
+    .sidebar-footer {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--sidebar-border);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .user-avatar-sm {
+      width: 36px; height: 36px;
+      background: var(--orange-gradient);
+      color: #ffffff;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 0.9rem;
+    }
+
+    /* MAIN VIEWPORT CONTAINER */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+      background: var(--bg-body);
+    }
+
+    /* TOP HEADER BAR (EXACT HEIGHT 64px) */
+    .top-bar {
+      height: 64px;
+      padding: 0 32px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-surface);
+      box-shadow: var(--shadow-sm);
+      flex-shrink: 0;
+    }
+    .page-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      letter-spacing: -0.02em;
+    }
+    .page-title .material-symbols-outlined { font-size: 1.35rem; }
+    
+    .top-actions { display: flex; align-items: center; gap: 12px; }
+    .search-box {
+      width: 320px; height: 40px; background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
+      display: flex; align-items: center; padding: 0 14px; gap: 10px;
+      transition: all 0.2s ease;
+    }
+    .search-box:focus-within { border-color: var(--orange-primary); background: #ffffff; box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.12); }
+    .search-box input { border: none; background: transparent; outline: none; width: 100%; color: var(--text-main); font-size: 0.85rem; }
+    .search-box input::placeholder { color: var(--text-muted); }
+
+    .icon-btn {
+      width: 40px; height: 40px; border-radius: var(--radius-md);
+      background: var(--bg-surface); border: 1px solid var(--border-subtle);
+      color: var(--text-muted); display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: all 0.15s ease;
+    }
+    .icon-btn:hover { background: var(--orange-light); color: var(--orange-primary); border-color: var(--border-orange); }
+    .icon-btn .material-symbols-outlined { font-size: 1.2rem; }
+
+    /* CONTENT VIEWS WRAPPER */
+    .views-wrapper {
+      flex: 1;
+      overflow-y: auto;
+      padding: 28px 32px;
+    }
+
+    .view-content {
+      display: none;
+      animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .view-content.active { display: block; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* BUTTONS SYSTEM */
+    .btn-orange-solid {
+      background: var(--orange-primary);
+      color: #ffffff;
+      border: none;
+      height: 40px;
+      padding: 0 18px;
+      border-radius: var(--radius-md);
+      font-weight: 700;
+      font-size: 0.85rem;
+      letter-spacing: -0.01em;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.15s ease;
+      box-shadow: 0 2px 8px rgba(255, 87, 34, 0.25);
+    }
+    .btn-orange-solid:hover { background: var(--orange-hover); transform: translateY(-1px); }
+
+    .btn-outline {
+      background: var(--bg-surface);
+      color: var(--text-main);
+      border: 1px solid var(--border-subtle);
+      height: 40px;
+      padding: 0 18px;
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      font-size: 0.85rem;
+      letter-spacing: -0.01em;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.15s ease;
+    }
+    .btn-outline:hover { border-color: var(--orange-primary); color: var(--orange-primary); background: var(--orange-light); }
+
+    /* DASHBOARD VIEW STYLES */
+    .hero-banner {
+      background: linear-gradient(135deg, #fff1eb 0%, #ffffff 100%);
+      border: 1px solid var(--border-orange);
+      border-radius: var(--radius-xl);
+      padding: 28px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow-card);
+    }
+    .hero-banner h1 { font-size: 1.6rem; font-weight: 800; color: var(--text-main); letter-spacing: -0.02em; margin-bottom: 8px; }
+    .hero-banner p { color: var(--text-muted); font-size: 0.9rem; line-height: 1.5; max-width: 540px; }
+
+    .room-code-card {
+      text-align: right;
+      background: var(--bg-surface);
+      padding: 18px 22px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-subtle);
+      box-shadow: var(--shadow-sm);
+    }
+    .room-code-label { font-size: 0.68rem; color: var(--orange-primary); font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 4px; }
+    .room-code-val { font-family: 'JetBrains Mono', monospace; font-size: 1.35rem; font-weight: 700; color: var(--text-main); letter-spacing: -0.02em; }
+
+    /* STATISTICS CARDS (4 IN A ROW) */
+    .counter-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    .counter-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 18px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: var(--shadow-card);
+      transition: all 0.2s ease;
+    }
+    .counter-card:hover { border-color: var(--border-orange); transform: translateY(-1px); }
+    .counter-icon {
+      width: 44px; height: 44px; border-radius: var(--radius-md);
+      background: var(--orange-light); color: var(--orange-primary);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .counter-icon .material-symbols-outlined { font-size: 1.35rem; }
+    .counter-val { font-size: 1.5rem; font-weight: 800; color: var(--text-main); letter-spacing: -0.02em; line-height: 1.2; }
+    .counter-label { font-size: 0.78rem; color: var(--text-muted); font-weight: 500; margin-top: 2px; }
+
+    /* SPLIT GRID (UPCOMING & INSTANT ACTIONS) */
+    .dash-split { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
+    .card-panel {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      padding: 24px;
+      box-shadow: var(--shadow-card);
+    }
+    .panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .panel-head h3 { font-size: 1.05rem; font-weight: 800; color: var(--text-main); letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
+
+    .meeting-card-item {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      transition: all 0.15s ease;
+    }
+    .meeting-card-item:hover { background: var(--orange-light); border-color: var(--border-orange); }
+
+    .date-badge {
+      width: 48px; height: 48px;
+      background: var(--bg-surface); border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md); text-align: center;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .date-badge .day { font-size: 1rem; font-weight: 800; color: var(--orange-primary); line-height: 1; }
+    .date-badge .month { font-size: 0.6rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; margin-top: 2px; }
+
+    /* VIDEO CALL VIEW (EXACT GOOGLE MEET STUDIO LAYOUT) */
+    .video-call-container {
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 120px);
+      background: #090d16;
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+      border: 1px solid var(--border-subtle);
+      position: relative;
+    }
+
+    .video-stage-area {
+      flex: 1;
+      display: flex;
+      position: relative;
+      background: #05080e;
+      overflow: hidden;
+    }
+
+    .main-video-wrapper {
+      flex: 1;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000000;
+    }
+
+    video#webcam-video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+
+    .camera-off-placeholder {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+    }
+    .avatar-big {
+      width: 96px; height: 96px;
+      border-radius: 50%;
+      background: var(--orange-gradient);
+      color: #ffffff;
+      font-size: 2.5rem; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 25px rgba(255, 87, 34, 0.3);
+    }
+
+    .video-tag-overlay {
+      position: absolute;
+      top: 16px; left: 16px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border-orange);
+      padding: 6px 14px;
+      border-radius: 20px;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      z-index: 5;
+    }
+    .live-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #ef4444;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+
+    .audio-meter-bar { display: flex; align-items: flex-end; gap: 3px; height: 14px; }
+    .audio-bar {
+      width: 3px; background: var(--orange-primary); border-radius: 2px;
+      animation: barJump 0.8s ease-in-out infinite alternate;
+    }
+    .audio-bar:nth-child(1) { height: 40%; animation-delay: 0.1s; }
+    .audio-bar:nth-child(2) { height: 90%; animation-delay: 0.3s; }
+    .audio-bar:nth-child(3) { height: 60%; animation-delay: 0.2s; }
+    @keyframes barJump { 0% { height: 20%; } 100% { height: 100%; } }
+
+    .self-view-pip {
+      position: absolute;
+      bottom: 20px; right: 20px;
+      width: 200px; height: 125px;
+      background: var(--sidebar-bg);
+      border: 2px solid var(--orange-primary);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+      z-index: 10;
+    }
+    .pip-label {
+      position: absolute; bottom: 6px; left: 6px;
+      background: rgba(0,0,0,0.75); color: #ffffff; padding: 2px 6px; border-radius: 4px;
+      font-size: 0.65rem; font-weight: 600;
+    }
+
+    .side-ai-panel {
+      width: 320px;
+      background: #ffffff;
+      border-left: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      z-index: 5;
+    }
+    .side-ai-head {
+      padding: 14px 16px; border-bottom: 1px solid var(--border-subtle);
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--orange-light);
+    }
+    .side-ai-content {
+      flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px;
+    }
+    .transcript-bubble {
+      background: var(--bg-subtle); border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md); padding: 12px; font-size: 0.82rem; color: var(--text-main); line-height: 1.4;
+    }
+    .speaker-name { font-weight: 700; color: var(--orange-primary); font-size: 0.72rem; margin-bottom: 4px; }
+
+    /* Call Control Bar */
+    .call-control-bar {
+      height: 72px;
+      background: var(--sidebar-bg);
+      border-top: 1px solid rgba(255,255,255,0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      z-index: 20;
+    }
+    .room-info { display: flex; align-items: center; gap: 10px; color: #ffffff; }
+    .room-code { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text-light); }
+
+    .control-actions { display: flex; align-items: center; gap: 12px; }
+    .btn-call-action {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: #1e293b; border: 1px solid rgba(255,255,255,0.1);
+      color: #ffffff; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: all 0.15s ease;
+    }
+    .btn-call-action:hover { background: #334155; transform: scale(1.05); }
+    .btn-call-action.off {
+      background: #ef4444 !important; border-color: #dc2626 !important; color: #ffffff !important;
+    }
+    .btn-call-action.active-feature {
+      background: rgba(255,87,34,0.2) !important; border-color: var(--orange-primary) !important; color: var(--orange-primary) !important;
+    }
+    .btn-end-call {
+      background: #ef4444; width: 56px; height: 40px; border-radius: 20px;
+      border: none; color: #ffffff; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s ease;
+    }
+    .btn-end-call:hover { background: #dc2626; transform: scale(1.05); }
+
+    /* SLIDE-OVER DRAWER MODAL */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(6px);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: auto; }
+
+    .slide-drawer {
+      position: relative;
+      width: 480px;
+      max-width: 92vw;
+      max-height: 88vh;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      box-shadow: 0 20px 60px rgba(15, 23, 42, 0.2);
+      z-index: 101;
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      transform: scale(0.92) translateY(12px);
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .modal-overlay.open .slide-drawer {
+      transform: scale(1) translateY(0);
+    }
+
+    .drawer-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .drawer-head h2 { font-size: 1.25rem; font-weight: 800; color: var(--text-main); letter-spacing: -0.01em; }
+
+    .option-card {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 14px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .option-card:hover {
+      background: var(--orange-light);
+      border-color: var(--border-orange);
+      transform: translateX(-2px);
+    }
+    .option-icon {
+      width: 44px; height: 44px; border-radius: var(--radius-md);
+      background: var(--orange-gradient); color: #ffffff;
+      display: flex; align-items: center; justify-content: center; font-size: 1.25rem;
+      flex-shrink: 0;
+    }
+    .option-info h4 { font-weight: 700; font-size: 0.95rem; color: var(--text-main); margin-bottom: 2px; }
+    .option-info p { font-size: 0.75rem; color: var(--text-muted); }
+
+    /* FORMS */
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 0.78rem; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+    .form-control {
+      width: 100%; height: 40px; background: var(--bg-surface);
+      border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
+      padding: 0 12px; color: var(--text-main); font-size: 0.85rem; outline: none;
+    }
+    .form-control:focus { border-color: var(--orange-primary); box-shadow: 0 0 0 3px rgba(255, 87, 34, 0.12); }
+
+    /* NOTES & VAULT LIST STYLES */
+    .notes-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .note-card {
+      background: var(--bg-surface); border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg); padding: 20px; transition: all 0.15s ease;
+      box-shadow: var(--shadow-card);
+    }
+    .note-card:hover { border-color: var(--border-orange); transform: translateY(-2px); }
+    .tag-orange {
+      background: var(--orange-light); color: var(--orange-primary);
+      font-size: 0.68rem; font-weight: 700; padding: 3px 8px; border-radius: 10px; display: inline-block; margin-bottom: 10px;
+    }
+
+  </style>
+</head>
+<body>
+
+  <!-- LEFT SIDEBAR (EXACT POSITION & WIDTH PRESERVED) -->
+  <aside>
+    <div class="brand" onclick="switchView('dashboard')">
+      <div class="brand-logo">MV</div>
+      <div>
+        <div class="brand-title">Meet<span>Vault</span></div>
+        <div class="brand-sub">Smart Meeting Memory</div>
+      </div>
+    </div>
+
+    <!-- Navigation Options -->
+    <div class="nav-list">
+      <div class="nav-item active" id="nav-dashboard" onclick="switchView('dashboard')">
+        <span class="material-symbols-outlined">dashboard</span>
+        Dashboard
+      </div>
+      <div class="nav-item" id="nav-notes" onclick="switchView('notes')">
+        <span class="material-symbols-outlined">article</span>
+        Notes & AI Summaries
+      </div>
+      <div class="nav-item" id="nav-vault" onclick="switchView('vault')">
+        <span class="material-symbols-outlined">folder_managed</span>
+        Knowledge Vault
+      </div>
+      <div class="nav-item" id="nav-analytics" onclick="switchView('analytics')">
+        <span class="material-symbols-outlined">insights</span>
+        Analytics
+      </div>
+      <div class="nav-item" id="nav-settings" onclick="switchView('settings')">
+        <span class="material-symbols-outlined">settings</span>
+        Settings
+      </div>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="user-avatar-sm" id="user-initial">A</div>
+      <div>
+        <div style="font-weight: 700; font-size: 0.85rem;" id="user-display-name">Alex Rivera</div>
+        <div style="font-weight: 500; font-size: 0.68rem; color: var(--text-light);" id="user-role">Host / Pro Plan</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN VIEWPORT CONTAINER -->
+  <main>
+    <!-- TOP HEADER BAR -->
+    <header class="top-bar">
+      <div class="page-title" id="current-page-title">
+        <span class="material-symbols-outlined" style="color: var(--orange-primary);">space_dashboard</span>
+        Dashboard Overview
+      </div>
+      <div class="top-actions">
+        <div class="search-box">
+          <span class="material-symbols-outlined" style="color: var(--text-muted);">search</span>
+          <input type="text" id="global-search" placeholder="Search meetings, transcripts, action items..." oninput="handleGlobalSearch(this.value)">
+        </div>
+        <button class="icon-btn" onclick="openNewMeetingDrawer()" title="Instant Meeting">
+          <span class="material-symbols-outlined">add</span>
+        </button>
+        <button class="icon-btn" onclick="switchView('settings')" title="Device Settings">
+          <span class="material-symbols-outlined">tune</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- CONTENT VIEWS -->
+    <div class="views-wrapper">
+      
+      <!-- 1. DASHBOARD VIEW -->
+      <section id="view-dashboard" class="view-content active">
+        <!-- Hero Card Banner -->
+        <div class="hero-banner">
+          <div>
+            <h1>Welcome to MeetVault AI 👋</h1>
+            <p>
+              Transform every conversation into actionable organizational intelligence with automated video transcription, camera co-pilots, and instant search.
+            </p>
+            <div style="margin-top: 18px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+              <button class="btn-orange-solid" onclick="openNewMeetingDrawer()">
+                <span class="material-symbols-outlined" style="font-size: 1.15rem;">add_circle</span>
+                Create Meeting
+              </button>
+
+              <div style="display: flex; gap: 6px; align-items: center; background: #ffffff; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 2px 4px 2px 12px; height: 40px; box-shadow: var(--shadow-sm);">
+                <span class="material-symbols-outlined" style="color: var(--text-muted); font-size: 1.1rem;">keyboard</span>
+                <input type="text" id="hero-join-code-input" placeholder="Enter meeting code..." style="border: none; outline: none; background: transparent; font-size: 0.85rem; width: 160px; color: var(--text-main);" onkeydown="if(event.key==='Enter') joinMeetingFromInput()">
+                <button class="btn-outline" style="height: 34px; padding: 0 14px; font-size: 0.8rem; border: none; background: var(--bg-subtle); font-weight: 700; color: var(--text-main);" onclick="joinMeetingFromInput()">
+                  Join Meeting
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Metric Counter Grid (4 in a row) -->
+        <div class="counter-grid">
+          <div class="counter-card">
+            <div class="counter-icon"><span class="material-symbols-outlined">video_camera_front</span></div>
+            <div>
+              <div class="counter-val" id="cnt-meetings">34</div>
+              <div class="counter-label">Total Meetings</div>
+            </div>
+          </div>
+          <div class="counter-card">
+            <div class="counter-icon"><span class="material-symbols-outlined">auto_awesome</span></div>
+            <div>
+              <div class="counter-val" id="cnt-notes">128</div>
+              <div class="counter-label">AI Notes Generated</div>
+            </div>
+          </div>
+          <div class="counter-card">
+            <div class="counter-icon"><span class="material-symbols-outlined">task_alt</span></div>
+            <div>
+              <div class="counter-val" id="cnt-action">42</div>
+              <div class="counter-label">Action Items Done</div>
+            </div>
+          </div>
+          <div class="counter-card">
+            <div class="counter-icon"><span class="material-symbols-outlined">schedule</span></div>
+            <div>
+              <div class="counter-val" id="cnt-hours">18h</div>
+              <div class="counter-label">Time Saved</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dashboard Split Grid -->
+        <div class="dash-split">
+          <!-- Upcoming Meetings -->
+          <div class="card-panel">
+            <div class="panel-head">
+              <h3><span class="material-symbols-outlined" style="color: var(--orange-primary);">calendar_today</span> Upcoming Meetings</h3>
+              <a style="color: var(--orange-primary); font-size: 0.8rem; font-weight: 700; cursor: pointer; text-decoration: none;" onclick="openNewMeetingDrawer()">+ Schedule New</a>
+            </div>
+
+            <div id="dashboard-meetings-list">
+              <!-- Item 1 -->
+              <div class="meeting-card-item">
+                <div style="display: flex; align-items: center; gap: 14px;">
+                  <div class="date-badge">
+                    <div class="day">08</div>
+                    <div class="month">SEP</div>
+                  </div>
+                  <div>
+                    <h4 style="font-size: 0.92rem; font-weight: 700; color: var(--text-main);">AI Core Architecture Sync</h4>
+                    <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">10:00 AM - 11:00 AM • Hosted by Alex Rivera</p>
+                  </div>
+                </div>
+                <button class="btn-orange-solid" style="height: 36px; padding: 0 14px; font-size: 0.8rem;" onclick="startInstantCall()">Join Room</button>
+              </div>
+
+              <!-- Item 2 -->
+              <div class="meeting-card-item">
+                <div style="display: flex; align-items: center; gap: 14px;">
+                  <div class="date-badge">
+                    <div class="day">09</div>
+                    <div class="month">SEP</div>
+                  </div>
+                  <div>
+                    <h4 style="font-size: 0.92rem; font-weight: 700; color: var(--text-main);">Sprint 14 Product Retrospective</h4>
+                    <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">02:30 PM - 03:30 PM • 6 Participants</p>
+                  </div>
+                </div>
+                <button class="btn-outline" style="height: 36px; padding: 0 14px; font-size: 0.8rem;" onclick="startInstantCall()">Prepare</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Instant Actions Panel -->
+          <div class="card-panel" style="display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+              <div class="panel-head">
+                <h3><span class="material-symbols-outlined" style="color: var(--orange-primary);">flash_on</span> Instant Actions</h3>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                <button class="btn-outline" style="justify-content: flex-start; padding: 0 14px; height: 44px;" onclick="switchView('meet')">
+                  <span class="material-symbols-outlined" style="color: var(--orange-primary);">videocam</span>
+                  Launch Video Call Studio
+                </button>
+                <button class="btn-outline" style="justify-content: flex-start; padding: 0 14px; height: 44px;" onclick="switchView('notes')">
+                  <span class="material-symbols-outlined" style="color: var(--orange-primary);">assignment_turned_in</span>
+                  View Recent Action Items
+                </button>
+                <button class="btn-outline" style="justify-content: flex-start; padding: 0 14px; height: 44px;" onclick="switchView('vault')">
+                  <span class="material-symbols-outlined" style="color: var(--orange-primary);">search</span>
+                  Search Cross-Meeting Knowledge
+                </button>
+              </div>
+            </div>
+            
+            <div style="background: var(--orange-light); border: 1px dashed var(--border-orange); border-radius: var(--radius-md); padding: 14px; margin-top: 18px;">
+              <div style="font-weight: 800; font-size: 0.82rem; color: var(--orange-primary); margin-bottom: 2px;">MeetVault AI Co-Pilot Ready</div>
+              <div style="font-size: 0.72rem; color: var(--text-muted);">Live speech diarization and auto-summarization active.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. MEET (VIDEO CALL PAGE - GOOGLE MEET STUDIO) -->
+      <section id="view-meet" class="view-content">
+        <div class="video-call-container">
+          
+          <div class="video-stage-area">
+            <div class="main-video-wrapper">
+              <video id="webcam-video" autoplay playsinline muted></video>
+
+              <div class="camera-off-placeholder" id="camera-placeholder">
+                <div class="avatar-big" id="call-user-avatar">A</div>
+                <div style="font-weight: 700; font-size: 1.05rem; color: #ffffff;" id="call-user-name">Alex Rivera</div>
+                <div style="font-size: 0.78rem; color: var(--text-light);">Camera is muted</div>
+              </div>
+
+              <div class="video-tag-overlay">
+                <div class="live-dot"></div>
+                <span>MEETVAULT LIVE</span>
+                <span style="color: rgba(255,255,255,0.2);">|</span>
+                <span id="call-duration-timer" style="font-family: 'JetBrains Mono', monospace; color: var(--orange-primary);">00:04:12</span>
+              </div>
+
+              <div style="position: absolute; top: 16px; right: 16px; background: rgba(0,0,0,0.6); padding: 6px 12px; border-radius: 20px; display: flex; align-items: center; gap: 8px;">
+                <span class="material-symbols-outlined" style="font-size: 1.1rem; color: var(--orange-primary);" id="mic-status-icon">mic</span>
+                <div class="audio-meter-bar" id="mic-audio-visualizer">
+                  <div class="audio-bar"></div>
+                  <div class="audio-bar"></div>
+                  <div class="audio-bar"></div>
+                </div>
+              </div>
+
+              <div class="self-view-pip">
+                <div style="position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #1a2233;">
+                  <span class="material-symbols-outlined" style="font-size: 2.2rem; color: var(--orange-primary);">smart_toy</span>
+                  <div class="pip-label">AI Co-Pilot (Listening)</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Side Drawer for Real-Time AI Notes -->
+            <div class="side-ai-panel" id="side-ai-drawer">
+              <div class="side-ai-head">
+                <div style="font-weight: 800; font-size: 0.88rem; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                  <span class="material-symbols-outlined" style="color: var(--orange-primary);">auto_awesome</span>
+                  Live AI Notes & Captions
+                </div>
+                <span class="material-symbols-outlined" style="cursor: pointer; color: var(--text-muted); font-size: 1.2rem;" onclick="toggleAiDrawer()">close</span>
+              </div>
+
+              <div class="side-ai-content" id="live-transcript-feed">
+                <div class="transcript-bubble">
+                  <div class="speaker-name">Alex Rivera • 10:02 AM</div>
+                  "Welcome team! Today we are reviewing the MeetVault video calling integration and real-time speech summarization."
+                </div>
+                <div class="transcript-bubble" style="border-left: 3px solid var(--orange-primary); background: var(--orange-light);">
+                  <div class="speaker-name">AI Co-Pilot (Live Note)</div>
+                  📌 <strong>Key Point:</strong> Real-time microphone and camera feeds enabled for seamless video collaboration.
+                </div>
+                <div class="transcript-bubble">
+                  <div class="speaker-name">Sarah Chen • 10:03 AM</div>
+                  "The webcam resolution looks crisp and the audio visualizer is responsive!"
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Control Bar -->
+          <div class="call-control-bar">
+            <div class="room-info">
+              <div style="font-weight: 800; font-size: 0.9rem; color: #ffffff;">Meeting Room</div>
+              <span style="color: var(--text-muted);">•</span>
+              <div class="room-code" id="active-call-code">meetvault.live/mtg-8942</div>
+            </div>
+
+            <div class="control-actions">
+              <button class="btn-call-action" id="btn-toggle-mic" onclick="toggleMicrophone()" title="Toggle Microphone">
+                <span class="material-symbols-outlined" id="mic-icon">mic</span>
+              </button>
+
+              <button class="btn-call-action" id="btn-toggle-cam" onclick="toggleCamera()" title="Toggle Camera">
+                <span class="material-symbols-outlined" id="cam-icon">videocam</span>
+              </button>
+
+              <button class="btn-call-action" id="btn-share-screen" onclick="toggleScreenShare()" title="Share Screen">
+                <span class="material-symbols-outlined">present_to_all</span>
+              </button>
+
+              <button class="btn-call-action" id="btn-raise-hand" onclick="raiseHand()" title="Raise Hand">
+                <span class="material-symbols-outlined">front_hand</span>
+              </button>
+
+              <button class="btn-call-action active-feature" onclick="toggleAiDrawer()" title="AI Transcript & Notes">
+                <span class="material-symbols-outlined">auto_awesome</span>
+              </button>
+
+              <button class="btn-end-call" onclick="endCallAndReturn()" title="End Call">
+                <span class="material-symbols-outlined">call_end</span>
+              </button>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span class="material-symbols-outlined" style="color: var(--text-light); cursor: pointer;" onclick="switchView('settings')">settings</span>
+              <span class="material-symbols-outlined" style="color: var(--text-light); cursor: pointer;" onclick="copyRoomCode()">share</span>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- 3. NOTES & AI SUMMARIES VIEW -->
+      <section id="view-notes" class="view-content">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+          <div>
+            <h2 style="font-size: 1.4rem; font-weight: 800; color: var(--text-main);">AI Notes & Meeting Summaries</h2>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 2px;">Automated key takeaways, decisions, and assigned action items.</p>
+          </div>
+          <button class="btn-orange-solid" onclick="exportSummaryDoc()">
+            <span class="material-symbols-outlined">download</span>
+            Export All Notes (.MD)
+          </button>
+        </div>
+
+        <div class="notes-grid">
+          <div class="note-card">
+            <span class="tag-orange">AI Architecture</span>
+            <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--text-main); margin-bottom: 8px;">Database & Schema Sync</h3>
+            <p style="font-size: 0.82rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 16px;">
+              Finalized SQLAlchemy async engine setup with SQLite fallback and pgvector embeddings support.
+            </p>
+            <div style="border-top: 1px solid var(--border-subtle); padding-top: 12px; font-size: 0.75rem; color: var(--orange-primary); font-weight: 700;">
+              ✓ 3 Action Items Completed
+            </div>
+          </div>
+
+          <div class="note-card">
+            <span class="tag-orange">Product Retrospective</span>
+            <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--text-main); margin-bottom: 8px;">Sprint 14 Review</h3>
+            <p style="font-size: 0.82rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 16px;">
+              Discussed WebRTC audio streaming, LiveKit server integration, and frontend dark/orange theme.
+            </p>
+            <div style="border-top: 1px solid var(--border-subtle); padding-top: 12px; font-size: 0.75rem; color: var(--orange-primary); font-weight: 700;">
+              ✓ 5 Action Items Completed
+            </div>
+          </div>
+
+          <div class="note-card">
+            <span class="tag-orange">UI / UX Redesign</span>
+            <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--text-main); margin-bottom: 8px;">MeetVault Dashboard 2.0</h3>
+            <p style="font-size: 0.82rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 16px;">
+              Upgraded aesthetic to 60% White, 20% Black & 20% Orange enterprise SaaS theme.
+            </p>
+            <div style="border-top: 1px solid var(--border-subtle); padding-top: 12px; font-size: 0.75rem; color: var(--orange-primary); font-weight: 700;">
+              ✓ 4 Action Items Completed
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. KNOWLEDGE VAULT VIEW -->
+      <section id="view-vault" class="view-content">
+        <div style="margin-bottom: 24px;">
+          <h2 style="font-size: 1.4rem; font-weight: 800; color: var(--text-main);">Cross-Meeting Knowledge Vault</h2>
+          <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 2px;">Search transcripts, topics, and decisions across all historical meetings using RAG embeddings.</p>
+        </div>
+
+        <div class="card-panel" style="margin-bottom: 24px;">
+          <div style="display: flex; gap: 12px; margin-bottom: 18px;">
+            <input type="text" class="form-control" style="flex: 1; height: 44px; font-size: 0.9rem;" placeholder="Ask MeetVault AI: 'What were the decisions about video streaming?'" id="vault-query-input">
+            <button class="btn-orange-solid" style="height: 44px; padding: 0 20px;" onclick="searchVaultKnowledge()">
+              <span class="material-symbols-outlined">smart_toy</span>
+              Ask AI Vault
+            </button>
+          </div>
+          
+          <div id="vault-results-area" style="background: var(--bg-subtle); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px; display: none;">
+            <div style="font-weight: 700; color: var(--orange-primary); font-size: 0.85rem; margin-bottom: 4px;">AI Synthesized Insight:</div>
+            <div style="font-size: 0.85rem; color: var(--text-main); line-height: 1.4;" id="vault-ai-response">
+              Loading synthesized knowledge from vector store...
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. ANALYTICS VIEW -->
+      <section id="view-analytics" class="view-content">
+        <div style="margin-bottom: 24px;">
+          <h2 style="font-size: 1.4rem; font-weight: 800; color: var(--text-main);">Meeting Analytics & Intelligence</h2>
+          <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 2px;">Speaker talk-time ratios, meeting efficiency, and sentiment analysis.</p>
+        </div>
+
+        <div class="counter-grid">
+          <div class="counter-card">
+            <div class="counter-icon"><span class="material-symbols-outlined">trending_up</span></div>
+            <div>
+              <div class="counter-val">94%</div>
+              <div class="counter-label">Productivity Index</div>
+            </div>
+          </div>
+          <div class="counter-card">
+            <div class="counter-icon"><span class="material-symbols-outlined">groups</span></div>
+            <div>
+              <div class="counter-val">8.4</div>
+              <div class="counter-label">Avg Attendance</div>
+            </div>
+          </div>
+          <div class="counter-card">
+            <div class="counter-icon"><span class="material-symbols-outlined">timer</span></div>
+            <div>
+              <div class="counter-val">28 min</div>
+              <div class="counter-label">Avg Meeting Length</div>
+            </div>
+          </div>
+          <div class="counter-card">
+            <div class="counter-icon"><span class="material-symbols-outlined">sentiment_satisfied</span></div>
+            <div>
+              <div class="counter-val">Positive</div>
+              <div class="counter-label">Team Sentiment</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 6. SETTINGS VIEW -->
+      <section id="view-settings" class="view-content">
+        <div style="margin-bottom: 24px;">
+          <h2 style="font-size: 1.4rem; font-weight: 800; color: var(--text-main);">Audio & Video Preferences</h2>
+          <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 2px;">Configure hardware devices, AI models, and MeetVault account preferences.</p>
+        </div>
+
+        <div style="max-width: 560px;" class="card-panel">
+          <div class="form-group">
+            <label>Camera Input Device</label>
+            <select class="form-control" id="camera-select-dropdown">
+              <option>HD Web Camera (Integrated)</option>
+              <option>USB Video Device</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Microphone Audio Input</label>
+            <select class="form-control" id="mic-select-dropdown">
+              <option>Default Microphone Array (Realtek Audio)</option>
+              <option>Headset Microphone</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>AI Diarization & Model Provider</label>
+            <select class="form-control">
+              <option>Faster-Whisper + Gemini 3.6 Flash (Recommended)</option>
+              <option>Deepgram Nova-2 Realtime</option>
+            </select>
+          </div>
+
+          <button class="btn-orange-solid" style="margin-top: 10px;" onclick="alert('Settings saved successfully!')">Save Preferences</button>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- SLIDE-OVER DRAWER MODAL FOR NEW MEETING -->
+  <div class="modal-overlay" id="new-meeting-modal" onclick="closeNewMeetingDrawer(event)">
+    <div class="slide-drawer" onclick="event.stopPropagation()">
+      <div class="drawer-head">
+        <h2>Start or Schedule Meeting</h2>
+        <span class="material-symbols-outlined" style="cursor: pointer; color: var(--text-muted);" onclick="closeNewMeetingDrawer()">close</span>
+      </div>
+
+      <div style="flex: 1; overflow-y: auto;">
+        <!-- Option 1: Instant Call -->
+        <div class="option-card" onclick="startInstantCallFromDrawer()">
+          <div class="option-icon">
+            <span class="material-symbols-outlined">videocam</span>
+          </div>
+          <div class="option-info">
+            <h4>Start an Instant Meeting</h4>
+            <p>Directly access video room with camera & mic enabled</p>
+          </div>
+        </div>
+
+        <!-- Option 2: Shareable Link -->
+        <div class="option-card" onclick="createMeetingLink()">
+          <div class="option-icon" style="background: linear-gradient(135deg, #38ef7d, #11998e);">
+            <span class="material-symbols-outlined">link</span>
+          </div>
+          <div class="option-info">
+            <h4>Create a Meeting for Later</h4>
+            <p>Generate shareable link & room code for attendees</p>
+          </div>
+        </div>
+
+        <!-- Option 3: Schedule Calendar -->
+        <div class="option-card" onclick="toggleScheduleForm()">
+          <div class="option-icon" style="background: linear-gradient(135deg, #4facfe, #00f2fe);">
+            <span class="material-symbols-outlined">calendar_today</span>
+          </div>
+          <div class="option-info">
+            <h4>Schedule in Google Calendar</h4>
+            <p>Set topic, date, time and invite team members</p>
+          </div>
+        </div>
+
+        <!-- Form for Schedule -->
+        <div id="schedule-form-container" style="display: none; background: var(--bg-subtle); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 16px; margin-top: 14px;">
+          <div class="form-group">
+            <label>Meeting Title</label>
+            <input type="text" class="form-control" id="sched-title-input" placeholder="e.g. Quarterly Product Review">
+          </div>
+          <div class="form-group">
+            <label>Date & Time</label>
+            <input type="datetime-local" class="form-control" id="sched-time-input">
+          </div>
+          <div class="form-group">
+            <label>Participants Emails</label>
+            <input type="text" class="form-control" placeholder="alex@meetvault.live, sarah@company.com">
+          </div>
+          <button class="btn-orange-solid" style="width: 100%; justify-content: center;" onclick="confirmScheduleMeeting()">Confirm Schedule</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = "http://127.0.0.1:8000/api/v1";
+
+    let currentView = 'dashboard';
+    let mediaStream = null;
+    let isMicMuted = false;
+    let isCameraOff = false;
+    let callTimerInterval = null;
+    let secondsElapsed = 0;
+
+    function switchView(viewName) {
+      currentView = viewName;
+
+      document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+      const activeNav = document.getElementById(`nav-${viewName}`);
+      if (activeNav) activeNav.classList.add('active');
+
+      document.querySelectorAll('.view-content').forEach(view => view.classList.remove('active'));
+      const targetView = document.getElementById(`view-${viewName}`);
+      if (targetView) targetView.classList.add('active');
+
+      const titleMap = {
+        'dashboard': 'Dashboard Overview',
+        'meet': 'Live Video Call Studio',
+        'notes': 'AI Notes & Summaries',
+        'vault': 'Knowledge Vault',
+        'analytics': 'Meeting Analytics',
+        'settings': 'Preferences & Hardware'
+      };
+      document.getElementById('current-page-title').innerHTML = `
+        <span class="material-symbols-outlined" style="color: var(--orange-primary);">
+          ${viewName === 'meet' ? 'videocam' : viewName === 'notes' ? 'article' : 'space_dashboard'}
+        </span>
+        ${titleMap[viewName] || 'MeetVault'}
+      `;
+
+      if (viewName === 'meet') {
+        setTimeout(() => {
+          initializeCameraAndMic();
+          startCallTimer();
+        }, 100);
+      } else {
+        stopCallTimer();
+      }
+    }
+
+    let canvasAnimId = null;
+
+    function generateSimulatedCameraStream() {
+      if (canvasAnimId) cancelAnimationFrame(canvasAnimId);
+      const canvas = document.createElement('canvas');
+      canvas.width = 1280;
+      canvas.height = 720;
+      const ctx = canvas.getContext('2d');
+      let angle = 0;
+
+      function drawFrame() {
+        angle += 0.04;
+        
+        // Deep Obsidian Video Backdrop
+        const grad = ctx.createLinearGradient(0, 0, 1280, 720);
+        grad.addColorStop(0, '#0f172a');
+        grad.addColorStop(0.5, '#1e293b');
+        grad.addColorStop(1, '#090d16');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 1280, 720);
+
+        // Tech Sub-Grid Lines
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+        ctx.lineWidth = 1;
+        for (let x = 0; x < 1280; x += 40) {
+          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 720); ctx.stroke();
+        }
+        for (let y = 0; y < 720; y += 40) {
+          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(1280, y); ctx.stroke();
+        }
+
+        const centerX = 1280 / 2;
+        const centerY = 720 / 2 - 20;
+
+        // Glowing Audio Wave Aura
+        const pulse = Math.sin(angle * 2) * 12 + 95;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, pulse, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 87, 34, 0.15)';
+        ctx.fill();
+
+        // Main User Avatar Circle
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 70, 0, Math.PI * 2);
+        const avatarGrad = ctx.createLinearGradient(centerX - 70, centerY - 70, centerX + 70, centerY + 70);
+        avatarGrad.addColorStop(0, '#ff6d00');
+        avatarGrad.addColorStop(1, '#ff3d00');
+        ctx.fillStyle = avatarGrad;
+        ctx.fill();
+
+        // Avatar Initial
+        ctx.font = 'bold 64px "Plus Jakarta Sans", sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('A', centerX, centerY);
+
+        // Speaker Name Overlay
+        ctx.font = '700 24px "Plus Jakarta Sans", sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('Alex Rivera (Live Host)', centerX, centerY + 120);
+
+        // Real-Time Audio Bar Visualizer
+        ctx.fillStyle = '#ff5722';
+        for (let i = -10; i <= 10; i++) {
+          const h = Math.abs(Math.sin(angle * 3 + i * 0.4)) * 36 + 8;
+          ctx.fillRect(centerX + i * 16 - 4, centerY + 165 - h / 2, 8, h);
+        }
+
+        canvasAnimId = requestAnimationFrame(drawFrame);
+      }
+
+      drawFrame();
+      return canvas.captureStream(30);
+    }
+
+    async function initializeCameraAndMic() {
+      const videoElement = document.getElementById('webcam-video');
+      const placeholder = document.getElementById('camera-placeholder');
+
+      if (!videoElement) return;
+
+      try {
+        if (mediaStream && mediaStream.active) {
+          videoElement.srcObject = mediaStream;
+          videoElement.style.display = 'block';
+          if (placeholder) placeholder.style.display = 'none';
+          await videoElement.play().catch(() => {});
+          return;
+        }
+
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          try {
+            mediaStream = await navigator.mediaDevices.getUserMedia({
+              video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+              audio: true
+            });
+          } catch (camErr) {
+            console.warn("Hardware webcam unavailable, initializing live HD stream fallback:", camErr);
+            mediaStream = generateSimulatedCameraStream();
+          }
+          
+          videoElement.srcObject = mediaStream;
+          videoElement.style.display = 'block';
+          if (placeholder) placeholder.style.display = 'none';
+
+          videoElement.onloadedmetadata = () => {
+            videoElement.play().catch(e => console.log("Play failed:", e));
+          };
+          await videoElement.play().catch(e => console.log("Direct play failed:", e));
+        } else {
+          showCameraFallback();
+        }
+      } catch (err) {
+        console.warn("Camera stream catch:", err);
+        showCameraFallback();
+      }
+    }
+
+    function showCameraFallback() {
+      const videoElement = document.getElementById('webcam-video');
+      const placeholder = document.getElementById('camera-placeholder');
+      
+      try {
+        mediaStream = generateSimulatedCameraStream();
+        if (videoElement) {
+          videoElement.srcObject = mediaStream;
+          videoElement.style.display = 'block';
+          videoElement.play().catch(() => {});
+        }
+        if (placeholder) placeholder.style.display = 'none';
+      } catch (e) {
+        if (videoElement) videoElement.style.display = 'none';
+        if (placeholder) placeholder.style.display = 'flex';
+      }
+    }
+
+    function toggleMicrophone() {
+      isMicMuted = !isMicMuted;
+      const btn = document.getElementById('btn-toggle-mic');
+      const icon = document.getElementById('mic-icon');
+      const statusIcon = document.getElementById('mic-status-icon');
+      const audioVis = document.getElementById('mic-audio-visualizer');
+
+      if (mediaStream) {
+        mediaStream.getAudioTracks().forEach(track => track.enabled = !isMicMuted);
+      }
+
+      if (isMicMuted) {
+        btn.classList.add('off');
+        icon.innerText = 'mic_off';
+        if (statusIcon) { statusIcon.innerText = 'mic_off'; statusIcon.style.color = '#ef4444'; }
+        if (audioVis) audioVis.style.opacity = '0.2';
+      } else {
+        btn.classList.remove('off');
+        icon.innerText = 'mic';
+        if (statusIcon) { statusIcon.innerText = 'mic'; statusIcon.style.color = 'var(--orange-primary)'; }
+        if (audioVis) audioVis.style.opacity = '1';
+      }
+    }
+
+    function toggleCamera() {
+      isCameraOff = !isCameraOff;
+      const btn = document.getElementById('btn-toggle-cam');
+      const icon = document.getElementById('cam-icon');
+      const videoElement = document.getElementById('webcam-video');
+      const placeholder = document.getElementById('camera-placeholder');
+
+      if (mediaStream) {
+        mediaStream.getVideoTracks().forEach(track => track.enabled = !isCameraOff);
+      }
+
+      if (isCameraOff) {
+        btn.classList.add('off');
+        icon.innerText = 'videocam_off';
+        if (videoElement) videoElement.style.display = 'none';
+        if (placeholder) placeholder.style.display = 'flex';
+      } else {
+        btn.classList.remove('off');
+        icon.innerText = 'videocam';
+        if (videoElement) videoElement.style.display = 'block';
+        if (placeholder) placeholder.style.display = 'none';
+      }
+    }
+
+    async function toggleScreenShare() {
+      try {
+        const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        const videoElement = document.getElementById('webcam-video');
+        if (videoElement) videoElement.srcObject = displayStream;
+        alert("Screen sharing started!");
+      } catch (e) {
+        console.log("Screen share cancelled:", e);
+      }
+    }
+
+    function raiseHand() {
+      const feed = document.getElementById('live-transcript-feed');
+      if (feed) {
+        const bubble = document.createElement('div');
+        bubble.className = 'transcript-bubble';
+        bubble.style.borderLeft = '3px solid #eab308';
+        bubble.innerHTML = `<div class="speaker-name">System Notification</div> ✋ Alex Rivera raised hand!`;
+        feed.appendChild(bubble);
+        feed.scrollTop = feed.scrollHeight;
+      }
+    }
+
+    function toggleAiDrawer() {
+      const drawer = document.getElementById('side-ai-drawer');
+      if (drawer) {
+        drawer.style.display = (drawer.style.display === 'none') ? 'flex' : 'none';
+      }
+    }
+
+    function startCallTimer() {
+      stopCallTimer();
+      secondsElapsed = 0;
+      callTimerInterval = setInterval(() => {
+        secondsElapsed++;
+        const mins = String(Math.floor(secondsElapsed / 60)).padStart(2, '0');
+        const secs = String(secondsElapsed % 60).padStart(2, '0');
+        const timerEl = document.getElementById('call-duration-timer');
+        if (timerEl) timerEl.innerText = `00:${mins}:${secs}`;
+      }, 1000);
+    }
+
+    function stopCallTimer() {
+      if (callTimerInterval) clearInterval(callTimerInterval);
+    }
+
+    function endCallAndReturn() {
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+      }
+      stopCallTimer();
+      alert("Call ended. Meeting summary has been saved to your MeetVault Notes!");
+      switchView('dashboard');
+    }
+
+    function openNewMeetingDrawer() {
+      document.getElementById('new-meeting-modal').classList.add('open');
+    }
+
+    function closeNewMeetingDrawer(e) {
+      document.getElementById('new-meeting-modal').classList.remove('open');
+    }
+
+    function startInstantCallFromDrawer() {
+      closeNewMeetingDrawer();
+      switchView('meet');
+    }
+
+    function startInstantCall() {
+      switchView('meet');
+    }
+
+    function joinMeetingFromInput() {
+      const input = document.getElementById('hero-join-code-input');
+      const code = input ? input.value.trim() : '';
+      if (code) {
+        const roomCodeEl = document.getElementById('active-call-code');
+        if (roomCodeEl) roomCodeEl.innerText = `meetvault.live/${code}`;
+      }
+      switchView('meet');
+    }
+
+    function createMeetingLink() {
+      const code = 'mtg-' + Math.floor(1000 + Math.random() * 9000) + '-x' + Math.floor(10 + Math.random() * 89);
+      const fullUrl = `https://meetvault.live/${code}`;
+      navigator.clipboard.writeText(fullUrl).then(() => {
+        alert(`Meeting Link Created & Copied to Clipboard!\n\nLink: ${fullUrl}`);
+      });
+    }
+
+    function toggleScheduleForm() {
+      const form = document.getElementById('schedule-form-container');
+      form.style.display = (form.style.display === 'none') ? 'block' : 'none';
+    }
+
+    function confirmScheduleMeeting() {
+      const title = document.getElementById('sched-title-input').value || 'Scheduled Meeting';
+      alert(`Success! Meeting "${title}" has been scheduled in your MeetVault calendar.`);
+      closeNewMeetingDrawer();
+    }
+
+    function copyRoomCode() {
+      navigator.clipboard.writeText("MTG-8942-X9K");
+      alert("Room code MTG-8942-X9K copied to clipboard!");
+    }
+
+    function exportSummaryDoc() {
+      alert("Downloading MeetVault_Summary_Export.md ...");
+    }
+
+    function handleGlobalSearch(query) {
+      if (!query.trim()) return;
+      console.log("Global search for:", query);
+    }
+
+    async function searchVaultKnowledge() {
+      const query = document.getElementById('vault-query-input').value;
+      const resArea = document.getElementById('vault-results-area');
+      const respEl = document.getElementById('vault-ai-response');
+      if (!query) return;
+
+      resArea.style.display = 'block';
+      respEl.innerHTML = `<em>Querying vector embeddings database for "${query}"...</em>`;
+
+      setTimeout(() => {
+        respEl.innerHTML = `
+          <strong>Result for "${query}":</strong><br>
+          Based on the past 3 meetings, the team agreed to standardise on Fast-Whisper for low-latency diarization and implement real-time WebRTC audio streams directly to the backend processing queue.
+        `;
+      }, 800);
+    }
+  </script>
+</body>
+</html>
