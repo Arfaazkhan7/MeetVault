@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.api.v1 import health, auth, admin, companies, users, projects, meetings, recordings, analytics, documents, project_memory, cross_meeting, search, rag, analysis
+from app.api.v1 import health, auth, admin, companies, users, projects, meetings, recordings, transcripts, diarization, analytics, documents, project_memory, cross_meeting, search, rag, analysis
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -26,6 +26,8 @@ app.include_router(users.router,           prefix=settings.API_V1_PREFIX)
 app.include_router(projects.router,        prefix=settings.API_V1_PREFIX)
 app.include_router(meetings.router,        prefix=settings.API_V1_PREFIX)
 app.include_router(recordings.router,      prefix=settings.API_V1_PREFIX)
+app.include_router(transcripts.router,     prefix=settings.API_V1_PREFIX)
+app.include_router(diarization.router,     prefix=settings.API_V1_PREFIX)
 app.include_router(analytics.router,       prefix=settings.API_V1_PREFIX)
 app.include_router(documents.router,       prefix=settings.API_V1_PREFIX)
 app.include_router(project_memory.router,  prefix=settings.API_V1_PREFIX)

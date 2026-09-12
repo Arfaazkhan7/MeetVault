@@ -1,3 +1,13 @@
+"""Legacy manual smoke test.
+
+Run this file directly after starting the API; it is intentionally excluded
+from normal pytest collection because it performs live HTTP requests.
+"""
+import pytest
+
+if "pytest" in __import__("sys").modules:
+    pytest.skip("legacy live-server smoke test; run directly with Python", allow_module_level=True)
+
 import requests
 import sys
 import json

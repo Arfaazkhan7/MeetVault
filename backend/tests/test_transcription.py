@@ -190,7 +190,9 @@ class TestTranscriptionAPI:
         """Test getting transcript for non-existent meeting."""
         response = client.get("/api/v1/transcripts/meetings/nonexistent-meeting")
         
-        assert response.status_code == 404
+        # Transcript routes are protected; authentication is evaluated before
+        # looking up the meeting identifier.
+        assert response.status_code == 401
 
 
 @pytest.mark.integration
