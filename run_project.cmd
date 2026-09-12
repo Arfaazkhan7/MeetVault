@@ -221,7 +221,7 @@ echo [....] Starting Frontend on http://127.0.0.1:%FRONTEND_PORT% ...
 start "AI Meeting Memory - Frontend" cmd /k "cd /d "%WEBROOT%" && "%PYTHON_EXE%" -m http.server %FRONTEND_PORT%"
 
 echo [....] Opening browser...
-start "" "http://127.0.0.1:%FRONTEND_PORT%"
+start "" "http://127.0.0.1:%FRONTEND_PORT%/login"
 echo [OK] Frontend opened in your browser.
 
 :show_summary
@@ -232,7 +232,7 @@ echo ============================================================
 echo.
 echo   Backend URL   : http://127.0.0.1:%BACKEND_PORT%
 echo   API Health    : http://127.0.0.1:%BACKEND_PORT%/api/v1/health
-echo   Frontend URL  : http://127.0.0.1:%FRONTEND_PORT%
+echo   Login URL     : http://127.0.0.1:%FRONTEND_PORT%/login
 echo.
 if "%BACKEND_READY%"=="1" (
     echo   Backend      : RUNNING
