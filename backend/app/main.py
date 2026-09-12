@@ -37,7 +37,7 @@ app.include_router(analysis.router,        prefix=settings.API_V1_PREFIX)
 # ── Serve Web UI at root / ───────────────────────────────────────────────
 import os
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
 def _get_web_dir():
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -49,6 +49,10 @@ def _get_web_dir():
 
 @app.get("/")
 async def serve_root():
+    # Make the browser entry point the unauthenticated login screen.
+    return RedirectResponse(url="/login", status_code=307)
+
+    # Kept as a fallback for deployments without the Flutter shell.
     web_dir = _get_web_dir()
     index_path = os.path.join(web_dir, "index.html")
     if os.path.exists(index_path):
