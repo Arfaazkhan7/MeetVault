@@ -55,6 +55,37 @@ def create_user(
     return user
 
 
+def get_or_create_firebase_personal_user(
+    db: Session,
+    email: str,
+    full_name: str | None,
+) -> User:
+    email = email.lower().strip()
+    user = get_user_by_email(db, email)
+    if user:
+        return user
+
+    display_name = (full_name or email.split("@")[0]).strip()
+    user = User(
+        public_id=_generate_public_id(db),
+        email=email,
+        full_name=display_name,
+        hashed_password=None,
+        account_type="personal",
+    )
+    db.add(user)
+    db.flush()
+
+    from app.services.company_service import create_company
+    from app.services.project_service import create_project
+
+    comp = create_company(db, f"{display_name}'s Personal Workspace", None, user)
+    create_project(db, comp.public_id, "General", "Default project for meetings", user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
 def authenticate_user(db: Session, email: str, plain_password: str) -> User | None:
     user = get_user_by_email(db, email)
     if not user or not user.hashed_password:

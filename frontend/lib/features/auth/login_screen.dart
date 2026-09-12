@@ -48,6 +48,14 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _handleGoogleLogin() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final success = await authProvider.loginWithGoogle();
+    if (success && mounted) {
+      Navigator.pushReplacementNamed(context, AppRouter.dashboard);
+    }
+  }
+
   Widget _buildAccountTypeSelector() {
     return Container(
       decoration: BoxDecoration(
@@ -278,6 +286,22 @@ class _LoginScreenState extends State<LoginScreen> {
                         );
                       },
                     ),
+                    if (_accountType == 'personal') ...[
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          side: const BorderSide(color: Color(0xFFE2E8F0)),
+                        ),
+                        onPressed: context.watch<AuthProvider>().isLoading ? null : _handleGoogleLogin,
+                        icon: const Icon(Icons.g_mobiledata_rounded, size: 28),
+                        label: const Text(
+                          'Continue with Google',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     if (context.watch<AuthProvider>().errorMessage != null)
                       Container(

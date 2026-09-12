@@ -10,12 +10,15 @@ from app.services.user_service import (
     authenticate_user,
     authenticate_personal_user,
     authenticate_workspace_user,
+    get_or_create_firebase_personal_user,
 )
+from app.services.firebase_auth_service import verify_firebase_id_token
 from app.schemas.auth import (
     RegisterRequest,
     LoginRequest,
     PersonalLoginRequest,
     WorkspaceLoginRequest,
+    FirebaseLoginRequest,
     RefreshRequest,
     TokenResponse,
     UserResponse,
@@ -102,6 +105,40 @@ def login_workspace(payload: WorkspaceLoginRequest, db: Session = Depends(get_db
         refresh_token=refresh_token,
         workspace_id=company.public_id,
     )
+
+
+@router.post("/firebase/google", response_model=TokenResponse)
+def login_with_google(payload: FirebaseLoginRequest, db: Session = Depends(get_db)):
+    """
+    Exchange a verified Firebase Google identity for MeetVault tokens.
+    MeetVault remains the authority for roles, workspace membership, and access.
+    """
+    try:
+        decoded = verify_firebase_id_token(payload.id_token)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Firebase authentication token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    email = decoded.get("email")
+    email_verified = decoded.get("email_verified", False)
+    if not email or not email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Google account email must be verified",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user = get_or_create_firebase_personal_user(
+        db=db,
+        email=email,
+        full_name=decoded.get("name"),
+    )
+    access_token = create_token(subject=user.public_id, token_type="access")
+    refresh_token = create_token(subject=user.public_id, token_type="refresh")
+    return TokenResponse(access_token=access_token, refresh_token=refresh_token)
 
 
 @router.post("/refresh", response_model=TokenResponse)

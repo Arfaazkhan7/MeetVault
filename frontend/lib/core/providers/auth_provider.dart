@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../services/api_service.dart';
+import '../services/firebase_auth_service.dart';
 
 class AuthProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
+  final FirebaseAuthService _firebaseAuthService = FirebaseAuthService();
 
   bool _isLoading = false;
   String? _errorMessage;
@@ -111,6 +113,39 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
+  Future<bool> loginWithGoogle() async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final idToken = await _firebaseAuthService.signInWithGoogleAndGetIdToken();
+      final response = await _apiService.post('/auth/firebase/google', body: {
+        'id_token': idToken,
+      });
+      final data = json.decode(response.body);
+      await _apiService.setToken(data['access_token']);
+
+      final meResponse = await _apiService.get('/auth/me');
+      final me = json.decode(meResponse.body);
+      _currentUser = me['public_id'] ?? me['id'] ?? 'user';
+      _userFullName = me['full_name'];
+      _userEmail = me['email'];
+      _currentCompanyId = null;
+      _accountType = 'personal';
+      _apiService.companyId = null;
+
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = _friendlyGoogleError(e);
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<bool> register(
     String email,
     String password,
@@ -168,6 +203,7 @@ class AuthProvider with ChangeNotifier {
   }
 
   Future<void> logout() async {
+    await _firebaseAuthService.signOut();
     await _apiService.clearToken();
     _currentUser = null;
     _userFullName = null;
@@ -175,6 +211,20 @@ class AuthProvider with ChangeNotifier {
     _currentCompanyId = null;
     _accountType = 'personal';
     notifyListeners();
+  }
+
+  String _friendlyGoogleError(Object error) {
+    final message = error.toString();
+    if (message.contains('popup-closed-by-user')) {
+      return 'Google sign-in was closed before it finished.';
+    }
+    if (message.contains('network-request-failed')) {
+      return 'Network problem during Google sign-in. Please check your connection.';
+    }
+    if (message.contains('FIREBASE_API_KEY')) {
+      return 'Google sign-in is not configured yet. Add FIREBASE_API_KEY during the Flutter build.';
+    }
+    return 'Google sign-in failed. Please try again.';
   }
 
   Future<void> _loadCompany() async {

@@ -62,6 +62,18 @@ class WorkspaceLoginRequest(BaseModel):
         return v
 
 
+class FirebaseLoginRequest(BaseModel):
+    id_token: str
+
+    @field_validator("id_token")
+    @classmethod
+    def token_not_empty(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Firebase ID token cannot be blank")
+        return v
+
+
 # ── Token payloads ─────────────────────────────────────────────────────────────
 class TokenResponse(BaseModel):
     access_token: str

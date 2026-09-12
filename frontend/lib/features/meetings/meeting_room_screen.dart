@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:livekit_client/livekit_client.dart';
 
+import '../../core/services/api_service.dart';
+
 class MeetingRoomScreen extends StatefulWidget {
   final String meetingId;
   final String meetingTitle;
@@ -20,7 +22,7 @@ class MeetingRoomScreen extends StatefulWidget {
     required this.meetingId,
     required this.meetingTitle,
     required this.authToken,
-    this.apiBaseUrl = 'http://localhost:8000/api/v1',
+    this.apiBaseUrl = ApiService.baseUrl,
     this.isHost = false,
     this.livekitUrl,
     this.token,

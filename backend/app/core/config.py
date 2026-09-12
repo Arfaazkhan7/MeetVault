@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     BACKEND_CORS_ORIGINS: str = ""
     API_BASE_URL: str = "http://localhost:8000/api/v1"
+    FIREBASE_PROJECT_ID: str = "ai-meet-f8fd0"
+    FIREBASE_CREDENTIALS_PATH: str = ""
 
     @property
     def cors_origins(self) -> list[str]:
