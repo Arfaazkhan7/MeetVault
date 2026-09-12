@@ -52,6 +52,10 @@ async def serve_root():
     # Make the browser entry point the unauthenticated login screen.
     return RedirectResponse(url="/login", status_code=307)
 
+@app.get("/login")
+async def serve_login():
+    return FileResponse(os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")), "web", "login.html"))
+
 @app.get("/{full_path:path}")
 async def serve_ui(full_path: str):
     if full_path.startswith("api") or full_path.startswith("docs") or full_path.startswith("openapi"):
