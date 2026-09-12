@@ -120,6 +120,7 @@ rem ============================================================
 set "PROJECT_ROOT=%~dp0"
 set "BACKEND_PORT=8000"
 set "FRONTEND_PORT=3000"
+set "PUBLIC_FRONTEND_URL=https://ai-meet-f8fd0.web.app/"
 
 echo.
 echo ============================================================
@@ -163,7 +164,7 @@ if not errorlevel 1 (
 
 echo.
 echo [....] Starting Backend on http://127.0.0.1:%BACKEND_PORT% ...
-start "AI Meeting Memory - Backend" cmd /k "cd /d "%PROJECT_ROOT%backend" && "%PROJECT_ROOT%backend\venv\Scripts\uvicorn.exe" app.main:app --host 127.0.0.1 --port %BACKEND_PORT% --reload"
+start "MeetVault - Backend" cmd /k "cd /d "%PROJECT_ROOT%backend" && "%PROJECT_ROOT%backend\venv\Scripts\uvicorn.exe" app.main:app --host 0.0.0.0 --port %BACKEND_PORT% --reload"
 
 set "HEALTH_URL=http://127.0.0.1:%BACKEND_PORT%/api/v1/health"
 set /a ATTEMPTS=0
@@ -209,12 +210,13 @@ if "%HAVE_FLUTTER%"=="1" if not defined WEBROOT (
     )
 )
 
-if not defined WEBROOT if exist "%PROJECT_ROOT%web\index.html" (
-    set "WEBROOT=%PROJECT_ROOT%web"
-    echo [OK] Using static dashboard frontend.
+if not defined WEBROOT (
+    echo.
+    echo [WARN] Flutter SDK is not installed and no local Flutter build was found.
+    echo [....] Opening the latest published Flutter frontend instead of the legacy HTML fallback.
+    start "" "%PUBLIC_FRONTEND_URL%"
+    goto :show_summary
 )
-
-if not defined WEBROOT goto :show_summary
 
 echo.
 echo [....] Starting Frontend on http://127.0.0.1:%FRONTEND_PORT% ...
@@ -232,7 +234,8 @@ echo ============================================================
 echo.
 echo   Backend URL   : http://127.0.0.1:%BACKEND_PORT%
 echo   API Health    : http://127.0.0.1:%BACKEND_PORT%/api/v1/health
-echo   Login URL     : http://127.0.0.1:%FRONTEND_PORT%/login
+if defined WEBROOT echo   Login URL     : http://127.0.0.1:%FRONTEND_PORT%/login
+if not defined WEBROOT echo   Published UI  : %PUBLIC_FRONTEND_URL%
 echo.
 if "%BACKEND_READY%"=="1" (
     echo   Backend      : RUNNING
