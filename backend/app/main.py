@@ -52,13 +52,6 @@ async def serve_root():
     # Make the browser entry point the unauthenticated login screen.
     return RedirectResponse(url="/login", status_code=307)
 
-    # Kept as a fallback for deployments without the Flutter shell.
-    web_dir = _get_web_dir()
-    index_path = os.path.join(web_dir, "index.html")
-    if os.path.exists(index_path):
-        return FileResponse(index_path)
-    return JSONResponse({"detail": "UI Not Found"}, status_code=404)
-
 @app.get("/{full_path:path}")
 async def serve_ui(full_path: str):
     if full_path.startswith("api") or full_path.startswith("docs") or full_path.startswith("openapi"):
