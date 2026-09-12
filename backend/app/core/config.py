@@ -5,7 +5,7 @@ from typing import Optional
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
-    PROJECT_NAME: str = "AI Meeting System"
+    PROJECT_NAME: str = "MeetVault"
     API_V1_PREFIX: str = "/api/v1"
 
     # Database
@@ -22,6 +22,18 @@ class Settings(BaseSettings):
 
     # App
     ENVIRONMENT: str = "development"
+    BACKEND_CORS_ORIGINS: str = ""
+    API_BASE_URL: str = "http://localhost:8000/api/v1"
+
+    @property
+    def cors_origins(self) -> list[str]:
+        if self.ENVIRONMENT == "development":
+            return ["*"]
+        return [
+            origin.strip()
+            for origin in self.BACKEND_CORS_ORIGINS.split(",")
+            if origin.strip()
+        ]
 
     # LiveKit
     LIVEKIT_URL: str = "wss://your-livekit-url"

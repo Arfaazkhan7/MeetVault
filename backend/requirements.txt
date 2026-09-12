@@ -24,6 +24,8 @@ livekit-api
 pytest
 httpx
 python-multipart
+pypdf
+python-pptx
 
 # Utilities
 python-dotenv

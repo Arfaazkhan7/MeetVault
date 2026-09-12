@@ -2,8 +2,6 @@ import logging
 import time
 from typing import List, Dict, Optional, Any
 from abc import ABC, abstractmethod
-import whisper
-import torch
 from sqlalchemy.orm import Session
 
 from app.models.meeting import Meeting
@@ -38,6 +36,9 @@ class WhisperTranscriptionEngine(TranscriptionEngine):
     def _load_model(self):
         """Load Whisper model."""
         try:
+            import torch
+            import whisper
+
             logger.info(f"Loading Whisper model: {self.model_size}")
             device = "cuda" if torch.cuda.is_available() else "cpu"
             self.model = whisper.load_model(self.model_size, device=device)
@@ -58,6 +59,8 @@ class WhisperTranscriptionEngine(TranscriptionEngine):
             Dictionary containing transcript segments with timestamps
         """
         try:
+            import torch
+
             logger.info(f"Starting transcription for: {audio_path}")
             start_time = time.time()
             
@@ -94,6 +97,19 @@ class WhisperTranscriptionEngine(TranscriptionEngine):
             raise
 
 
+class LazyWhisperTranscriptionEngine(TranscriptionEngine):
+    """Defers loading Whisper until transcription is actually requested."""
+
+    def __init__(self, model_size: str = "base"):
+        self.model_size = model_size
+        self._engine: WhisperTranscriptionEngine | None = None
+
+    def transcribe(self, audio_path: str, language: Optional[str] = None) -> Dict[str, Any]:
+        if self._engine is None:
+            self._engine = WhisperTranscriptionEngine(self.model_size)
+        return self._engine.transcribe(audio_path, language)
+
+
 class TranscriptionService:
     """Service for managing audio transcription with async processing."""
     
@@ -104,7 +120,7 @@ class TranscriptionService:
         Args:
             engine: Transcription engine to use (defaults to Whisper)
         """
-        self.engine = engine or WhisperTranscriptionEngine()
+        self.engine = engine or LazyWhisperTranscriptionEngine()
         self.max_retries = 3
         self.retry_delay = 5  # seconds
     
@@ -138,14 +154,14 @@ class TranscriptionService:
             
             # Clear existing transcripts for this meeting
             db.query(TranscriptSegment).filter(
-                TranscriptSegment.meeting_id == meeting.id
+                TranscriptSegment.meeting_id == meeting.public_id
             ).delete()
             
             # Create transcript segments
             segments = []
             for segment_data in result["segments"]:
                 segment = TranscriptSegment(
-                    meeting_id=meeting.id,
+                    meeting_id=meeting.public_id,
                     speaker_label="SPEAKER_0",  # Default until diarization is implemented
                     start_time=segment_data["start_time"],
                     end_time=segment_data["end_time"],
@@ -223,7 +239,7 @@ class TranscriptionService:
             raise ValueError(f"Meeting not found: {meeting_id}")
         
         segments = db.query(TranscriptSegment).filter(
-            TranscriptSegment.meeting_id == meeting.id
+            TranscriptSegment.meeting_id == meeting.public_id
         ).order_by(TranscriptSegment.start_time).all()
         
         return segments
@@ -250,7 +266,7 @@ class TranscriptionService:
             raise ValueError(f"Meeting not found: {meeting_id}")
         
         segment_count = db.query(TranscriptSegment).filter(
-            TranscriptSegment.meeting_id == meeting.id
+            TranscriptSegment.meeting_id == meeting.public_id
         ).count()
         
         return {

@@ -10,6 +10,10 @@ from app.models.user import User
 
 def _validate_livekit_config() -> None:
     """Validate that LiveKit is properly configured (not using placeholder values)."""
+    # Development and tests can inspect signed tokens without a running LiveKit
+    # server. Production must use real credentials so clients can connect.
+    if settings.ENVIRONMENT.lower() == "development":
+        return
     if not settings.LIVEKIT_URL or settings.LIVEKIT_URL == "wss://your-livekit-url":
         raise RuntimeError(
             "LIVEKIT_URL is not configured. Please set a valid LiveKit server URL in .env"

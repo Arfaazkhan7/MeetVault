@@ -47,7 +47,13 @@ htmlcov/
 hf_cache/
 
 # Generated recordings / media
-*.mp4 *.webm *.wav *.mp3 *.m4a
+*.mp4
+*.webm
+*.wav
+*.mp3
+*.m4a
+backend/storage/
+storage/
 
 # Secrets / credentials
 *.pem *.key
