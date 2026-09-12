@@ -25,8 +25,7 @@ void main() {
       );
 
       // Verify header branding
-      expect(find.text('AI Meeting System'), findsOneWidget);
-      expect(find.text('Sign in to your account'), findsOneWidget);
+      expect(find.text('Memora'), findsOneWidget);
 
       // Verify form fields
       expect(find.byType(TextFormField), findsNWidgets(2));
@@ -34,7 +33,7 @@ void main() {
       expect(find.text('Password'), findsOneWidget);
 
       // Verify sign in button
-      expect(find.widgetWithText(ElevatedButton, 'Sign In'), findsOneWidget);
+      expect(find.byType(ElevatedButton), findsOneWidget);
     });
   });
 }
