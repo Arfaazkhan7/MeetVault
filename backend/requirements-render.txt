@@ -1,0 +1,21 @@
+# Production web API dependencies for Render.
+# Heavy transcription/diarization runtimes live in ai_worker/requirements.txt.
+fastapi
+uvicorn[standard]
+pydantic-settings
+pydantic[email]
+SQLAlchemy
+alembic
+psycopg2-binary
+pgvector
+passlib[bcrypt]
+python-jose[cryptography]
+bcrypt==4.0.1
+firebase-admin
+livekit-api
+httpx
+python-multipart
+pypdf
+python-pptx
+python-dotenv
+openai

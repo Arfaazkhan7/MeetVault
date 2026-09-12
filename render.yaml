@@ -1,0 +1,47 @@
+services:
+  - type: web
+    name: meetvault-api
+    runtime: docker
+    plan: free
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: BACKEND_CORS_ORIGINS
+        value: https://ai-meet-f8fd0.web.app,https://ai-meet-f8fd0.firebaseapp.com
+      - key: FIREBASE_PROJECT_ID
+        value: ai-meet-f8fd0
+      - key: LIVEKIT_TOKEN_EXPIRE_MINUTES
+        value: "120"
+      - key: STORAGE_BACKEND
+        value: supabase
+      - key: SUPABASE_STORAGE_BUCKET
+        value: meeting-recordings
+      - key: RECORDING_SIGNED_URL_EXPIRE_SECONDS
+        value: "900"
+      - key: MAX_RECORDING_UPLOAD_BYTES
+        value: "524288000"
+      - key: LLM_PROVIDER
+        value: openai
+      - key: JWT_SECRET
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
