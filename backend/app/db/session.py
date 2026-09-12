@@ -27,6 +27,17 @@ except Exception as e:
     from app.models.base import Base
     Base.metadata.create_all(bind=engine)
 
+    # SQLite create_all() does not alter an existing local database. Keep
+    # older developer databases usable after model additions.
+    with engine.begin() as conn:
+        for table, column, definition in (
+            ("users", "account_type", "VARCHAR NOT NULL DEFAULT 'personal'"),
+            ("companies", "workspace_code", "VARCHAR"),
+        ):
+            columns = {row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({table})")}
+            if column not in columns:
+                conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
