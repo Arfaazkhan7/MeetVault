@@ -49,7 +49,7 @@ class EnterpriseScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     final wide = MediaQuery.sizeOf(context).width >= 960;
     final content = Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF7F8FA),
       appBar: wide ? null : AppBar(title: Text(title), actions: actions),
       drawer: wide ? null : Drawer(child: _NavigationList(currentRoute: currentRoute)),
       body: child,
@@ -59,12 +59,12 @@ class EnterpriseScaffold extends StatelessWidget {
     if (!wide) return content;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF7F8FA),
       body: Row(
         children: [
           Container(
-            width: 250,
-            color: Colors.white,
+            width: 232,
+            color: const Color(0xFFFBFBFC),
             child: _NavigationList(currentRoute: currentRoute),
           ),
           const VerticalDivider(width: 1, color: Color(0xFFE2E8F0)),
@@ -97,12 +97,8 @@ class _NavigationList extends StatelessWidget {
                   width: 38,
                   height: 38,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFFF6D00), Color(0xFFFF3D00)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(10),
+                    color: const Color(0xFF5E6AD2),
+                    borderRadius: BorderRadius.circular(7),
                   ),
                   child: const Center(
                     child: Text('M', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 22)),
@@ -112,8 +108,8 @@ class _NavigationList extends StatelessWidget {
                 const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Memora', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF0F172A), letterSpacing: -0.5)),
-                    Text('Meetings that remember', style: TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
+                    Text('MeetVault', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF171A2B), letterSpacing: -0.2)),
+                    Text('Meeting intelligence', style: TextStyle(fontSize: 11, color: Color(0xFF73778C), fontWeight: FontWeight.w500)),
                   ],
                 ),
               ],
@@ -180,10 +176,10 @@ class _NavigationList extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       child: Material(
-        color: isSelected ? const Color(0xFFFFF1EB) : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
+        color: isSelected ? const Color(0xFFE9EAFE) : Colors.transparent,
+        borderRadius: BorderRadius.circular(6),
         child: InkWell(
-          borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(6),
           onTap: () {
             if (ModalRoute.of(context)?.settings.name != item.route) {
               Navigator.pushReplacementNamed(context, item.route);
@@ -196,7 +192,7 @@ class _NavigationList extends StatelessWidget {
                 Icon(
                   item.icon,
                   size: 20,
-                  color: isSelected ? const Color(0xFFFF5722) : const Color(0xFF64748B),
+                  color: isSelected ? const Color(0xFF5E6AD2) : const Color(0xFF73778C),
                 ),
                 const SizedBox(width: 14),
                 Text(
@@ -204,7 +200,7 @@ class _NavigationList extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    color: isSelected ? const Color(0xFFFF5722) : const Color(0xFF334155),
+                    color: isSelected ? const Color(0xFF4C56B8) : const Color(0xFF45495C),
                   ),
                 ),
               ],

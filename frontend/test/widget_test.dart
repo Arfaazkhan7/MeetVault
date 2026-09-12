@@ -25,7 +25,7 @@ void main() {
       );
 
       // Verify header branding
-      expect(find.text('Memora'), findsOneWidget);
+      expect(find.text('MeetVault'), findsOneWidget);
 
       // Verify form fields
       expect(find.byType(TextFormField), findsNWidgets(2));

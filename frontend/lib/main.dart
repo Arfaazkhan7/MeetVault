@@ -36,11 +36,11 @@ class MyApp extends StatelessWidget {
     return Consumer<AuthProvider>(
       builder: (context, authProvider, child) {
         return MaterialApp(
-          title: 'AI Meeting System',
+          title: 'MeetVault',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
-          themeMode: ThemeMode.system,
+          themeMode: ThemeMode.light,
           initialRoute: authProvider.isAuthenticated ? AppRouter.dashboard : AppRouter.login,
           routes: AppRouter.routes,
           onGenerateRoute: AppRouter.onGenerateRoute,
