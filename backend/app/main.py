@@ -52,6 +52,14 @@ async def serve_root():
     # Make the browser entry point the unauthenticated login screen.
     return RedirectResponse(url="/login", status_code=307)
 
+@app.get("/health")
+async def root_health_check():
+    return {"status": "ok"}
+
+@app.get("/docs", include_in_schema=False)
+async def root_docs():
+    return RedirectResponse(url=f"{settings.API_V1_PREFIX}/docs", status_code=307)
+
 @app.get("/login")
 async def serve_login():
     return FileResponse(os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")), "web", "login.html"))
