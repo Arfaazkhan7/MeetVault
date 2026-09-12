@@ -1,8 +1,6 @@
 import logging
 from typing import List, Dict, Any, Optional, Tuple
 from abc import ABC, abstractmethod
-import torch
-import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +34,7 @@ class PyannoteDiarizationEngine(DiarizationEngine):
             model_name: Hugging Face model name for diarization
         """
         try:
+            import torch
             from pyannote.audio import Pipeline
             from pyannote.core import Segment
             
