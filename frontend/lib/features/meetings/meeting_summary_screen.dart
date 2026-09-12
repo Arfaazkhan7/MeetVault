@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
+
+import '../../core/services/api_service.dart';
 
 class MeetingSummaryScreen extends StatefulWidget {
   final String meetingId;
