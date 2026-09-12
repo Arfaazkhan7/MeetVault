@@ -2,7 +2,7 @@
 
 ## Status
 
-Deployment is prepared but not publicly complete.
+Frontend and FastAPI backend are publicly deployed and verified.
 
 ## GitHub
 
@@ -31,7 +31,7 @@ Firebase Hosting configuration exists:
 Public Firebase URL:
 
 ```text
-Not verified in this run
+https://ai-meet-f8fd0.web.app/
 ```
 
 ## Render
@@ -46,25 +46,25 @@ Render backend configuration exists:
 Render service URL:
 
 ```text
-Not deployed yet
+https://meetvault-api.onrender.com
 ```
 
 API base URL:
 
 ```text
-Not available until Render deploys
+https://meetvault-api.onrender.com/api/v1
 ```
 
 Health URL:
 
 ```text
-Not available until Render deploys
+https://meetvault-api.onrender.com/api/v1/health
 ```
 
 Docs URL:
 
 ```text
-Not available until Render deploys
+https://meetvault-api.onrender.com/api/v1/docs
 ```
 
 ## Backend
@@ -107,7 +107,7 @@ Configured through environment variables only.
 Production status:
 
 ```text
-Not verified from public deployment
+Backend is deployed; Supabase credentials and connectivity depend on Render environment variables.
 ```
 
 ## LiveKit
@@ -117,7 +117,7 @@ Configured through environment variables only.
 Production status:
 
 ```text
-Not verified from public deployment
+Backend is deployed; LiveKit credentials and connectivity depend on Render environment variables.
 ```
 
 ## AI Worker
@@ -127,7 +127,7 @@ Worker code exists in `ai_worker/`.
 Production status:
 
 ```text
-Not deployed yet; Render worker deployment depends on whether the selected Render account/plan provides background workers and Redis/Key Value without paid upgrades.
+Worker image is prepared but a separate production worker and Redis/Key Value service still need to be enabled and configured in Render.
 ```
 
 The worker Docker image is prepared and requires a reliable Redis-backed background-job runtime.
@@ -149,15 +149,15 @@ Passed
 Flutter web build:
 
 ```text
-Not run locally because Flutter is not installed on PATH
+Passed in GitHub Actions run 34705298634
 ```
 
 Public end-to-end:
 
 ```text
-Not run because Render backend has not been deployed
+Firebase URL HTTP 200; Render API health HTTP 200
 ```
 
 ## Remaining Manual Step
 
-Connect Render to GitHub and deploy the `render.yaml` blueprint, or provide an authenticated Render API/CLI session. Private production secrets must be entered directly in Render, not pasted into chat.
+Enter production Supabase, LiveKit, and AI worker/Redis secrets directly in Render. Do not commit them to GitHub.
