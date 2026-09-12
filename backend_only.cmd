@@ -66,8 +66,10 @@ echo.
 echo ============================================================
 if "%BACKEND_READY%"=="1" (
     echo   Backend URL  : http://127.0.0.1:%BACKEND_PORT%
+    echo   Login URL    : http://127.0.0.1:%BACKEND_PORT%/login
     echo   API Docs     : http://127.0.0.1:%BACKEND_PORT%/docs
     echo   Status       : RUNNING
+    start "" "http://127.0.0.1:%BACKEND_PORT%/login"
 ) else (
     echo   Status       : FAILED - check the Backend window for errors
 )
