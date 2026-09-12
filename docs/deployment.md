@@ -10,7 +10,7 @@ Firebase Hosting
   -> Supabase, LiveKit, AI worker
 ```
 
-Google Cloud Run is not used because the `ai-meet-f8fd0` Google Cloud project does not have billing enabled.
+Render is used for the backend because the `ai-meet-f8fd0` Firebase project does not have paid Google infrastructure enabled.
 
 ## Render Backend
 
@@ -90,7 +90,27 @@ Do not deploy the frontend with localhost or placeholder backend URLs.
 
 The AI worker lives in `ai_worker/` and uses Celery with Redis.
 
-Render free web services do not replace a durable production background-job system. Deploy the worker separately only when a suitable worker plan and Redis instance are available without violating the no-paid-plan requirement.
+The worker Dockerfile is `ai_worker/Dockerfile` and starts with:
+
+```text
+python -m ai_worker
+```
+
+Render background workers are separate from web services: they do not receive HTTP traffic; they poll Redis-compatible queue storage through `REDIS_URL`.
+
+Deploy the worker separately only when the selected Render account/plan supports background workers and Redis/Key Value without violating the no-paid-plan requirement. If the account does not offer a free background worker, the web API can still deploy, but production AI processing remains blocked until a no-cost worker runtime is available.
+
+Worker environment variables:
+
+```text
+REDIS_URL
+OPENAI_API_KEY
+LLM_MODEL
+WHISPER_MODEL
+TRANSCRIPTION_PROVIDER
+LLM_PROVIDER
+AI_WORKER_CALLBACK_URL
+```
 
 ## Verification Checklist
 

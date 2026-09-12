@@ -18,7 +18,7 @@ https://GOKUL5731.github.io/meetvault/
 
 ## Backend: FastAPI Container
 
-GitHub Pages cannot host the FastAPI backend. Deploy `backend/Dockerfile` to a container platform such as Cloud Run, Render, Fly.io, Railway, or Azure Container Apps.
+GitHub Pages cannot host the FastAPI backend. Deploy `backend/Dockerfile` to Render, then set the frontend API base URL to the Render backend URL.
 
 Required production environment variables:
 

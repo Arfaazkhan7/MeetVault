@@ -1,22 +1,109 @@
 # MeetVault Deployment
 
-## GitHub
+## Architecture
 
-Push all code to `main`:
-
-```bash
-git add .
-git commit -m "Configure Firebase authentication and hosting"
-git push origin main
+```text
+GitHub
+  -> Render Web Service: FastAPI backend
+  -> Firebase Hosting: Flutter Web frontend
+  -> Supabase: database and private recording storage
+  -> LiveKit: meeting rooms and participant media
+  -> Render-compatible worker: Celery AI processing
 ```
 
+This project is configured for Render because the Firebase project does not have paid Google infrastructure enabled.
+
+## Render Backend
+
+The backend is deployed from `render.yaml`.
+
+Service:
+
+```text
+meetvault-api
+```
+
+Runtime:
+
+```text
+Docker
+```
+
+Dockerfile:
+
+```text
+backend/Dockerfile
+```
+
+Health check:
+
+```text
+/health
+```
+
+Production command:
+
+```text
+uvicorn app.main:app --host 0.0.0.0 --port $PORT
+```
+
+## Render Blueprint
+
+Open this Render Blueprint URL after the latest commit is pushed:
+
+```text
+https://dashboard.render.com/blueprint/new?repo=https://github.com/GOKUL5731/meetvault
+```
+
+Use the free plan only for the web service.
+
+Set the `sync: false` variables directly in Render. Do not paste real secrets into chat or commit them to GitHub.
+
+Required backend secrets:
+
+```text
+JWT_SECRET
+DATABASE_URL
+REDIS_URL
+LIVEKIT_URL
+LIVEKIT_API_KEY
+LIVEKIT_API_SECRET
+SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
+OPENAI_API_KEY
+```
+
+Backend non-secret config is already in `render.yaml`:
+
+```text
+ENVIRONMENT=production
+BACKEND_CORS_ORIGINS=https://ai-meet-f8fd0.web.app,https://ai-meet-f8fd0.firebaseapp.com
+FIREBASE_PROJECT_ID=ai-meet-f8fd0
+SUPABASE_STORAGE_BUCKET=meeting-recordings
+RECORDING_SIGNED_URL_EXPIRE_SECONDS=900
+MAX_RECORDING_UPLOAD_BYTES=524288000
+LLM_PROVIDER=openai
+```
+
+## AI Worker
+
+The worker code is in `ai_worker/` and uses Celery with `REDIS_URL`.
+
+Dockerfile:
+
+```text
+ai_worker/Dockerfile
+```
+
+Start command:
+
+```text
+python -m ai_worker
+```
+
+Do not run heavy transcription or diarization inside normal FastAPI requests. The worker should run as a separate Render worker service when the selected Render plan supports background workers and Redis/Key Value without violating the no-paid-plan requirement.
+
 ## Firebase Hosting
-
-This repository includes:
-
-- `firebase.json`
-- `.firebaserc`
-- `.github/workflows/deploy-firebase-hosting.yml`
 
 Firebase project:
 
@@ -24,70 +111,62 @@ Firebase project:
 ai-meet-f8fd0
 ```
 
-Enable these in Firebase Console:
-
-- Authentication
-- Google provider
-- Authorized domains for localhost and your deployed Firebase Hosting domain
-
-Set these GitHub repository secrets:
+Firebase files:
 
 ```text
-FIREBASE_API_KEY
-FIREBASE_SERVICE_ACCOUNT_AI_MEET_F8FD0
+firebase.json
+.firebaserc
+.github/workflows/deploy-firebase-hosting.yml
 ```
 
-Run the workflow named `Deploy Flutter Web to Firebase Hosting` and provide the production backend API URL, for example:
+After Render deploys successfully, run the GitHub Actions workflow:
 
 ```text
-https://YOUR_CLOUD_RUN_BACKEND_URL/api/v1
+Deploy Flutter Web to Firebase Hosting
 ```
 
-The workflow builds Flutter web with `API_BASE_URL` and deploys `frontend/build/web`.
+Workflow input:
 
-## FastAPI Backend
-
-Build and deploy `backend/Dockerfile` to Google Cloud Run or another container host.
-
-Required production environment variables:
-
-```env
-ENVIRONMENT=production
-DATABASE_URL=your_postgres_url
-JWT_SECRET=your_long_random_secret
-BACKEND_CORS_ORIGINS=https://ai-meet-f8fd0.web.app,https://ai-meet-f8fd0.firebaseapp.com
-FIREBASE_PROJECT_ID=ai-meet-f8fd0
-LIVEKIT_URL=wss://your-livekit-url
-LIVEKIT_API_KEY=your_livekit_api_key
-LIVEKIT_API_SECRET=your_livekit_api_secret
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-SUPABASE_STORAGE_BUCKET=meeting-recordings
-OPENAI_API_KEY=your_openai_key
+```text
+api_base_url=https://ACTUAL-RENDER-URL/api/v1
 ```
 
-On Google Cloud Run, prefer Application Default Credentials for Firebase Admin. For local backend Firebase verification, set `FIREBASE_CREDENTIALS_PATH` to a local service account JSON path. Never commit that JSON file.
-
-## AI Worker
-
-Deploy the AI worker as a private worker service with the same Redis/database/storage/AI provider environment variables. It should not be publicly exposed.
-
-## LiveKit
-
-Keep `LIVEKIT_API_SECRET` only in backend and worker environments. The frontend should request meeting tokens from FastAPI.
-
-## Supabase
-
-Keep `SUPABASE_SERVICE_ROLE_KEY` only in backend and worker environments. Browser code must never receive the service-role key.
+Do not use localhost or a placeholder URL in the Firebase production build.
 
 ## Verification
 
-Before calling production complete, verify:
+After Render deploys, verify:
 
-- Firebase Hosting URL opens the Flutter app
-- `/login` and `/dashboard` route refreshes do not 404
-- Email/password login works
-- Google login returns a MeetVault token from FastAPI
-- Workspace login still requires valid workspace membership
-- Backend health endpoint returns 200
-- Frontend network calls point to the production backend, not localhost
+```text
+https://ACTUAL-RENDER-URL/health
+https://ACTUAL-RENDER-URL/docs
+https://ACTUAL-RENDER-URL/api/v1/health
+```
+
+After Firebase deploys, verify:
+
+```text
+https://ai-meet-f8fd0.web.app
+https://ai-meet-f8fd0.firebaseapp.com
+```
+
+Check the browser network tab and confirm all API calls go to:
+
+```text
+https://ACTUAL-RENDER-URL/api/v1
+```
+
+## Security
+
+Never commit:
+
+- `.env`
+- Firebase Admin private keys
+- service account JSON
+- Supabase service-role keys
+- LiveKit API secrets
+- JWT secrets
+- OpenAI API keys
+- admin passwords
+
+Frontend Firebase browser config is allowed, but backend secrets must stay only in Render/Supabase/LiveKit/Firebase dashboards.

@@ -41,6 +41,7 @@ Render backend configuration exists:
 - `render.yaml`
 - `backend/Dockerfile`
 - `backend/requirements-render.txt`
+- `ai_worker/Dockerfile`
 
 Render service URL:
 
@@ -126,10 +127,10 @@ Worker code exists in `ai_worker/`.
 Production status:
 
 ```text
-Not deployed yet
+Not deployed yet; Render worker deployment depends on whether the selected Render account/plan provides background workers and Redis/Key Value without paid upgrades.
 ```
 
-The worker requires a reliable Redis-backed background-job runtime.
+The worker Docker image is prepared and requires a reliable Redis-backed background-job runtime.
 
 ## Tests Performed
 
