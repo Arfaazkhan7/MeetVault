@@ -215,6 +215,21 @@ class AuthProvider with ChangeNotifier {
 
   String _friendlyGoogleError(Object error) {
     final message = error.toString();
+    if (message.contains('operation-not-allowed')) {
+      return 'Google sign-in is disabled. Enable Google under Firebase Authentication > Sign-in method.';
+    }
+    if (message.contains('unauthorized-domain')) {
+      return 'This website is not authorized for Google sign-in. Add ai-meet-f8fd0.web.app under Firebase Authentication > Settings > Authorized domains.';
+    }
+    if (message.contains('popup-blocked')) {
+      return 'Your browser blocked the Google sign-in popup. Allow popups for this site and try again.';
+    }
+    if (message.contains('invalid-api-key') || message.contains('api-key-not-valid')) {
+      return 'The Firebase API key is invalid. Update the FIREBASE_API_KEY GitHub secret and redeploy.';
+    }
+    if (message.contains('account-exists-with-different-credential')) {
+      return 'An account already exists with this email. Sign in with the original provider.';
+    }
     if (message.contains('popup-closed-by-user')) {
       return 'Google sign-in was closed before it finished.';
     }
