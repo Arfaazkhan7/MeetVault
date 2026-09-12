@@ -40,12 +40,13 @@ rem ============================================================
     
     rem Check if venv is valid
     if exist "%VENV_PYTHON%" (
-        "%VENV_PYTHON%" -c "import sys" >nul 2>&1
+        "%VENV_PYTHON%" -c "import fastapi, firebase_admin, livekit" >nul 2>&1
         if !errorlevel! equ 0 (
             echo [OK] Valid virtual environment found.
             set "PYTHON_EXE=%VENV_PYTHON%"
             exit /b 0
         )
+        echo [WARN] Existing virtual environment is missing backend dependencies. Repairing...
     )
     
     echo [....] Virtual environment missing or invalid. Recreating...
