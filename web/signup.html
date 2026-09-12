@@ -1,3 +1,69 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MeetVault | Sign up</title><style>body{font-family:Arial;background:#f5f7fb;color:#10203a;display:grid;place-items:center;min-height:100vh}.panel{width:min(420px,calc(100% - 32px));background:#fff;padding:32px;border:1px solid #dbe3ef;border-radius:12px}.brand{font-size:28px;font-weight:bold;color:#ff5722}input{width:100%;padding:12px;margin:6px 0 14px;box-sizing:border-box}button{width:100%;padding:13px;background:#ff5722;color:white;border:0;border-radius:7px;font-weight:bold}.error{color:#c62828;min-height:20px}</style></head>
-<body><main class="panel"><div class="brand">MeetVault</div><p>Create your personal account</p><form id="form"><label>Full name</label><input id="name" required><label>Email</label><input id="email" type="email" required><label>Password</label><input id="password" type="password" minlength="8" required><button type="submit">Create account</button><p class="error" id="error"></p></form><a href="/login">Back to login</a></main><script>const form=document.getElementById('form'),error=document.getElementById('error');form.onsubmit=async e=>{e.preventDefault();error.textContent='Creating account...';const email=document.getElementById('email').value,password=document.getElementById('password').value;try{let r=await fetch('/api/v1/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({full_name:document.getElementById('name').value,email,password,account_type:'personal'})});let d=await r.json();if(!r.ok){const m=Array.isArray(d.detail)?d.detail.map(x=>x.msg||JSON.stringify(x)).join(', '):d.detail;throw Error(m||'Registration failed')}error.textContent='Signing you in...';r=await fetch('/api/v1/auth/login/personal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});d=await r.json();if(!r.ok)throw Error(d.detail||'Account created, but automatic login failed');localStorage.setItem('access_token',d.access_token);localStorage.setItem('refresh_token',d.refresh_token);location.href='/';}catch(x){error.textContent=x.message||'Registration failed'}};</script></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MeetVault | Sign up</title>
+  <style>
+    :root{--brand:#ff4f22;--ink:#001437;--muted:#5c6b86;--line:#d5deec}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f5f8fc;font-family:Inter,system-ui,Segoe UI,Arial;color:var(--ink)}
+    .panel{width:min(620px,92vw);background:#fff;border:1px solid var(--line);border-radius:8px;padding:48px;box-shadow:0 24px 70px rgba(16,36,70,.12)}
+    .brand{font-size:38px;font-weight:900;color:var(--brand)}
+    p{margin:14px 0 32px;color:var(--muted);font-size:22px}
+    label{display:block;margin:16px 0 8px;font-weight:800}
+    input{width:100%;height:60px;border:1px solid #c7d3e6;border-radius:8px;padding:0 16px;font-size:20px;background:#edf4ff}
+    .password-wrap{position:relative;display:block}
+    .password-wrap input{padding-right:54px}
+    .eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:38px;height:36px;margin:0;padding:0;background:transparent;color:#65748b;border:0;border-radius:4px;cursor:pointer;font-size:18px;display:grid;place-items:center}
+    button[type=submit]{width:100%;height:66px;margin-top:30px;border:0;border-radius:8px;background:var(--brand);color:#fff;font-size:24px;font-weight:900;cursor:pointer}
+    .error{min-height:24px;margin:18px 0 0;color:#d21f1f;font-size:17px}
+    a{display:block;text-align:center;margin-top:26px;color:var(--brand);font-size:22px}
+  </style>
+</head>
+<body>
+  <main class="panel">
+    <div class="brand">MeetVault</div>
+    <p>Create your personal account</p>
+    <form id="form">
+      <label for="name">Full name</label>
+      <input id="name" required autocomplete="name">
+      <label for="email">Email</label>
+      <input id="email" type="email" required autocomplete="email">
+      <label for="password">Password</label>
+      <span class="password-wrap">
+        <input id="password" type="password" minlength="8" required autocomplete="new-password">
+        <button class="eye" type="button" aria-label="Show password" title="Show password">&#128065;</button>
+      </span>
+      <button type="submit">Create account</button>
+      <p class="error" id="error"></p>
+    </form>
+    <a href="/login">Back to login</a>
+  </main>
+  <script>
+    const form=document.getElementById('form'),error=document.getElementById('error');
+    const password=document.getElementById('password'),eye=document.querySelector('.eye');
+    eye.onclick=()=>{const visible=password.type==='text';password.type=visible?'password':'text';eye.setAttribute('aria-label',visible?'Show password':'Hide password');eye.title=visible?'Show password':'Hide password'};
+    form.onsubmit=async e=>{
+      e.preventDefault();
+      error.textContent='Creating account...';
+      const email=document.getElementById('email').value.trim();
+      const passwordValue=password.value;
+      try{
+        let r=await fetch('/api/v1/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({full_name:document.getElementById('name').value.trim(),email,password:passwordValue,account_type:'personal'})});
+        let d=await r.json();
+        if(!r.ok){const m=Array.isArray(d.detail)?d.detail.map(x=>x.msg||JSON.stringify(x)).join(', '):d.detail;throw Error(m||'Registration failed')}
+        error.textContent='Signing you in...';
+        r=await fetch('/api/v1/auth/login/personal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:passwordValue})});
+        d=await r.json();
+        if(!r.ok)throw Error(d.detail||'Account created, but automatic login failed');
+        localStorage.setItem('access_token',d.access_token);
+        if(d.refresh_token)localStorage.setItem('refresh_token',d.refresh_token);
+        location.href='/dashboard';
+      }catch(x){
+        error.textContent=x.message||'Registration failed';
+      }
+    };
+  </script>
+</body>
+</html>
