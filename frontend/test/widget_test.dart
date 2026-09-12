@@ -33,7 +33,7 @@ void main() {
       expect(find.text('Password'), findsOneWidget);
 
       // Verify sign in button
-      expect(find.byType(ElevatedButton), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Sign In (Personal)'), findsOneWidget);
     });
   });
 }
