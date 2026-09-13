@@ -19,4 +19,4 @@ COPY alembic ./alembic
 
 ENV PORT=8080
 
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
+CMD ["sh", "-c", "python -c 'from app.db.session import engine; from app.models.base import Base; Base.metadata.create_all(bind=engine)' && alembic stamp head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
