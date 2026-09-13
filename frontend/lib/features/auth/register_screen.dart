@@ -52,6 +52,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
+  Future<void> _handleGoogleRegister() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final success = await authProvider.registerWithGoogle();
+
+    if (success && mounted) {
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        AppRouter.dashboard,
+        (route) => false,
+      );
+    }
+  }
+
   Widget _buildAccountTypeSelector() {
     return Container(
       decoration: BoxDecoration(
@@ -323,6 +336,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           child: Text(
                             _accountType == 'personal' ? 'Create Personal Account' : 'Create Organization Account',
                             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Consumer<AuthProvider>(
+                      builder: (context, authProvider, child) {
+                        return OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          onPressed: authProvider.isLoading ? null : _handleGoogleRegister,
+                          icon: const Icon(Icons.g_mobiledata_rounded, size: 28),
+                          label: const Text(
+                            'Sign up with Google',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                           ),
                         );
                       },

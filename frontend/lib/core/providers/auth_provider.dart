@@ -120,21 +120,7 @@ class AuthProvider with ChangeNotifier {
 
     try {
       final idToken = await _firebaseAuthService.signInWithGoogleAndGetIdToken();
-      final response = await _apiService.post('/auth/firebase/google', body: {
-        'id_token': idToken,
-      });
-      final data = json.decode(response.body);
-      await _apiService.setToken(data['access_token']);
-
-      final meResponse = await _apiService.get('/auth/me');
-      final me = json.decode(meResponse.body);
-      _currentUser = me['public_id'] ?? me['id'] ?? 'user';
-      _userFullName = me['full_name'];
-      _userEmail = me['email'];
-      _currentCompanyId = null;
-      _accountType = 'personal';
-      _apiService.companyId = null;
-
+      await _finishGoogleBackendLogin(idToken);
       _isLoading = false;
       notifyListeners();
       return true;
@@ -145,6 +131,8 @@ class AuthProvider with ChangeNotifier {
       return false;
     }
   }
+
+  Future<bool> registerWithGoogle() => loginWithGoogle();
 
   Future<bool> register(
     String email,
@@ -215,6 +203,15 @@ class AuthProvider with ChangeNotifier {
 
   String _friendlyGoogleError(Object error) {
     final message = error.toString();
+    if (error is ApiException) {
+      if (error.statusCode == 401) {
+        return 'Google account was accepted by Firebase, but MeetVault could not verify it. Please try again in a moment.';
+      }
+      if (error.statusCode == 403 || error.statusCode == 503) {
+        return error.message;
+      }
+      return 'MeetVault backend rejected Google sign-in: ${error.message}';
+    }
     if (message.contains('operation-not-allowed')) {
       return 'Google sign-in is disabled. Enable Google under Firebase Authentication > Sign-in method.';
     }
@@ -240,6 +237,23 @@ class AuthProvider with ChangeNotifier {
       return 'Google sign-in is not configured yet. Add FIREBASE_API_KEY during the Flutter build.';
     }
     return 'Google sign-in failed. Please try again.';
+  }
+
+  Future<void> _finishGoogleBackendLogin(String idToken) async {
+    final response = await _apiService.post('/auth/firebase/google', body: {
+      'id_token': idToken,
+    });
+    final data = json.decode(response.body);
+    await _apiService.setToken(data['access_token']);
+
+    final meResponse = await _apiService.get('/auth/me');
+    final me = json.decode(meResponse.body);
+    _currentUser = me['public_id'] ?? me['id'] ?? 'user';
+    _userFullName = me['full_name'];
+    _userEmail = me['email'];
+    _currentCompanyId = null;
+    _accountType = 'personal';
+    _apiService.companyId = null;
   }
 
   Future<void> _loadCompany() async {

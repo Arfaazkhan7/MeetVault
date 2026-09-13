@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:ai_meeting_system/core/providers/auth_provider.dart';
 import 'package:ai_meeting_system/features/auth/login_screen.dart';
+import 'package:ai_meeting_system/features/auth/register_screen.dart';
 
 void main() {
   group('MeetVault Flutter Frontend Tests', () {
@@ -34,6 +35,20 @@ void main() {
 
       // Verify sign in button
       expect(find.widgetWithText(FilledButton, 'Sign In (Personal)'), findsOneWidget);
+    });
+
+    testWidgets('RegisterScreen offers Google signup and password visibility controls', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChangeNotifierProvider<AuthProvider>(
+            create: (_) => AuthProvider(),
+            child: const RegisterScreen(),
+          ),
+        ),
+      );
+
+      expect(find.text('Sign up with Google'), findsOneWidget);
+      expect(find.byIcon(Icons.visibility_outlined), findsNWidgets(2));
     });
   });
 }

@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
+import json
 
 
 class Settings(BaseSettings):
@@ -31,10 +32,21 @@ class Settings(BaseSettings):
     def cors_origins(self) -> list[str]:
         if self.ENVIRONMENT == "development":
             return ["*"]
+        raw_origins = self.BACKEND_CORS_ORIGINS.strip()
+        if not raw_origins:
+            return []
+
+        try:
+            parsed = json.loads(raw_origins)
+            if isinstance(parsed, list):
+                return [str(origin).strip().strip('"').strip("'") for origin in parsed if str(origin).strip()]
+        except json.JSONDecodeError:
+            pass
+
         return [
-            origin.strip()
-            for origin in self.BACKEND_CORS_ORIGINS.split(",")
-            if origin.strip()
+            origin.strip().strip("[]").strip().strip('"').strip("'")
+            for origin in raw_origins.split(",")
+            if origin.strip().strip("[]").strip().strip('"').strip("'")
         ]
 
     # LiveKit
