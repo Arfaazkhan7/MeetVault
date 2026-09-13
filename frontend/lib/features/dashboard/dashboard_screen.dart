@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/navigation/app_router.dart';
 import '../../core/providers/auth_provider.dart';
@@ -111,11 +112,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (res.statusCode == 201) {
           final data = json.decode(res.body);
           if (mounted) {
-            Navigator.pushNamed(
-              context,
-              AppRouter.meetingRoom,
-              arguments: {'id': data['public_id'], 'title': data['title'], 'isHost': true},
-            );
+            await _showInviteAndJoin(data);
           }
         }
         return;
@@ -185,11 +182,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final data = json.decode(res.body);
         final meetingId = data['public_id'];
         if (mounted) {
-          Navigator.pushNamed(
-            context,
-            AppRouter.meetingRoom,
-            arguments: {'id': meetingId, 'title': data['title'], 'isHost': true},
-          );
+          await _showInviteAndJoin(data);
         }
       }
     } catch (e) {
@@ -997,6 +990,52 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onPressed: inviteCode.toString().isEmpty ? null : () => _joinMeeting(inviteCode.toString()),
             icon: const Icon(Icons.videocam, size: 16),
             label: const Text('Join', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showInviteAndJoin(Map<String, dynamic> meeting) async {
+    if (!mounted) return;
+    final code = (meeting['invite_code'] ?? meeting['public_id'] ?? '').toString();
+    final link = '${Uri.base.origin}/#/join/${Uri.encodeComponent(code)}';
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Meeting ready'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Share this code or link with participants.'),
+            const SizedBox(height: 16),
+            SelectableText(code, style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: 12),
+            Text(link, maxLines: 2, overflow: TextOverflow.ellipsis),
+          ],
+        ),
+        actions: [
+          TextButton.icon(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: link));
+              if (dialogContext.mounted) {
+                ScaffoldMessenger.of(dialogContext).showSnackBar(const SnackBar(content: Text('Invite link copied')));
+              }
+            },
+            icon: const Icon(Icons.copy_outlined),
+            label: const Text('Copy link'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              Navigator.pushNamed(context, AppRouter.meetingRoom, arguments: {
+                'id': meeting['public_id'],
+                'title': meeting['title'],
+                'isHost': true,
+              });
+            },
+            child: const Text('Join now'),
           ),
         ],
       ),

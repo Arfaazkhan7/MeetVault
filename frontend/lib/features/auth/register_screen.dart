@@ -43,11 +43,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
 
       if (success && mounted) {
-        Navigator.pushNamedAndRemoveUntil(
-          context,
-          AppRouter.dashboard,
-          (route) => false,
-        );
+        _continueAfterAuth();
       }
     }
   }
@@ -57,12 +53,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final success = await authProvider.registerWithGoogle();
 
     if (success && mounted) {
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        AppRouter.dashboard,
-        (route) => false,
-      );
+      _continueAfterAuth();
     }
+  }
+
+  void _continueAfterAuth() {
+    final fragment = Uri.base.fragment;
+    final isInvite = fragment.startsWith('/join/');
+    final route = isInvite ? AppRouter.joinMeeting : AppRouter.dashboard;
+    final args = isInvite ? {'code': fragment.substring('/join/'.length)} : null;
+    Navigator.pushNamedAndRemoveUntil(context, route, (route) => false, arguments: args);
   }
 
   Widget _buildAccountTypeSelector() {

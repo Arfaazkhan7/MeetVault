@@ -43,7 +43,7 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (success && mounted) {
-        Navigator.pushReplacementNamed(context, AppRouter.dashboard);
+        _continueAfterAuth(replace: true);
       }
     }
   }
@@ -52,7 +52,19 @@ class _LoginScreenState extends State<LoginScreen> {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final success = await authProvider.loginWithGoogle();
     if (success && mounted) {
-      Navigator.pushReplacementNamed(context, AppRouter.dashboard);
+      _continueAfterAuth(replace: true);
+    }
+  }
+
+  void _continueAfterAuth({required bool replace}) {
+    final fragment = Uri.base.fragment;
+    final isInvite = fragment.startsWith('/join/');
+    final route = isInvite ? AppRouter.joinMeeting : AppRouter.dashboard;
+    final args = isInvite ? {'code': fragment.substring('/join/'.length)} : null;
+    if (replace) {
+      Navigator.pushReplacementNamed(context, route, arguments: args);
+    } else {
+      Navigator.pushNamed(context, route, arguments: args);
     }
   }
 
