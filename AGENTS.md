@@ -1,55 +1,95 @@
-# MeetVault Agent Handoff
+# MeetVault Engineering Handoff
 
-## Canonical Repository
+Verified orientation for future agents. Always inspect the current `main` branch, `git status`, and the owning implementation before editing. This file never replaces reading the code.
 
-- GitHub: https://github.com/GOKUL5731/meetvault
-- Remote: `origin`
-- Production frontend: `https://ai-meet-f8fd0.web.app`
-- Production API: `https://meetvault-api.onrender.com`
-- API prefix: `/api/v1`
+## Canonical Project
 
-Always inspect the current `main` branch and local diff before editing. Treat this file as orientation, not a replacement for reading the implementation.
+- Repository: https://github.com/GOKUL5731/meetvault
+- Remote: `origin`; primary branch: `main`
+- Production frontend: https://ai-meet-f8fd0.web.app
+- Production API: https://meetvault-api.onrender.com/api/v1
 
-## Architecture
+Never commit `.env`, passwords, API keys, Firebase service-account JSON, LiveKit credentials, Supabase service-role keys, OpenAI keys, local databases, build output, or virtual environments.
 
-- `frontend/`: Flutter web application. Authentication, dashboard, meeting list, join flow, LiveKit room, transcripts, notes, search, projects, and settings live under `frontend/lib/`.
-- `backend/`: FastAPI application. Routes are under `backend/app/api/v1/`; business logic is under `backend/app/services/`; SQLAlchemy models are under `backend/app/models/`.
-- `ai_worker/`: database-queue worker for transcription and meeting analysis. It consumes jobs created by the backend and writes results to PostgreSQL.
-- `backend/alembic/`: database migrations. Production startup uses `backend/scripts/bootstrap_db.py` before serving.
-- `render.yaml`: Render PostgreSQL, API web service, and AI worker definitions.
-- `.github/workflows/deploy-firebase-hosting.yml`: Firebase Hosting deployment workflow for the Flutter build.
-- `firebase.json` and `.firebaserc`: Firebase Hosting configuration.
+## Product
+
+MeetVault is a meeting intelligence application supporting personal and organization accounts, Firebase Email/Password and Google authentication, meeting creation, invite codes/links, LiveKit video rooms, attendance duration, recording storage, transcripts, diarization, summaries, topics, decisions, tasks, search, RAG, projects, companies, and administration.
+
+## Repository Map
+
+```text
+backend/                 FastAPI API, SQLAlchemy, Alembic, tests
+backend/app/api/v1/      HTTP route modules
+backend/app/services/    Business logic and integrations
+backend/app/models/      SQLAlchemy models
+backend/app/schemas/     Pydantic contracts
+backend/scripts/         Production database bootstrap
+frontend/                Flutter web application
+frontend/lib/core/       Theme, routing, auth, API client, shared shell
+frontend/lib/features/   Auth, dashboard, meetings, room, AI, admin, settings
+ai_worker/               Database-queue transcription/analysis worker
+docker/                  Local Docker Compose files
+.github/workflows/       Firebase Hosting deployment
+render.yaml              Render PostgreSQL, API, and worker blueprint
+firebase.json            Firebase Hosting configuration
+run_project.cmd          Windows one-click launcher
+run_project.sh           Unix-like launcher, when present
+SETUP.md                 Local setup; DEPLOYMENT.md production setup
+```
 
 ## Runtime Contracts
 
-1. Users authenticate with Firebase Email/Password or Google. The frontend exchanges/uses the authenticated token with the FastAPI API.
-2. Meeting creation returns an `invite_code` such as `MTG-XXXXXX`.
-3. A participant joins with `POST /api/v1/meetings/join` and the invite code. The response supplies the meeting id, LiveKit URL, room name, and participant token.
-4. The room records attendance through `/meetings/{id}/room/join` and `/room/leave`. Do not remove this timing path; transcript duration depends on it.
-5. LiveKit handles real-time audio/video. Supabase handles recording storage when configured. The AI worker processes queued recording/transcription/analysis jobs.
+1. Firebase authenticates the browser. The frontend stores the application token through `ApiService` and sends `Authorization: Bearer <token>` to protected API routes.
+2. Flutter receives `API_BASE_URL` at build time with `--dart-define`. Local default: `http://localhost:8000/api/v1`; production: `https://meetvault-api.onrender.com/api/v1`.
+3. Meeting creation returns a public id and `invite_code` such as `MTG-XXXXXX`.
+4. `POST /api/v1/meetings/join` with `{ "invite_code": "MTG-..." }` creates or reuses the participant and returns `meeting_id`, `room_name`, `livekit_url`, `token`, and participant data.
+5. `MeetingRoomScreen` uses that LiveKit token, or requests one from `/meetings/{meeting_id}/room/connect` for direct entry.
+6. Attendance timing is recorded through `/meetings/{meeting_id}/room/join` and `/room/leave`. Preserve this path because duration analytics and transcript workflows depend on it.
+7. LiveKit supplies real-time media. It does not persist application transcripts. Recording/storage and AI processing are separate paths.
+
+## Frontend Notes
+
+- `frontend/lib/core/navigation/app_router.dart` handles normal routes and `/#/join/<code>` links.
+- `join_meeting_screen.dart` accepts a short code or a pasted full invite URL.
+- `meeting_details_screen.dart` provides copy-code and copy-link actions.
+- `meeting_room_screen.dart` is responsive, records attendance, and allows Leave/Back even if the API attendance call fails.
+- `dashboard_screen.dart` has a desktop layout and a compact mobile layout below 820px. Keep callbacks connected to real API/navigation behavior; do not replace live metrics with placeholders.
+- `EnterpriseScaffold` provides desktop navigation and drawer/bottom navigation on smaller screens.
+
+## Backend and Data
+
+- Startup: `backend/app/main.py`.
+- Config/session: `backend/app/core/config.py` and `backend/app/db/session.py`.
+- Production requires `DATABASE_URL` and must not silently fall back to SQLite.
+- Render startup runs `backend/scripts/bootstrap_db.py` before Uvicorn.
+- Migrations are in `backend/alembic/versions/` and cover meetings, recordings, transcript fields, diarization, analysis, and AI jobs.
+- Health endpoint: `GET /api/v1/health`.
+- API dependencies: `backend/requirements.txt`; Render dependencies: `backend/requirements-render.txt`.
+- Worker dependencies: `ai_worker/requirements.txt`.
 
 ## Configuration
 
-- Copy `.env.example` to `.env` for local work. Never commit `.env`, Firebase service-account JSON, API keys, LiveKit credentials, Supabase service-role keys, JWT secrets, or OpenAI keys.
-- Production secrets belong in Render environment variables or GitHub Actions secrets.
-- The frontend production API is passed at build time with `--dart-define=API_BASE_URL=...`.
-- Do not silently fall back to SQLite in production; `DATABASE_URL` must be supplied by Render PostgreSQL.
+Copy `.env.example` to `.env`. Required deployment values include `DATABASE_URL`, `JWT_SECRET`, `BACKEND_CORS_ORIGINS`, frontend/API URLs, Firebase browser and backend verification config, `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, Supabase URL/service key/bucket, and the configured LLM key.
 
-## Local Commands
+The Upstash REST Python snippet is not a Redis protocol URL for this worker. Redis mode requires `redis://` or `rediss://`; the current Render blueprint uses the database queue.
 
-Windows one-click launcher:
+## Local Run
+
+Preferred Windows entry point:
 
 ```text
 run_project.cmd
 ```
 
-Manual services:
+It locates its own directory, checks Python, creates/repairs `backend/venv`, installs requirements, creates `backend/.env` from the safe template if needed, starts Uvicorn on port 8000, waits for `/api/v1/health`, and serves a local Flutter web build on port 3000 when Flutter/build output exists. Without Flutter or `frontend/build/web`, it opens the published frontend and reports that local frontend serving was skipped.
 
-```text
+Manual commands:
+
+```powershell
 cd backend
-python -m venv .venv
-.venv\Scripts\pip install -r requirements.txt
-.venv\Scripts\python -m uvicorn app.main:app --reload --port 8000
+python -m venv venv
+venv\Scripts\python -m pip install -r requirements.txt
+venv\Scripts\python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 cd frontend
 flutter pub get
@@ -60,20 +100,40 @@ python -m pip install -r requirements.txt
 python -m ai_worker
 ```
 
-Use `SETUP.md` for the complete clean-machine procedure. Use `DEPLOYMENT.md` and `render.yaml` for production deployment.
+## Production Deployment
 
-## Verification Rules
+- `render.yaml` defines Render PostgreSQL, `meetvault-api`, and `meetvault-ai-worker`. Secrets marked `sync: false` are entered in Render only.
+- API image: `backend/Dockerfile`; worker image: `ai_worker/Dockerfile`.
+- `.github/workflows/deploy-firebase-hosting.yml` runs on pushes to `main` or manual dispatch. It installs Flutter dependencies, analyzes/tests, builds with the production API URL, and deploys Firebase Hosting.
+- Required GitHub secrets include `FIREBASE_API_KEY` and `FIREBASE_SERVICE_ACCOUNT_AI_MEET_F8FD0`.
+- A GitHub push does not prove Firebase was deployed. Inspect the workflow run and load the hosted URL.
+- A blueprint worker does not prove the worker exists or processes jobs. Verify it in Render and observe a database job move through processing.
 
-- Run `git diff --check` and relevant backend tests before committing.
-- When Flutter is available, run `flutter analyze`, `flutter test`, and a production web build.
-- Verify `GET /api/v1/health` and test an authenticated meeting create/join flow.
-- Verify a meeting invite works with both the short code and the full `/#/join/<code>` link.
-- Do not claim hosting is updated until the deployment workflow is successful and the hosted frontend is loaded against the production API.
-- Do not claim transcription or recording is complete unless the worker, storage, and database paths have been exercised.
+## Current Build and Verification State
+
+- Use `git log -1 --oneline` for the authoritative current source commit.
+- Recent source includes responsive dashboard work, reliable room exit, invite code/link sharing, and pasted-link join parsing.
+- Backend source compilation and `git diff --check` have been used as focused checks; verify again after edits.
+- The production API health endpoint has returned HTTP 200.
+- Flutter analysis, tests, and release build require the Flutter SDK. If `flutter` is unavailable locally, GitHub Actions is the authoritative frontend build.
+- Do not claim the hosted UI, AI worker, recording, or transcription pipeline is complete without direct deployment/runtime evidence.
+
+## Verification Before Completion
+
+```powershell
+git diff --check
+python -m compileall -q backend/app
+cd backend; python -m pytest -q
+cd ..\frontend; flutter analyze --no-fatal-infos --no-fatal-warnings; flutter test; flutter build web --release --dart-define=API_BASE_URL=https://meetvault-api.onrender.com/api/v1
+```
+
+For meeting changes, verify two authenticated users can use the same code, a full `/#/join/<code>` link opens the join screen, both receive LiveKit tokens for the same room, Leave/Back returns to dashboard, timestamps produce non-negative duration, and configured recording/AI jobs are consumed.
 
 ## Change Discipline
 
-- Preserve existing user changes and migrations.
-- Prefer small fixes in the owning module.
-- Update `run_project.cmd`, `run_project.sh`, `.env.example`, and docs whenever startup or configuration changes.
-- Review `git status` and the complete diff before pushing. Push only to the configured repository and never force-push.
+- Inspect before modifying and preserve unrelated user changes.
+- Use `apply_patch` for manual edits; keep changes in the owning module.
+- Update launchers/docs when startup, ports, dependencies, or environment variables change.
+- Review `git status`, the relevant complete diff, and secret exclusion before committing.
+- Commit meaningful changes and push only to `origin`/`main` when authorized. Never force-push or rewrite history.
+- Never claim deployment or real-time/AI behavior without evidence.
