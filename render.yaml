@@ -1,3 +1,9 @@
+databases:
+  - name: meetvault-db
+    plan: free
+    region: oregon
+    version: 16
+
 services:
   - type: web
     name: meetvault-api
@@ -36,7 +42,9 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: meetvault-db
+          property: connectionString
       - key: REDIS_URL
         sync: false
       - key: LIVEKIT_URL
@@ -78,7 +86,9 @@ services:
       - key: AI_WORKER_POLL_INTERVAL_SECONDS
         value: "5"
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: meetvault-db
+          property: connectionString
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
