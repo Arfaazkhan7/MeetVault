@@ -1,4 +1,5 @@
 import os
+import json
 
 import firebase_admin
 from firebase_admin import auth, credentials
@@ -15,8 +16,11 @@ def _initialize_firebase() -> None:
         cred_path = os.path.abspath(settings.FIREBASE_CREDENTIALS_PATH)
         cred = credentials.Certificate(cred_path)
         firebase_admin.initialize_app(cred, options)
+    elif settings.FIREBASE_CREDENTIALS_JSON:
+        cred = credentials.Certificate(json.loads(settings.FIREBASE_CREDENTIALS_JSON))
+        firebase_admin.initialize_app(cred, options)
     else:
-        firebase_admin.initialize_app(options=options)
+        raise RuntimeError("Firebase Admin credentials are not configured")
 
 
 def verify_firebase_id_token(id_token: str) -> dict:

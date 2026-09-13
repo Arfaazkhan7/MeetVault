@@ -1,6 +1,8 @@
 name: Deploy Flutter Web to Firebase Hosting
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       api_base_url:
@@ -35,7 +37,7 @@ jobs:
         working-directory: frontend
         run: |
           flutter build web --release \
-            --dart-define=API_BASE_URL="${{ github.event.inputs.api_base_url }}" \
+            --dart-define=API_BASE_URL="${{ github.event.inputs.api_base_url || 'https://meetvault-api.onrender.com/api/v1' }}" \
             --dart-define=FIREBASE_API_KEY="${{ secrets.FIREBASE_API_KEY }}" \
             --dart-define=FIREBASE_AUTH_DOMAIN="ai-meet-f8fd0.firebaseapp.com" \
             --dart-define=FIREBASE_PROJECT_ID="ai-meet-f8fd0" \

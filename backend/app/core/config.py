@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     FRONTEND_PUBLIC_URL: str = "http://localhost:3000"
     FIREBASE_PROJECT_ID: str = "ai-meet-f8fd0"
     FIREBASE_CREDENTIALS_PATH: str = ""
+    FIREBASE_CREDENTIALS_JSON: str = ""
 
     @property
     def cors_origins(self) -> list[str]:
@@ -88,6 +89,7 @@ class Settings(BaseSettings):
         "FRONTEND_PUBLIC_URL",
         "FIREBASE_PROJECT_ID",
         "FIREBASE_CREDENTIALS_PATH",
+        "FIREBASE_CREDENTIALS_JSON",
         "LIVEKIT_URL",
         "LIVEKIT_API_KEY",
         "LIVEKIT_API_SECRET",
