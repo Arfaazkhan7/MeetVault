@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../core/navigation/app_router.dart';
 import '../../core/services/api_service.dart';
 import '../../core/widgets/enterprise_scaffold.dart';
@@ -165,16 +166,26 @@ class _MeetingDetailsScreenState extends State<MeetingDetailsScreen> {
                       const Icon(Icons.vpn_key_rounded, size: 16, color: Color(0xFF64748B)),
                       const SizedBox(width: 8),
                       Text('Invite Code: ', style: const TextStyle(fontWeight: FontWeight.w500, color: Color(0xFF334155))),
-                      Text(meeting['invite_code'], style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.bold, color: Color(0xFFFF5722))),
+                      Expanded(child: Text(meeting['invite_code'], style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.bold, color: Color(0xFFFF5722)))),
                       const Spacer(),
                       IconButton(
                         icon: const Icon(Icons.copy_rounded, size: 18),
-                        onPressed: () {
+                        onPressed: () async {
+                          await Clipboard.setData(ClipboardData(text: meeting['invite_code'].toString()));
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Copied invite code: ${meeting['invite_code']}')),
+                            const SnackBar(content: Text('Invite code copied')),
                           );
                         },
                         tooltip: 'Copy invite code',
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.link_rounded, size: 18),
+                        onPressed: () async {
+                          final link = '${Uri.base.origin}/#/join/${Uri.encodeComponent(meeting['invite_code'].toString())}';
+                          await Clipboard.setData(ClipboardData(text: link));
+                          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Invite link copied')));
+                        },
+                        tooltip: 'Copy invite link',
                       ),
                     ],
                   ),

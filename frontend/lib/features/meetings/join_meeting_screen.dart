@@ -36,7 +36,10 @@ class _JoinMeetingScreenState extends State<JoinMeetingScreen> {
   }
 
   Future<void> _join() async {
-    final code = _codeCtrl.text.trim().toUpperCase();
+    var code = _codeCtrl.text.trim();
+    final marker = code.indexOf('/#/join/');
+    if (marker >= 0) code = code.substring(marker + '/#/join/'.length).split('?').first;
+    code = Uri.decodeComponent(code).trim().toUpperCase();
     if (code.isEmpty) {
       setState(() => _error = 'Please enter a meeting code');
       return;
