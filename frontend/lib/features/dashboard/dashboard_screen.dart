@@ -485,13 +485,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: ListView(
                     padding: const EdgeInsets.all(24),
                     children: [
-                      if (compact) _buildCompactHeader(authProvider) else _buildTopHeader(authProvider),
+                      _buildModernHeader(authProvider),
                       const SizedBox(height: 24),
-                      if (compact) _buildCompactActions() else _buildHeroSection(),
+                      _buildModernActions(),
                       const SizedBox(height: 20),
-                      if (!compact) _buildActionGrid(),
                       const SizedBox(height: 28),
-                      if (compact) _buildCompactContent() else _buildMainSplitLayout(),
+                      _buildModernContent(),
                     ],
                   ),
                 ),
@@ -995,6 +994,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildModernHeader(AuthProvider auth) {
+    final name = auth.displayName.isEmpty ? 'there' : auth.displayName;
+    return LayoutBuilder(builder: (context, constraints) {
+      final wide = constraints.maxWidth >= 760;
+      final search = Container(
+        height: 46,
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFE2E8F0))),
+        child: TextField(onSubmitted: (_) => Navigator.pushNamed(context, AppRouter.search), decoration: const InputDecoration(hintText: 'Search meetings, people, or topics', prefixIcon: Icon(Icons.search), border: InputBorder.none)),
+      );
+      return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(auth.isPersonal ? 'Personal workspace' : 'Organization workspace', style: const TextStyle(color: Color(0xFF64748B), fontSize: 13, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 5),
+            Text('Good morning, $name', style: TextStyle(fontSize: wide ? 30 : 26, fontWeight: FontWeight.w800, color: const Color(0xFF111827))),
+          ])),
+          IconButton(onPressed: () => _showUserProfileDialog(auth), icon: const Icon(Icons.account_circle_outlined, size: 30)),
+        ]),
+        const SizedBox(height: 16),
+        if (wide) SizedBox(width: 420, child: search) else search,
+      ]);
+    });
+  }
+
+  Widget _buildModernActions() {
+    return LayoutBuilder(builder: (context, constraints) {
+      final wide = constraints.maxWidth >= 760;
+      final start = Container(padding: const EdgeInsets.all(22), decoration: BoxDecoration(color: const Color(0xFF111827), borderRadius: BorderRadius.circular(20)), child: Row(children: [
+        Container(width: 54, height: 54, decoration: BoxDecoration(color: const Color(0xFF263449), borderRadius: BorderRadius.circular(16)), child: const Icon(Icons.videocam_rounded, color: Color(0xFFF97316), size: 28)),
+        const SizedBox(width: 16), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Start a new meeting', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)), const SizedBox(height: 4), const Text('Create a room and invite people instantly.', style: TextStyle(color: Color(0xFFCBD5E1))), const SizedBox(height: 14), FilledButton.icon(onPressed: _startInstantMeeting, icon: Icon(Icons.add), label: Text('New meeting'))])),
+      ]));
+      final join = Container(padding: const EdgeInsets.all(22), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: const Color(0xFFE2E8F0))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('Join a meeting', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)), const SizedBox(height: 4), const Text('Use a code or paste an invite link.', style: TextStyle(color: Color(0xFF64748B))), const SizedBox(height: 14), Row(children: [Expanded(child: TextField(controller: _joinCodeCtrl, textCapitalization: TextCapitalization.characters, onSubmitted: _joinMeeting, decoration: const InputDecoration(hintText: 'MTG-XXXXXX', prefixIcon: Icon(Icons.tag)))), const SizedBox(width: 8), FilledButton(onPressed: () => _joinMeeting(_joinCodeCtrl.text), child: const Text('Join'))])]));
+      return wide ? Row(children: [Expanded(child: start), const SizedBox(width: 16), Expanded(child: join)]) : Column(children: [start, const SizedBox(height: 12), join]);
+    });
+  }
+
+  Widget _buildModernContent() {
+    return _buildCompactContent();
   }
 
   Widget _buildCompactHeader(AuthProvider auth) {
