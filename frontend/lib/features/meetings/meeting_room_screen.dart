@@ -41,6 +41,7 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
   DateTime? _joinedAt;
   bool _isConnecting = true;
   bool _isLeaving = false;
+  bool _allowPop = false;
   bool _microphoneEnabled = true;
   bool _cameraEnabled = true;
   bool _screenShareEnabled = false;
@@ -189,9 +190,17 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
   Future<void> _leaveMeeting() async {
     if (_isLeaving) return;
     setState(() => _isLeaving = true);
-    await _recordLeave();
-    await _room?.disconnect();
-    if (mounted) Navigator.of(context).maybePop();
+    try {
+      await _recordLeave();
+    } catch (_) {
+      // Leaving the LiveKit room must still work when the API is unavailable.
+    } finally {
+      await _room?.disconnect();
+      if (mounted) {
+        setState(() => _allowPop = true);
+        Navigator.of(context).pop();
+      }
+    }
   }
 
   void _refresh() {
@@ -210,9 +219,9 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: false,
+      canPop: _allowPop,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) _leaveMeeting();
+        if (!didPop && !_allowPop) _leaveMeeting();
       },
       child: Scaffold(
         appBar: AppBar(
@@ -348,7 +357,10 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
       );
       if (response.statusCode == 200) {
         await _room?.disconnect();
-        if (mounted) Navigator.of(context).maybePop();
+        if (mounted) {
+          setState(() => _allowPop = true);
+          Navigator.of(context).pop();
+        }
       } else {
         setState(() {
           _isLeaving = false;

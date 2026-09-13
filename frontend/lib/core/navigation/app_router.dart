@@ -105,7 +105,7 @@ class AppRouter {
         if (code == null && settings.name != null && settings.name!.startsWith('/join/')) {
           final parts = settings.name!.split('/');
           if (parts.length > 2) {
-            code = parts[2];
+            code = Uri.decodeComponent(parts[2]);
           }
         }
         
@@ -148,7 +148,7 @@ class AppRouter {
           final parts = settings.name!.split('/');
           if (parts.length > 2) {
             return MaterialPageRoute(
-              builder: (context) => JoinMeetingScreen(initialCode: parts[2]),
+              builder: (context) => JoinMeetingScreen(initialCode: Uri.decodeComponent(parts[2])),
             );
           }
         }
