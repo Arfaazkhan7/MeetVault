@@ -39,7 +39,6 @@ app.include_router(ai_jobs.router,         prefix=settings.API_V1_PREFIX)
 
 # ── Serve Web UI at root / ───────────────────────────────────────────────
 import os
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
 def _get_web_dir():
@@ -52,7 +51,8 @@ def _get_web_dir():
 
 @app.get("/")
 async def serve_root():
-    # Make the browser entry point the unauthenticated login screen.
+    if settings.ENVIRONMENT == "production":
+        return RedirectResponse(url=f"{settings.FRONTEND_PUBLIC_URL}/#/login", status_code=307)
     return RedirectResponse(url="/login", status_code=307)
 
 @app.get("/health")
@@ -65,11 +65,17 @@ async def root_docs():
 
 @app.get("/login")
 async def serve_login():
-    return FileResponse(os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")), "web", "login.html"))
+    path = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")), "web", "login.html")
+    if settings.ENVIRONMENT == "production" or not os.path.exists(path):
+        return RedirectResponse(url=f"{settings.FRONTEND_PUBLIC_URL}/#/login", status_code=307)
+    return FileResponse(path)
 
 @app.get("/signup")
 async def serve_signup():
-    return FileResponse(os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")), "web", "signup.html"))
+    path = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")), "web", "signup.html")
+    if settings.ENVIRONMENT == "production" or not os.path.exists(path):
+        return RedirectResponse(url=f"{settings.FRONTEND_PUBLIC_URL}/#/signup", status_code=307)
+    return FileResponse(path)
 
 @app.get("/{full_path:path}")
 async def serve_ui(full_path: str):

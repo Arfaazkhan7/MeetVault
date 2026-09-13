@@ -15,6 +15,12 @@ services:
         value: https://ai-meet-f8fd0.web.app,https://ai-meet-f8fd0.firebaseapp.com
       - key: FIREBASE_PROJECT_ID
         value: ai-meet-f8fd0
+      - key: API_BASE_URL
+        value: https://meetvault-api.onrender.com/api/v1
+      - key: FRONTEND_PUBLIC_URL
+        value: https://ai-meet-f8fd0.web.app
+      - key: AI_WORKER_QUEUE
+        value: database
       - key: LIVEKIT_TOKEN_EXPIRE_MINUTES
         value: "120"
       - key: STORAGE_BACKEND
@@ -67,9 +73,11 @@ services:
         value: openai
       - key: ANALYSIS_PROVIDER
         value: openai
+      - key: AI_WORKER_QUEUE
+        value: database
+      - key: AI_WORKER_POLL_INTERVAL_SECONDS
+        value: "5"
       - key: DATABASE_URL
-        sync: false
-      - key: REDIS_URL
         sync: false
       - key: SUPABASE_URL
         sync: false

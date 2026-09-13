@@ -1,3 +1,4 @@
+import logging
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
@@ -20,7 +21,9 @@ try:
         with engine.connect() as conn:
             pass
 except Exception as e:
-    import logging
+    if settings.ENVIRONMENT == "production":
+        logging.exception("Production database connection failed")
+        raise
     logging.warning(f"PostgreSQL connection failed ({e}). Falling back to SQLite local database.")
     sqlite_url = "sqlite:///./meetingdb.db"
     engine = create_engine(sqlite_url, connect_args={"check_same_thread": False})

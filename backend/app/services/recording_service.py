@@ -115,6 +115,8 @@ async def create_recording_from_upload(
 
 
 def _enqueue_ai_job(db: Session, job_id: str) -> None:
+    if settings.AI_WORKER_QUEUE.lower() == "database":
+        return
     try:
         from celery import Celery
 

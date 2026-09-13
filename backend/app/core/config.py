@@ -15,6 +15,8 @@ class Settings(BaseSettings):
 
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
+    AI_WORKER_QUEUE: str = "database"
+    AI_WORKER_POLL_INTERVAL_SECONDS: float = 5.0
 
     # JWT
     JWT_SECRET: str = "change-this-to-a-very-long-random-secret-in-production"
@@ -26,6 +28,7 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     BACKEND_CORS_ORIGINS: str = ""
     API_BASE_URL: str = "http://localhost:8000/api/v1"
+    FRONTEND_PUBLIC_URL: str = "http://localhost:3000"
     FIREBASE_PROJECT_ID: str = "ai-meet-f8fd0"
     FIREBASE_CREDENTIALS_PATH: str = ""
 
@@ -82,6 +85,7 @@ class Settings(BaseSettings):
     @field_validator(
         "BACKEND_CORS_ORIGINS",
         "API_BASE_URL",
+        "FRONTEND_PUBLIC_URL",
         "FIREBASE_PROJECT_ID",
         "FIREBASE_CREDENTIALS_PATH",
         "LIVEKIT_URL",
@@ -96,6 +100,7 @@ class Settings(BaseSettings):
         "LLM_API_KEY",
         "EMBEDDING_MODEL",
         "OPENAI_API_KEY",
+        "AI_WORKER_QUEUE",
         mode="before",
     )
     @classmethod
