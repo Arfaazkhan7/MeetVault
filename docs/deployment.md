@@ -98,6 +98,8 @@ python -m ai_worker
 
 Render background workers are separate from web services: they do not receive HTTP traffic; they poll Redis-compatible queue storage through `REDIS_URL`.
 
+`REDIS_URL` must be a Redis protocol URL (`redis://...` or `rediss://...`). Upstash's REST SDK values (`https://...` plus a token) are not a Celery broker and should stay only in provider-specific secrets if a REST client is added later.
+
 Deploy the worker separately only when the selected Render account/plan supports background workers and Redis/Key Value without violating the no-paid-plan requirement. If the account does not offer a free background worker, the web API can still deploy, but production AI processing remains blocked until a no-cost worker runtime is available.
 
 Worker environment variables:

@@ -89,6 +89,9 @@ LLM_PROVIDER=openai
 
 The worker code is in `ai_worker/` and uses Celery with `REDIS_URL`.
 
+`REDIS_URL` must be a Redis protocol broker URL such as `redis://...` or `rediss://...`.
+Do not paste an Upstash REST SDK snippet (`Redis(url="https://...", token="...")`) into `REDIS_URL`; that HTTP URL/token pair is not a Celery broker.
+
 Dockerfile:
 
 ```text
