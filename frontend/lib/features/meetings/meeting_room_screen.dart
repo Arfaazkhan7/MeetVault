@@ -139,7 +139,7 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
     final response = await http.post(
       Uri.parse('${widget.apiBaseUrl}/meetings/${widget.meetingId}/room/connect'),
       headers: _headers,
-    );
+    ).timeout(const Duration(seconds: 20));
     if (response.statusCode != 200) {
       throw Exception('Unable to enter meeting (${response.statusCode})');
     }
@@ -150,7 +150,7 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
     final response = await http.post(
       Uri.parse('${widget.apiBaseUrl}/meetings/${widget.meetingId}/room/join'),
       headers: _headers,
-    );
+    ).timeout(const Duration(seconds: 20));
     if (response.statusCode != 200) {
       throw Exception('Unable to record joining time (${response.statusCode})');
     }
@@ -261,18 +261,38 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
   }
 
   Widget _buildRoom() {
-    return Row(
-      children: [
-        Expanded(child: _ParticipantGrid(participants: _participants)),
-        SizedBox(
-          width: 280,
-          child: _ParticipantPanel(
-            participants: _participants,
-            status: _connectionStatus,
-            isHost: widget.isHost,
-          ),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 720;
+        if (compact) {
+          return Column(
+            children: [
+              Expanded(child: _ParticipantGrid(participants: _participants)),
+              SizedBox(
+                height: 112,
+                child: _ParticipantPanel(
+                  participants: _participants,
+                  status: _connectionStatus,
+                  isHost: widget.isHost,
+                ),
+              ),
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: _ParticipantGrid(participants: _participants)),
+            SizedBox(
+              width: 280,
+              child: _ParticipantPanel(
+                participants: _participants,
+                status: _connectionStatus,
+                isHost: widget.isHost,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

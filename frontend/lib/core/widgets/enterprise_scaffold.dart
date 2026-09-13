@@ -52,6 +52,7 @@ class EnterpriseScaffold extends StatelessWidget {
       backgroundColor: const Color(0xFFF7F8FA),
       appBar: wide ? null : AppBar(title: Text(title), actions: actions),
       drawer: wide ? null : Drawer(child: _NavigationList(currentRoute: currentRoute)),
+      bottomNavigationBar: wide ? null : _MobileNavigation(currentRoute: currentRoute),
       body: child,
       floatingActionButton: floatingActionButton,
     );
@@ -71,6 +72,30 @@ class EnterpriseScaffold extends StatelessWidget {
           Expanded(child: content),
         ],
       ),
+    );
+  }
+}
+
+class _MobileNavigation extends StatelessWidget {
+  final String currentRoute;
+
+  const _MobileNavigation({required this.currentRoute});
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.read<AuthProvider>();
+    final items = auth.isOrganization ? _orgNavItems : _personalNavItems;
+    final visible = items.take(4).toList();
+    return NavigationBar(
+      selectedIndex: visible.indexWhere((item) => item.route == currentRoute).clamp(0, visible.length - 1).toInt(),
+      onDestinationSelected: (index) {
+        final route = visible[index].route;
+        if (route != currentRoute) Navigator.pushReplacementNamed(context, route);
+      },
+      destinations: [
+        for (final item in visible)
+          NavigationDestination(icon: Icon(item.icon), label: item.label),
+      ],
     );
   }
 }
