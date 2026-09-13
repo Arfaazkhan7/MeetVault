@@ -26,6 +26,17 @@ def test_production_cors_accepts_loose_comma_list_with_brackets():
     ]
 
 
+def test_runtime_env_values_are_trimmed():
+    settings = Settings(
+        ENVIRONMENT="production",
+        LIVEKIT_URL='"wss://meetvault.example.livekit.cloud\n"',
+        SUPABASE_URL="'https://example.supabase.co\n'",
+    )
+
+    assert settings.LIVEKIT_URL == "wss://meetvault.example.livekit.cloud"
+    assert settings.SUPABASE_URL == "https://example.supabase.co"
+
+
 def test_google_auth_exchange_creates_meetvault_user(client, monkeypatch):
     def fake_verify_firebase_id_token(_id_token):
         return {

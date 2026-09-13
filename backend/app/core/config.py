@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 import json
@@ -77,6 +78,31 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None
     RAG_TOP_K: int = 12                  # Max evidence items sent to LLM
     RAG_MIN_SCORE: float = 0.15          # Min similarity score to include evidence
+
+    @field_validator(
+        "BACKEND_CORS_ORIGINS",
+        "API_BASE_URL",
+        "FIREBASE_PROJECT_ID",
+        "FIREBASE_CREDENTIALS_PATH",
+        "LIVEKIT_URL",
+        "LIVEKIT_API_KEY",
+        "LIVEKIT_API_SECRET",
+        "STORAGE_BACKEND",
+        "SUPABASE_URL",
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "SUPABASE_STORAGE_BUCKET",
+        "LLM_PROVIDER",
+        "LLM_MODEL",
+        "LLM_API_KEY",
+        "EMBEDDING_MODEL",
+        "OPENAI_API_KEY",
+        mode="before",
+    )
+    @classmethod
+    def strip_env_strings(cls, value):
+        if isinstance(value, str):
+            return value.strip().strip('"').strip("'").strip()
+        return value
 
 
 settings = Settings()
