@@ -14,9 +14,10 @@ COPY requirements.txt requirements-render.txt ./
 RUN pip install --no-cache-dir -r ${REQUIREMENTS_FILE}
 
 COPY app ./app
+COPY scripts ./scripts
 COPY alembic.ini .
 COPY alembic ./alembic
 
 ENV PORT=8080
 
-CMD ["sh", "-c", "python -c 'from app.db.session import engine; from app.models.base import Base; Base.metadata.create_all(bind=engine)' && alembic stamp head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
+CMD ["sh", "-c", "python scripts/bootstrap_db.py && alembic stamp head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
