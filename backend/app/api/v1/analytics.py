@@ -24,22 +24,39 @@ def _company_ids(db: Session, user: User) -> list[str]:
 def dashboard_analytics(current_user: User | None = Depends(get_optional_current_user), db: Session = Depends(get_db)):
     company_ids = _company_ids(db, current_user) if current_user else []
     if not company_ids:
-        meetings = db.query(Meeting).filter(Meeting.deleted_at.is_(None))
+        if current_user:
+            participant_meetings = (
+                db.query(MeetingParticipant.meeting_id)
+                .filter(MeetingParticipant.user_id == current_user.public_id)
+                .subquery()
+            )
+            meetings = db.query(Meeting).filter(
+                Meeting.meeting_type == "PERSONAL",
+                Meeting.deleted_at.is_(None),
+                (
+                    (Meeting.owner_id == current_user.public_id)
+                    | (Meeting.public_id.in_(participant_meetings))
+                ),
+            )
+        else:
+            meetings = db.query(Meeting).filter(False)
         meeting_ids = meetings.with_entities(Meeting.public_id)
-        task_query = db.query(Task)
-        total_duration = db.query(func.coalesce(func.sum(MeetingParticipant.attendance_duration_seconds), 0)).scalar() or 0
+        task_query = db.query(Task).filter(Task.meeting_id.in_(meeting_ids))
+        total_duration = db.query(func.coalesce(func.sum(MeetingParticipant.attendance_duration_seconds), 0)).filter(
+            MeetingParticipant.meeting_id.in_(meeting_ids)
+        ).scalar() or 0
         recent = meetings.order_by(Meeting.created_at.desc()).limit(5).all()
 
         return {
-            "meeting_count": meetings.count() or 24,
-            "meeting_duration": int(total_duration) or 165600,
-            "attendance": db.query(MeetingParticipant).count() or 8,
-            "topics": db.query(Topic).count() or 64,
-            "decisions": db.query(Decision).count() or 52,
-            "tasks": task_query.count() or 18,
-            "open_tasks": task_query.filter(Task.status.in_(["open", "OPEN", "pending", "PENDING"])).count() or 12,
-            "completed_tasks": task_query.filter(Task.status.in_(["completed", "COMPLETED", "done", "DONE"])).count() or 6,
-            "recurring_topics": 4,
+            "meeting_count": meetings.count(),
+            "meeting_duration": int(total_duration),
+            "attendance": db.query(MeetingParticipant).filter(MeetingParticipant.meeting_id.in_(meeting_ids)).count(),
+            "topics": db.query(Topic).filter(Topic.meeting_id.in_(meeting_ids)).count(),
+            "decisions": db.query(Decision).filter(Decision.meeting_id.in_(meeting_ids)).count(),
+            "tasks": task_query.count(),
+            "open_tasks": task_query.filter(Task.status.in_(["open", "OPEN", "pending", "PENDING"])).count(),
+            "completed_tasks": task_query.filter(Task.status.in_(["completed", "COMPLETED", "done", "DONE"])).count(),
+            "recurring_topics": db.query(Topic.name).filter(Topic.meeting_id.in_(meeting_ids)).group_by(Topic.name).having(func.count(Topic.id) > 1).count(),
             "project_activity": [],
             "recent_meetings": [
                 {

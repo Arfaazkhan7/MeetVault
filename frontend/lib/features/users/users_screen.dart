@@ -67,7 +67,7 @@ class _UsersScreenState extends State<UsersScreen> {
     final name = member['full_name'] ?? member['email'] ?? 'User';
     final email = member['email'] ?? 'No email provided';
     final role = member['role'] ?? 'Member';
-    final userId = member['user_id'] ?? member['public_id'] ?? 'USR-0001';
+    final userId = member['user_id'] ?? member['public_id'] ?? 'Pending invite';
 
     showDialog(
       context: context,

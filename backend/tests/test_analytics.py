@@ -42,3 +42,23 @@ def test_dashboard_analytics_are_database_backed(client):
     project_act = next(p for p in body["project_activity"] if p["project_id"] == project["public_id"])
     assert project_act["meeting_count"] == 1
     assert body["recent_meetings"][0]["title"] == "Metrics Review"
+
+
+def test_personal_dashboard_has_no_fake_or_global_counts(client):
+    register(client, "personal-analytics@example.com", "Personal Analytics")
+    token = login(client, "personal-analytics@example.com")
+
+    response = client.get("/api/v1/analytics/dashboard", headers=auth_headers(token))
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["meeting_count"] == 0
+    assert body["meeting_duration"] == 0
+    assert body["attendance"] == 0
+    assert body["topics"] == 0
+    assert body["decisions"] == 0
+    assert body["tasks"] == 0
+    assert body["open_tasks"] == 0
+    assert body["completed_tasks"] == 0
+    assert body["recurring_topics"] == 0
+    assert body["recent_meetings"] == []

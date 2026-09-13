@@ -14,3 +14,4 @@ from .evidence import Evidence
 from .meeting_summary import MeetingSummary
 from .recording import MeetingRecording
 from .speaker_mapping import SpeakerMapping
+from .ai_job import AIJob

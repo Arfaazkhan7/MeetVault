@@ -7,7 +7,7 @@ from pydantic import BaseModel, field_validator
 class RecordingUploadResponse(BaseModel):
     id: str
     meeting_id: str
-    company_id: str
+    company_id: Optional[str] = None
     uploaded_by_user_id: str
     storage_backend: str
     storage_bucket: str
@@ -17,6 +17,7 @@ class RecordingUploadResponse(BaseModel):
     file_size_bytes: int
     duration_seconds: Optional[int]
     processing_status: str
+    ai_job_id: Optional[str] = None
     created_at: datetime
     model_config = {"from_attributes": True}
 

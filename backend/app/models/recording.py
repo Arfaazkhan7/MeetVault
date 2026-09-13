@@ -8,7 +8,7 @@ class MeetingRecording(Base):
     __tablename__ = "meeting_recordings"
 
     meeting_id = Column(String, nullable=False, index=True)
-    company_id = Column(String, nullable=False, index=True)
+    company_id = Column(String, nullable=True, index=True)
     uploaded_by_user_id = Column(String, nullable=False, index=True)
 
     storage_backend = Column(String, nullable=False, default="supabase")

@@ -69,25 +69,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
 
       setState(() {
-        _analytics = analyticsData ?? {
-          'meeting_count': 24,
-          'meeting_duration': 165600,
-          'attendance': 8,
-          'topics': 64,
-          'decisions': 52,
-        };
+        _analytics = analyticsData ?? {};
         _meetingsList = meetings;
         _loading = false;
       });
     } catch (e) {
       setState(() {
-        _analytics = {
-          'meeting_count': 24,
-          'meeting_duration': 165600,
-          'attendance': 8,
-          'topics': 64,
-          'decisions': 52,
-        };
+        _error = 'Unable to load dashboard data. Please try again.';
         _loading = false;
       });
     }
@@ -113,7 +101,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _startInstantMeeting() async {
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final title = 'Instant Meeting - ${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}';
+      final title = 'Instant Meeting';
 
       if (authProvider.isPersonal) {
         // Personal users: create a personal meeting directly
@@ -221,8 +209,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _showScheduleMeetingDialog() async {
-    final titleCtrl = TextEditingController(text: 'Project Discussion');
-    final descCtrl = TextEditingController(text: 'Discuss project progress and next steps');
+    final titleCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
@@ -417,7 +405,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              auth.userEmail ?? 'user@company.com',
+              auth.userEmail ?? 'Signed in',
               style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
             ),
             const SizedBox(height: 16),
@@ -430,11 +418,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               child: Column(
                 children: [
-                  _buildProfileDetailRow(Icons.badge_outlined, 'User ID', auth.currentUser ?? 'USR-0001'),
+                  _buildProfileDetailRow(Icons.badge_outlined, 'User ID', auth.currentUser ?? 'Signed in'),
                   const Divider(height: 16),
-                  _buildProfileDetailRow(Icons.business_outlined, 'Company ID', auth.currentCompanyId ?? 'COMP-0001'),
+                  _buildProfileDetailRow(Icons.business_outlined, 'Workspace', auth.currentCompanyId ?? 'Personal'),
                   const Divider(height: 16),
-                  _buildProfileDetailRow(Icons.verified_user_outlined, 'Role', 'Enterprise Admin'),
+                  _buildProfileDetailRow(Icons.verified_user_outlined, 'Mode', auth.isPersonal ? 'Personal' : 'Workspace'),
                 ],
               ),
             ),
@@ -621,7 +609,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(userName, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                        const Text('Company Admin', style: TextStyle(fontSize: 10, color: Color(0xFFFF5722), fontWeight: FontWeight.w600)),
+                        Text(
+                          authProvider.isPersonal ? 'Personal' : 'Workspace',
+                          style: const TextStyle(fontSize: 10, color: Color(0xFFFF5722), fontWeight: FontWeight.w600),
+                        ),
                       ],
                     ),
                   ],
@@ -770,7 +761,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final actions = [
       {'icon': Icons.calendar_today_rounded, 'title': 'Schedule', 'sub': 'Plan for later', 'color': Colors.orange.shade50, 'iconColor': Colors.orange.shade800, 'tap': _showScheduleMeetingDialog},
       {'icon': Icons.flash_on_rounded, 'title': 'Instant Meet', 'sub': 'Start without schedule', 'color': Colors.orange.shade50, 'iconColor': Colors.orange.shade800, 'tap': _startInstantMeeting},
-      {'icon': Icons.present_to_all_rounded, 'title': 'Share Screen', 'sub': 'Present & collaborate', 'color': Colors.blue.shade50, 'iconColor': Colors.blue.shade700, 'tap': () => _joinMeeting('MTG-0001')},
+      {'icon': Icons.present_to_all_rounded, 'title': 'Share Screen', 'sub': 'Available inside a call', 'color': Colors.blue.shade50, 'iconColor': Colors.blue.shade700, 'tap': _startInstantMeeting},
       {'icon': Icons.fiber_manual_record_rounded, 'title': 'Record', 'sub': 'Save for future', 'color': Colors.orange.shade50, 'iconColor': Colors.orange.shade800, 'tap': () => Navigator.pushNamed(context, AppRouter.meetings)},
       {'icon': Icons.g_translate_rounded, 'title': 'Live Translate', 'sub': 'Break language barriers', 'color': Colors.purple.shade50, 'iconColor': Colors.purple.shade700, 'tap': () => Navigator.pushNamed(context, AppRouter.meetings)},
       {'icon': Icons.auto_awesome, 'title': 'Use AI Assistant', 'sub': 'Summaries, notes, actions', 'color': Colors.orange.shade50, 'iconColor': Colors.orange.shade800, 'tap': () => Navigator.pushNamed(context, AppRouter.askMemory)},
@@ -870,11 +861,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               // Database Analytics Counters Bar (4 Items)
               Row(
                 children: [
-                  Expanded(child: _buildCounterTile(Icons.videocam_outlined, '${analytics['meeting_count'] ?? 24}', 'Total Meetings', Colors.orange.shade50, Colors.orange.shade800)),
+                  Expanded(child: _buildCounterTile(Icons.videocam_outlined, '${analytics['meeting_count'] ?? 0}', 'Total Meetings', Colors.orange.shade50, Colors.orange.shade800)),
                   const SizedBox(width: 12),
                   Expanded(child: _buildCounterTile(Icons.description_outlined, '${(analytics['topics'] ?? 0) + (analytics['decisions'] ?? 0)}', 'Notes Generated', Colors.orange.shade50, Colors.orange.shade800)),
                   const SizedBox(width: 12),
-                  Expanded(child: _buildCounterTile(Icons.people_outline, '${analytics['attendance'] ?? 8}', 'Active Members', Colors.orange.shade50, Colors.orange.shade800)),
+                  Expanded(child: _buildCounterTile(Icons.people_outline, '${analytics['attendance'] ?? 0}', 'Attendance Records', Colors.orange.shade50, Colors.orange.shade800)),
                   const SizedBox(width: 12),
                   Expanded(child: _buildCounterTile(Icons.access_time_rounded, '${((analytics['meeting_duration'] ?? 0) / 3600).round()}h', 'Meeting Hours', Colors.orange.shade50, Colors.orange.shade800)),
                 ],
@@ -889,7 +880,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           flex: 1,
           child: Column(
             children: [
-              // Your Day Card
+              // Recent activity from real meeting data
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -903,18 +894,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Your Day', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                        const Text('Recent Activity', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
                         TextButton(
                           onPressed: () => Navigator.pushNamed(context, AppRouter.meetings),
-                          child: const Text('View Calendar ->', style: TextStyle(color: Color(0xFFFF5722), fontWeight: FontWeight.bold, fontSize: 12)),
+                          child: const Text('View Meetings ->', style: TextStyle(color: Color(0xFFFF5722), fontWeight: FontWeight.bold, fontSize: 12)),
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
 
-                    _buildScheduleItem('10:00 AM', 'Project Discussion', 'In 15 min', true),
-                    _buildScheduleItem('3:00 PM', 'Design Review', null, false),
-                    _buildScheduleItem('5:00 PM', 'Team Sync', null, false),
+                    if (_meetingsList.isEmpty)
+                      const SizedBox(height: 120, child: UiState.empty('No meeting activity yet.'))
+                    else
+                      for (final m in _meetingsList.take(3))
+                        _buildActivityItem(m),
                   ],
                 ),
               ),
@@ -941,7 +934,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF0F172A), height: 1.3),
                     ),
                     SizedBox(height: 12),
-                    Text('— Memora', style: TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+                    Text('- MeetVault', style: TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
                   ],
                 ),
               ),
@@ -955,8 +948,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // ── Helpers ───────────────────────────────────────────────────────────────
   Widget _buildMeetingCard(Map<String, dynamic> m) {
     final title = m['title'] ?? 'Meeting';
-    final desc = m['description'] ?? 'Discussion and sync';
-    final publicId = m['public_id'] ?? 'MTG-0001';
+    final desc = m['description'] ?? m['status'] ?? 'Meeting';
+    final publicId = m['public_id'];
+    final inviteCode = m['invite_code'] ?? publicId ?? '';
+    final scheduled = _formatMeetingDate(m['scheduled_start_time']);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -968,15 +963,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       child: Row(
         children: [
-          // Date Column
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
-            child: const Column(
+            child: Column(
               children: [
-                Text('Sep 6', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                Text('Today', style: TextStyle(fontSize: 10, color: Color(0xFFFF5722), fontWeight: FontWeight.bold)),
-                Text('10:00 AM', style: TextStyle(fontSize: 9, color: Color(0xFF64748B))),
+                Text(scheduled.$1, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                Text(scheduled.$2, style: const TextStyle(fontSize: 10, color: Color(0xFFFF5722), fontWeight: FontWeight.bold)),
               ],
             ),
           ),
@@ -995,43 +988,53 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(width: 14),
 
-          // Participant Avatars
-          Row(
-            children: [
-              for (int i = 0; i < 3; i++) ...[
-                Align(
-                  widthFactor: 0.7,
-                  child: CircleAvatar(
-                    radius: 12,
-                    backgroundColor: Colors.blue.shade700,
-                    child: Text(String.fromCharCode(65 + i), style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-              ],
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(color: const Color(0xFFE2E8F0), borderRadius: BorderRadius.circular(10)),
-                child: const Text('+3', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-              ),
-            ],
-          ),
-          const SizedBox(width: 14),
-
-          // Join Button
           FilledButton.icon(
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFFFF5722),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            onPressed: () => _joinMeeting(publicId),
+            onPressed: inviteCode.toString().isEmpty ? null : () => _joinMeeting(inviteCode.toString()),
             icon: const Icon(Icons.videocam, size: 16),
             label: const Text('Join', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildActivityItem(Map<String, dynamic> meeting) {
+    final title = meeting['title']?.toString() ?? 'Meeting';
+    final status = meeting['status']?.toString() ?? 'SCHEDULED';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: status == 'LIVE' ? const Color(0xFFFF5722) : const Color(0xFFCBD5E1),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+          ),
+          Text(status, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  (String, String) _formatMeetingDate(dynamic value) {
+    if (value == null) return ('Unscheduled', 'Any time');
+    final parsed = DateTime.tryParse(value.toString());
+    if (parsed == null) return ('Scheduled', 'Soon');
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final local = parsed.toLocal();
+    return ('${months[local.month - 1]} ${local.day}', '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}');
   }
 
   Widget _buildCounterTile(IconData icon, String count, String label, Color bgColor, Color iconColor) {

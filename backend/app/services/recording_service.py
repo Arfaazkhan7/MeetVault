@@ -10,6 +10,7 @@ from app.core.enums import RecordingProcessingStatus
 from app.models.meeting import Meeting
 from app.models.recording import MeetingRecording
 from app.models.user import User
+from app.services.ai_job_service import get_or_create_recording_ai_job, mark_ai_job_failed
 from app.services.storage_service import StorageService
 
 
@@ -27,7 +28,8 @@ ALLOWED_RECORDING_TYPES = {
 def _recording_storage_path(meeting: Meeting, user: User, filename: str) -> str:
     suffix = Path(filename).suffix.lower() or ".bin"
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    return f"{meeting.company_id}/{meeting.public_id}/{timestamp}-{user.public_id}-{uuid4()}{suffix}"
+    tenant_id = meeting.company_id or f"personal/{user.public_id}"
+    return f"{tenant_id}/{meeting.public_id}/{timestamp}-{user.public_id}-{uuid4()}{suffix}"
 
 
 def _serialize_recording(recording: MeetingRecording) -> dict:
@@ -45,6 +47,7 @@ def _serialize_recording(recording: MeetingRecording) -> dict:
         "duration_seconds": recording.duration_seconds,
         "processing_status": recording.processing_status,
         "processing_error": recording.processing_error,
+        "ai_job_id": getattr(recording, "ai_job_id", None),
         "created_at": recording.created_at,
     }
 
@@ -92,9 +95,37 @@ async def create_recording_from_upload(
     )
     db.add(recording)
     meeting.recording_url = stored.path
+    meeting.transcription_status = "queued"
+    meeting.analysis_status = "queued"
+    recording.processing_status = RecordingProcessingStatus.QUEUED.value
+    db.flush()
+
+    job = get_or_create_recording_ai_job(
+        db,
+        recording=recording,
+        requested_by=current_user,
+        provider=settings.LLM_PROVIDER,
+    )
     db.commit()
     db.refresh(recording)
-    return _serialize_recording(recording)
+    _enqueue_ai_job(db, job.public_id)
+    payload = _serialize_recording(recording)
+    payload["ai_job_id"] = job.public_id
+    return payload
+
+
+def _enqueue_ai_job(db: Session, job_id: str) -> None:
+    try:
+        from celery import Celery
+
+        celery = Celery("meetvault_api", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
+        celery.send_task("ai_worker.tasks.process_recording", args=[job_id])
+    except Exception as exc:
+        from app.models.ai_job import AIJob
+
+        job = db.query(AIJob).filter(AIJob.public_id == job_id).first()
+        if job:
+            mark_ai_job_failed(db, job, f"AI worker queue unavailable: {exc}")
 
 
 def list_meeting_recordings(db: Session, meeting: Meeting) -> list[dict]:

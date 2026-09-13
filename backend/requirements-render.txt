@@ -19,3 +19,5 @@ pypdf
 python-pptx
 python-dotenv
 openai
+celery
+redis

@@ -12,6 +12,9 @@ class FakeStorageService:
     def create_signed_url(self, *, path: str, expires_in_seconds: int) -> str:
         return f"https://storage.example.test/signed/{path}?expires={expires_in_seconds}"
 
+    def download_private_file(self, *, path: str) -> bytes:
+        return self.objects[path]["content"]
+
 
 fake_storage = FakeStorageService()
 
@@ -79,7 +82,8 @@ def setup_recording_scenario(client):
     }
 
 
-def test_host_can_upload_recording_to_private_storage(client):
+def test_host_can_upload_recording_to_private_storage(client, monkeypatch):
+    monkeypatch.setattr("app.services.recording_service._enqueue_ai_job", lambda _db, _job_id: None)
     client.app.dependency_overrides[get_storage_service] = lambda: fake_storage
     data = setup_recording_scenario(client)
     response = client.post(
@@ -100,8 +104,16 @@ def test_host_can_upload_recording_to_private_storage(client):
     assert body["file_type"] == "video/mp4"
     assert body["file_size_bytes"] == len(b"video-bytes")
     assert body["duration_seconds"] == 42
-    assert body["processing_status"] == "UPLOADED"
+    assert body["processing_status"] == "QUEUED"
+    assert body["ai_job_id"].startswith("AIJ-")
     assert body["storage_path"] in fake_storage.objects
+
+    jobs = client.get(
+        f"/api/v1/meetings/{data['meeting']['public_id']}/ai-jobs",
+        headers=auth_headers(data["admin_token"]),
+    )
+    assert jobs.status_code == 200
+    assert jobs.json()[0]["status"] == "QUEUED"
 
 
 def test_non_host_cannot_upload_recording(client):

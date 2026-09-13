@@ -25,6 +25,7 @@ except Exception as e:
     sqlite_url = "sqlite:///./meetingdb.db"
     engine = create_engine(sqlite_url, connect_args={"check_same_thread": False})
     from app.models.base import Base
+    import app.models  # noqa: F401
     Base.metadata.create_all(bind=engine)
 
     # SQLite create_all() does not alter an existing local database. Keep

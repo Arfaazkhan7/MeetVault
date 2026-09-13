@@ -29,6 +29,10 @@ class StorageService(ABC):
     def create_signed_url(self, *, path: str, expires_in_seconds: int) -> str:
         raise NotImplementedError
 
+    @abstractmethod
+    def download_private_file(self, *, path: str) -> bytes:
+        raise NotImplementedError
+
 
 class SupabaseStorageService(StorageService):
     def __init__(
@@ -84,6 +88,13 @@ class SupabaseStorageService(StorageService):
         if signed_url.startswith("http"):
             return signed_url
         return f"{self.supabase_url}/storage/v1{signed_url}"
+
+    def download_private_file(self, *, path: str) -> bytes:
+        encoded_path = quote(path, safe="/")
+        url = f"{self.supabase_url}/storage/v1/object/{self.bucket}/{encoded_path}"
+        response = httpx.get(url, headers=self._headers, timeout=120)
+        response.raise_for_status()
+        return response.content
 
 
 def get_storage_service() -> StorageService:

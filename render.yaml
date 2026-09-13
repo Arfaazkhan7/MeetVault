@@ -45,3 +45,35 @@ services:
         sync: false
       - key: OPENAI_API_KEY
         sync: false
+  - type: worker
+    name: meetvault-ai-worker
+    runtime: docker
+    plan: free
+    rootDir: .
+    dockerfilePath: ./ai_worker/Dockerfile
+    dockerContext: .
+    autoDeployTrigger: commit
+    maxShutdownDelaySeconds: 120
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: STORAGE_BACKEND
+        value: supabase
+      - key: SUPABASE_STORAGE_BUCKET
+        value: meeting-recordings
+      - key: LLM_PROVIDER
+        value: openai
+      - key: TRANSCRIPTION_PROVIDER
+        value: openai
+      - key: ANALYSIS_PROVIDER
+        value: openai
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
