@@ -122,7 +122,7 @@ class _NavigationList extends StatelessWidget {
                   width: 38,
                   height: 38,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF5E6AD2),
+                    color: const Color(0xFFF97316),
                     borderRadius: BorderRadius.circular(7),
                   ),
                   child: const Center(
@@ -201,7 +201,7 @@ class _NavigationList extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       child: Material(
-        color: isSelected ? const Color(0xFFE9EAFE) : Colors.transparent,
+        color: isSelected ? const Color(0xFFFFE9DD) : Colors.transparent,
         borderRadius: BorderRadius.circular(6),
         child: InkWell(
         borderRadius: BorderRadius.circular(6),
@@ -217,7 +217,7 @@ class _NavigationList extends StatelessWidget {
                 Icon(
                   item.icon,
                   size: 20,
-                  color: isSelected ? const Color(0xFF5E6AD2) : const Color(0xFF73778C),
+                  color: isSelected ? const Color(0xFFF97316) : const Color(0xFF73778C),
                 ),
                 const SizedBox(width: 14),
                 Text(
@@ -225,7 +225,7 @@ class _NavigationList extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    color: isSelected ? const Color(0xFF4C56B8) : const Color(0xFF45495C),
+                    color: isSelected ? const Color(0xFFC2410C) : const Color(0xFF45495C),
                   ),
                 ),
               ],
