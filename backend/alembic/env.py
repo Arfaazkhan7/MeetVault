@@ -10,8 +10,13 @@ from alembic import context
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from app.models.base import Base
 import app.models
+from app.core.config import settings
 
 config = context.config
+
+# Keep the checked-in Alembic template safe while using the runtime database.
+# Render and local launches provide DATABASE_URL through the environment.
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL.replace("%", "%%"))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
