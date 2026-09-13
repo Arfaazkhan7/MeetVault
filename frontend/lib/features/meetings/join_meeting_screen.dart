@@ -76,6 +76,19 @@ class _JoinMeetingScreenState extends State<JoinMeetingScreen> {
         });
       }
     } catch (e) {
+      if (e is ApiException && e.statusCode == 401) {
+        await _api.clearToken();
+        if (mounted) {
+          setState(() {
+            _loading = false;
+            _error = 'Your session expired. Please sign in again, then use this meeting code.';
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please sign in again to join this meeting.')),
+          );
+        }
+        return;
+      }
       setState(() {
         _error = e.toString();
         _loading = false;

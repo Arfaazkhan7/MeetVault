@@ -5,7 +5,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ApiService {
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:8000/api/v1',
+    // Production-safe fallback for hosted/mobile builds. Local development
+    // passes --dart-define=API_BASE_URL=http://localhost:8000/api/v1.
+    defaultValue: 'https://meetvault-api.onrender.com/api/v1',
   );
   String? _token;
   
