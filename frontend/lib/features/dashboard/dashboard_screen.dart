@@ -471,6 +471,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
     final userName = authProvider.displayName;
+    final compact = MediaQuery.sizeOf(context).width < 820;
 
     return EnterpriseScaffold(
       title: 'Home',
@@ -484,13 +485,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: ListView(
                     padding: const EdgeInsets.all(24),
                     children: [
-                      _buildTopHeader(authProvider),
+                      if (compact) _buildCompactHeader(authProvider) else _buildTopHeader(authProvider),
                       const SizedBox(height: 24),
-                      _buildHeroSection(),
+                      if (compact) _buildCompactActions() else _buildHeroSection(),
                       const SizedBox(height: 20),
-                      _buildActionGrid(),
+                      if (!compact) _buildActionGrid(),
                       const SizedBox(height: 28),
-                      _buildMainSplitLayout(),
+                      if (compact) _buildCompactContent() else _buildMainSplitLayout(),
                     ],
                   ),
                 ),
@@ -994,6 +995,74 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildCompactHeader(AuthProvider auth) {
+    final name = auth.displayName.isEmpty ? 'there' : auth.displayName;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Your workspace', style: TextStyle(color: Color(0xFF64748B), fontSize: 13)),
+            const SizedBox(height: 4),
+            Text('Hi, $name', style: const TextStyle(fontSize: 27, fontWeight: FontWeight.w800, color: Color(0xFF111827))),
+          ])),
+          IconButton(onPressed: () => _showUserProfileDialog(auth), icon: const Icon(Icons.account_circle_outlined, size: 30)),
+        ]),
+        const SizedBox(height: 16),
+        Container(
+          height: 48,
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFE2E8F0))),
+          child: TextField(
+            onSubmitted: (_) => Navigator.pushNamed(context, AppRouter.search),
+            decoration: const InputDecoration(hintText: 'Search meetings or topics', prefixIcon: Icon(Icons.search), border: InputBorder.none),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompactActions() {
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(color: const Color(0xFF111827), borderRadius: BorderRadius.circular(20)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Icon(Icons.videocam_rounded, color: Color(0xFFF97316), size: 30),
+          const SizedBox(height: 12),
+          const Text('Ready when you are', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 4),
+          const Text('Start a room and invite your team in seconds.', style: TextStyle(color: Color(0xFFCBD5E1))),
+          const SizedBox(height: 16),
+          FilledButton.icon(onPressed: _startInstantMeeting, icon: const Icon(Icons.add), label: const Text('New meeting')),
+        ]),
+      ),
+      const SizedBox(height: 12),
+      Row(children: [
+        Expanded(child: TextField(controller: _joinCodeCtrl, textCapitalization: TextCapitalization.characters, decoration: const InputDecoration(labelText: 'Meeting code', prefixIcon: Icon(Icons.tag)))),
+        const SizedBox(width: 8),
+        FilledButton(onPressed: () => _joinMeeting(_joinCodeCtrl.text), child: const Text('Join')),
+      ]),
+    ]);
+  }
+
+  Widget _buildCompactContent() {
+    final analytics = _analytics ?? {};
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        const Text('Your meetings', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+        TextButton(onPressed: () => Navigator.pushNamed(context, AppRouter.meetings), child: const Text('View all')),
+      ]),
+      if (_meetingsList.isEmpty) const SizedBox(height: 120, child: UiState.empty('No meetings yet')) else ..._meetingsList.take(3).map(_buildMeetingCard),
+      const SizedBox(height: 12),
+      GridView.count(crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 2.1, children: [
+        _buildCounterTile(Icons.videocam_outlined, '${analytics['meeting_count'] ?? 0}', 'Meetings', Colors.orange.shade50, Colors.orange.shade800),
+        _buildCounterTile(Icons.description_outlined, '${(analytics['topics'] ?? 0) + (analytics['decisions'] ?? 0)}', 'Notes', Colors.teal.shade50, Colors.teal.shade700),
+        _buildCounterTile(Icons.people_outline, '${analytics['attendance'] ?? 0}', 'Attendees', Colors.blue.shade50, Colors.blue.shade700),
+        _buildCounterTile(Icons.access_time_rounded, '${((analytics['meeting_duration'] ?? 0) / 3600).round()}h', 'Hours', Colors.purple.shade50, Colors.purple.shade700),
+      ]),
+    ]);
   }
 
   Future<void> _showInviteAndJoin(Map<String, dynamic> meeting) async {
