@@ -539,7 +539,57 @@
       animation: toastIn 0.2s cubic-bezier(0.16,1,0.3,1);
     }
     @keyframes toastIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
-  </style>
+  
+    /* Auth Modal Overlay */
+    .auth-overlay {
+      position: fixed; inset: 0; background: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(8px); z-index: 1000;
+      display: flex; align-items: center; justify-content: center; padding: 20px;
+      animation: fadeIn 0.2s ease;
+    }
+    .auth-modal-card {
+      background: #FFFFFF; border-radius: 20px; width: 100%; max-width: 420px;
+      padding: 32px 28px; box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+    }
+    .google-btn {
+      width: 100%; height: 46px; border: 1.5px solid var(--border);
+      border-radius: 10px; background: #FFFFFF; color: #0F172A;
+      font-size: 0.9rem; font-weight: 700; cursor: pointer; font-family: inherit;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      transition: all 0.15s ease; margin-bottom: 16px;
+    }
+    .google-btn:hover { background: #F8FAFC; border-color: #CBD5E1; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    
+    /* Dual Video Grid Layout */
+    .video-grid {
+      width: 100%; height: 100%; display: flex; gap: 12px; padding: 12px;
+      box-sizing: border-box; background: #090D16; position: relative;
+    }
+    .video-box {
+      flex: 1; position: relative; border-radius: 12px; overflow: hidden;
+      background: #111827; display: flex; align-items: center; justify-content: center;
+    }
+    .video-box video { width: 100%; height: 100%; object-fit: cover; }
+    .video-name-tag {
+      position: absolute; bottom: 14px; left: 14px;
+      background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(6px);
+      color: #FFFFFF; padding: 5px 12px; border-radius: 6px;
+      font-size: 0.78rem; font-weight: 700; border: 1px solid rgba(255,255,255,0.12); z-index: 10;
+    }
+    .cam-placeholder {
+      width: 100%; height: 100%; background: #0D1117; display: flex;
+      flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+      position: absolute; inset: 0;
+    }
+    .avatar-circle {
+      width: 64px; height: 64px; border-radius: 50%; background: #374151;
+      color: #fff; display: flex; align-items: center; justify-content: center;
+      font-size: 1.6rem; font-weight: 700;
+    }
+    .cam-status { color: #fff; font-weight: 600; font-size: 0.88rem; }
+
+</style>
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -762,10 +812,27 @@
                 <span id="room-badge-text">MTG-DA22D7</span>
                 <button onclick="copyCurrentRoomLink()">Copy Link</button>
               </div>
-              <video id="webcam-video" autoplay playsinline muted></video>
-              <div id="cam-ph">
-                <div style="width:68px;height:68px;border-radius:50%;background:#374151;color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.7rem;font-weight:700;">A</div>
-                <div style="color:#fff;font-weight:600;">Camera Off</div>
+              
+              <div class="video-grid" id="video-grid">
+                <!-- Local Video Box -->
+                <div class="video-box" id="local-video-box">
+                  <video id="webcam-video" autoplay playsinline muted></video>
+                  <div class="video-name-tag" id="local-name-tag">You</div>
+                  <div id="cam-ph" class="cam-placeholder" style="display:none;">
+                    <div class="avatar-circle" id="local-avatar">A</div>
+                    <div class="cam-status">Camera Off</div>
+                  </div>
+                </div>
+                
+                <!-- Remote Participant Video Box (P2P Stream) -->
+                <div class="video-box" id="remote-video-box" style="display:none;">
+                  <video id="remote-video" autoplay playsinline></video>
+                  <div class="video-name-tag" id="remote-name-tag">Participant</div>
+                  <div id="remote-cam-ph" class="cam-placeholder" style="display:none;">
+                    <div class="avatar-circle" style="background:#2563EB;">P</div>
+                    <div class="cam-status">Camera Off</div>
+                  </div>
+                </div>
               </div>
             </div>
             <div class="room-bar">
@@ -843,14 +910,6 @@
 </div>
 
 <script>
-/* ── Require Authentication on First Launch ────────── */
-(function requireAuth(){
-  const user = localStorage.getItem('mv_user');
-  if(!user){
-    window.location.href = 'login.html';
-  }
-})();
-
 /* ── Notes Persistence ────────────────────────────────── */
 (function(){
   const n = localStorage.getItem('mv_notes_v6');
@@ -899,6 +958,7 @@ function initAuthState(){
   const settingsCode = document.getElementById('settings-code');
   const settingsAvatar = document.getElementById('settings-avatar');
   const settingsAuthPanel = document.getElementById('settings-auth-panel');
+  const authModal = document.getElementById('auth-modal');
 
   if(userStr){
     try {
@@ -907,6 +967,8 @@ function initAuthState(){
       const firstName = parts[0] || 'User';
       const lastName = parts.slice(1).join(' ');
       const initials = (firstName[0] + (lastName[0] || '')).toUpperCase();
+
+      if(authModal) authModal.style.display = 'none';
 
       if(heroGreet) heroGreet.textContent = 'Good to see you,';
       if(heroFirst) heroFirst.textContent = firstName;
@@ -945,7 +1007,9 @@ function initAuthState(){
     } catch(e){}
   }
 
-  // Guest State
+  // Not Logged In -> Show In-App Auth Modal
+  if(authModal) authModal.style.display = 'flex';
+
   if(heroGreet) heroGreet.textContent = 'Welcome to MeetVault,';
   if(heroFirst) heroFirst.textContent = 'Guest';
   if(heroLast) heroLast.textContent = '';
@@ -953,7 +1017,7 @@ function initAuthState(){
   if(authArea){
     authArea.innerHTML = `
       <div style="display:flex;align-items:center;gap:8px;">
-        <a href="login.html" class="top-login-btn">Sign In</a>
+        <button class="top-login-btn" onclick="showAuthModal()">Sign In</button>
         <a href="signup.html" class="top-login-btn" style="background:#0F172A;color:#fff;">Sign Up</a>
       </div>`;
   }
@@ -965,18 +1029,44 @@ function initAuthState(){
     settingsAuthPanel.innerHTML = `
       <h3 style="font-size:0.95rem;font-weight:800;margin-bottom:8px;">Sign In to MeetVault</h3>
       <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:16px;">Sync your meeting transcripts, notes, and AI summaries.</p>
-      <a href="login.html" class="top-login-btn" style="width:100%;justify-content:center;height:38px;box-sizing:border-box;">Sign In</a>`;
+      <button class="top-login-btn" style="width:100%;justify-content:center;height:38px;" onclick="showAuthModal()">Sign In</button>`;
   }
+}
+
+function showAuthModal(){
+  const modal = document.getElementById('auth-modal');
+  if(modal) modal.style.display = 'flex';
+}
+function dismissAuthModal(){
+  const modal = document.getElementById('auth-modal');
+  if(modal) modal.style.display = 'none';
+}
+
+function loginWithGoogleInApp(){
+  const user = { email: 'alex.google@gmail.com', name: 'Alex Mercer', code: 'MTG-GOOG1' };
+  localStorage.setItem('mv_user', JSON.stringify(user));
+  localStorage.setItem('access_token', 'goog-' + Date.now());
+  showToast('✅ Signed in with Google!');
+  initAuthState();
+}
+
+function loginWithEmailInApp(e){
+  e.preventDefault();
+  const email = document.getElementById('modal-email').value.trim();
+  const name = email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  const code = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+  localStorage.setItem('mv_user', JSON.stringify({ email, name, code }));
+  localStorage.setItem('access_token', 'mail-' + Date.now());
+  showToast('✅ Signed in successfully!');
+  initAuthState();
 }
 
 function logoutUser(){
   localStorage.removeItem('mv_user');
   localStorage.removeItem('access_token');
   toggleUserMenu(false);
-  showToast('Signed out successfully');
-  setTimeout(() => {
-    window.location.href = 'login.html';
-  }, 400);
+  showToast('Signed out');
+  initAuthState();
 }
 
 function toggleUserMenu(forceState){
@@ -996,8 +1086,14 @@ document.addEventListener('click', (e) => {
   }
 });
 
-/* ── Call / Media Stream ───────────────────────────────── */
-let stream=null, micOn=true, camOn=true, currentRoomCode='MTG-DA22D7';
+/* ── WebRTC P2P Video Call Stream (PeerJS Multi-Device) ───── */
+let stream = null;
+let micOn = true;
+let camOn = true;
+let currentRoomCode = 'MTG-DA22D7';
+
+let peer = null;
+let activePeerCall = null;
 
 function copyHeroCode(){
   const codeEl = document.getElementById('hero-code');
@@ -1058,34 +1154,132 @@ async function startCall(code){
   }
   closeDrawer();
   switchView('room');
-  const vid=document.getElementById('webcam-video');
-  const ph=document.getElementById('cam-ph');
+  
+  const vid = document.getElementById('webcam-video');
+  const ph = document.getElementById('cam-ph');
+
   try {
-    stream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-    if(vid){ vid.srcObject=stream; vid.style.display='block'; }
-    if(ph){ ph.style.display='none'; }
-    micOn=true; camOn=true;
+    stream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
+    if(vid){ vid.srcObject = stream; vid.style.display = 'block'; }
+    if(ph){ ph.style.display = 'none'; }
+    micOn = true; camOn = true;
     const btnMic = document.getElementById('btn-mic');
     const btnCam = document.getElementById('btn-cam');
     if(btnMic) btnMic.classList.remove('off');
     if(btnCam) btnCam.classList.remove('off');
   } catch(e){
-    if(vid) vid.style.display='none';
-    if(ph) ph.style.display='flex';
+    if(vid) vid.style.display = 'none';
+    if(ph) ph.style.display = 'flex';
   }
+
+  // Initialize P2P Multi-Device Connection via PeerJS
+  initP2PCall(currentRoomCode);
 }
 
-function stopStream(){ if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } }
-function toggleMic(){ micOn=!micOn; if(stream) stream.getAudioTracks().forEach(t=>t.enabled=micOn); document.getElementById('btn-mic').classList.toggle('off',!micOn); }
-function toggleCam(){
-  camOn=!camOn;
-  const vid=document.getElementById('webcam-video'); const ph=document.getElementById('cam-ph');
-  if(stream) stream.getVideoTracks().forEach(t=>t.enabled=camOn);
-  document.getElementById('btn-cam').classList.toggle('off',!camOn);
-  if(vid) vid.style.display=camOn?'block':'none';
-  if(ph) ph.style.display=camOn?'none':'flex';
+function initP2PCall(roomCode) {
+  if (typeof Peer === 'undefined') return;
+  
+  const cleanCode = roomCode.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const hostPeerId = 'mv-room-' + cleanCode;
+
+  if (peer) {
+    try { peer.destroy(); } catch(e){}
+    peer = null;
+  }
+
+  // Try connecting as Room Host
+  peer = new Peer(hostPeerId, { debug: 1 });
+
+  peer.on('open', (id) => {
+    console.log('Room host initialized:', id);
+    showToast('Host room live: ' + roomCode);
+  });
+
+  // Host receives incoming participant call
+  peer.on('call', (call) => {
+    console.log('Incoming participant calling...');
+    activePeerCall = call;
+    if (stream) call.answer(stream);
+    attachRemoteCallStream(call);
+  });
+
+  // If host ID is already taken, connect as Participant!
+  peer.on('error', (err) => {
+    if (err.type === 'unavailable-id') {
+      console.log('Host room exists! Joining as participant...');
+      const partPeerId = 'mv-part-' + cleanCode + '-' + Math.random().toString(36).substring(2, 6);
+      peer = new Peer(partPeerId, { debug: 1 });
+
+      peer.on('open', () => {
+        console.log('Participant calling host:', hostPeerId);
+        if (stream) {
+          const call = peer.call(hostPeerId, stream);
+          activePeerCall = call;
+          attachRemoteCallStream(call);
+        }
+        showToast('Connected to room: ' + roomCode);
+      });
+    } else {
+      console.warn('Peer error:', err);
+    }
+  });
 }
-function shareScreen(){ navigator.mediaDevices.getDisplayMedia({video:true}).then(s=>{ const vid=document.getElementById('webcam-video'); if(vid) vid.srcObject=s; }).catch(()=>{}); }
+
+function attachRemoteCallStream(call) {
+  const remoteBox = document.getElementById('remote-video-box');
+  const remoteVideo = document.getElementById('remote-video');
+
+  call.on('stream', (remoteStream) => {
+    console.log('Received remote video stream!');
+    if (remoteBox) remoteBox.style.display = 'flex';
+    if (remoteVideo) {
+      remoteVideo.srcObject = remoteStream;
+      remoteVideo.play().catch(()=>{});
+    }
+    showToast('Participant connected to video!');
+  });
+
+  call.on('close', () => {
+    if (remoteBox) remoteBox.style.display = 'none';
+    showToast('Participant left call');
+  });
+}
+
+function stopStream(){
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  if(activePeerCall){ try{ activePeerCall.close(); }catch(e){} activePeerCall=null; }
+  if(peer){ try{ peer.destroy(); }catch(e){} peer=null; }
+  const remoteBox = document.getElementById('remote-video-box');
+  if(remoteBox) remoteBox.style.display = 'none';
+}
+
+function toggleMic(){
+  micOn = !micOn;
+  if(stream) stream.getAudioTracks().forEach(t=>t.enabled = micOn);
+  const btnMic = document.getElementById('btn-mic');
+  if(btnMic) btnMic.classList.toggle('off', !micOn);
+}
+function toggleCam(){
+  camOn = !camOn;
+  const vid = document.getElementById('webcam-video');
+  const ph = document.getElementById('cam-ph');
+  if(stream) stream.getVideoTracks().forEach(t=>t.enabled = camOn);
+  const btnCam = document.getElementById('btn-cam');
+  if(btnCam) btnCam.classList.toggle('off', !camOn);
+  if(vid) vid.style.display = camOn ? 'block' : 'none';
+  if(ph) ph.style.display = camOn ? 'none' : 'flex';
+}
+function shareScreen(){
+  navigator.mediaDevices.getDisplayMedia({video:true}).then(s => {
+    const vid = document.getElementById('webcam-video');
+    if(vid) vid.srcObject = s;
+    if(activePeerCall && activePeerCall.peerConnection){
+      const videoTrack = s.getVideoTracks()[0];
+      const sender = activePeerCall.peerConnection.getSenders().find(s => s.track.kind === 'video');
+      if(sender) sender.replaceTrack(videoTrack);
+    }
+  }).catch(()=>{});
+}
 function endCall(){ stopStream(); switchView('home'); }
 
 function doJoin(providedCode){
