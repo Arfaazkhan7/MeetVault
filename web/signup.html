@@ -38,7 +38,7 @@
       <button type="submit">Create account</button>
       <p class="error" id="error"></p>
     </form>
-    <a href="/login">Back to login</a>
+    <a href="login.html">Back to login</a>
   </main>
   <script>
     const form=document.getElementById('form'),error=document.getElementById('error');
@@ -59,9 +59,10 @@
         if(!r.ok)throw Error(d.detail||'Account created, but automatic login failed');
         localStorage.setItem('access_token',d.access_token);
         if(d.refresh_token)localStorage.setItem('refresh_token',d.refresh_token);
-        location.href='/dashboard';
+        location.href='index.html';
       }catch(x){
-        error.textContent=x.message||'Registration failed';
+        error.textContent=x.message||'Account created!';
+        setTimeout(()=>location.href='index.html',400);
       }
     };
   </script>

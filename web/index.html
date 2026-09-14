@@ -491,6 +491,54 @@
     .dopt-icon.blue  { background:var(--blue); }
     .dopt-title { font-size:0.88rem; font-weight:700; }
     .dopt-sub   { font-size:0.75rem; color:var(--text-secondary); margin-top:2px; }
+
+    /* Top login & dropdown */
+    .top-login-btn {
+      font-size: 0.82rem; font-weight: 700; color: var(--blue);
+      background: var(--blue-light-bg); padding: 7px 16px; border-radius: 8px;
+      text-decoration: none; transition: background 0.15s; display: inline-flex; align-items: center;
+    }
+    .top-login-btn:hover { background: #DBEAFE; }
+
+    .user-dropdown {
+      position: absolute; top: 46px; right: 0; width: 200px;
+      background: #FFFFFF; border: 1px solid var(--border); border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.08); display: none; flex-direction: column;
+      padding: 6px 0; z-index: 100; animation: fadeIn 0.15s ease;
+    }
+    .user-dropdown.open { display: flex; }
+    .dropdown-item {
+      display: flex; align-items: center; gap: 10px; padding: 9px 14px;
+      font-size: 0.82rem; font-weight: 600; color: var(--text-primary);
+      text-decoration: none; cursor: pointer; transition: background 0.12s;
+    }
+    .dropdown-item:hover { background: #F8FAFC; color: var(--blue); }
+
+    .room-code-badge {
+      position: absolute; top: 16px; left: 20px; z-index: 10;
+      background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px);
+      padding: 8px 14px; border-radius: 8px; color: #fff;
+      display: flex; align-items: center; gap: 10px; font-size: 0.82rem; font-weight: 700;
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    .room-code-badge button {
+      background: var(--blue); color: #fff; border: none; padding: 4px 10px;
+      border-radius: 5px; font-size: 0.74rem; font-weight: 700; cursor: pointer;
+    }
+    .room-code-badge button:hover { background: var(--blue-dark); }
+
+    /* Toast notification */
+    .toast-container {
+      position: fixed; bottom: 24px; right: 24px; z-index: 999;
+      display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+    }
+    .toast {
+      background: #0F172A; color: #FFFFFF; font-size: 0.84rem; font-weight: 600;
+      padding: 12px 18px; border-radius: 10px; box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+      display: flex; align-items: center; gap: 10px; pointer-events: auto;
+      animation: toastIn 0.2s cubic-bezier(0.16,1,0.3,1);
+    }
+    @keyframes toastIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
   </style>
 </head>
 <body>
@@ -542,11 +590,32 @@
 
     <!-- FLOATING TOP CONTROLS (TOP RIGHT CORNER) -->
     <div class="top-controls">
-      <div class="notif-btn" onclick="alert('No new notifications')">
+      <a href="login.html" class="top-login-btn">Login</a>
+      <div class="notif-btn" onclick="showToast('No new notifications')">
         <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
         <div class="notif-dot"></div>
       </div>
-      <div class="user-avatar" onclick="switchView('settings')">A</div>
+      <div class="user-menu-wrap" style="position:relative;">
+        <div class="user-avatar" onclick="toggleUserMenu()">A</div>
+        <div class="user-dropdown" id="user-dropdown">
+          <div style="padding:10px 14px 8px;border-bottom:1px solid #E2E8F0;">
+            <div style="font-weight:700;font-size:0.86rem;color:#0F172A;">Arfaaz Khan</div>
+            <div style="font-size:0.75rem;color:#64748B;">arfaaz@meetvault.com</div>
+          </div>
+          <a href="login.html" class="dropdown-item">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12H12v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"/></svg>
+            Sign In / Login
+          </a>
+          <a href="signup.html" class="dropdown-item">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9 -2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+            Create Account
+          </a>
+          <div class="dropdown-item" onclick="switchView('settings');toggleUserMenu(false);">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6-3.6z"/></svg>
+            Settings
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- CONTENT -->
@@ -605,7 +674,7 @@
                 </div>
                 <div class="card-title">Create a Meeting</div>
                 <div class="card-sub">Start an instant meeting and invite others.</div>
-                <button class="btn-red-action" onclick="openDrawer()">
+                <button class="btn-red-action" onclick="createNewMeeting()">
                   <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
                   New Meeting
                 </button>
@@ -709,6 +778,10 @@
         <div class="view" id="view-room">
           <div class="room-wrap">
             <div class="room-video">
+              <div class="room-code-badge">
+                <span id="room-badge-text">MTG-DA22D7</span>
+                <button onclick="copyCurrentRoomLink()">Copy Link</button>
+              </div>
               <video id="webcam-video" autoplay playsinline muted></video>
               <div id="cam-ph">
                 <div style="width:68px;height:68px;border-radius:50%;background:#374151;color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.7rem;font-weight:700;">A</div>
@@ -716,7 +789,7 @@
               </div>
             </div>
             <div class="room-bar">
-              <span style="color:rgba(255,255,255,0.65);font-size:0.84rem;font-weight:600;" id="room-lbl">meetvault.live/instant</span>
+              <span style="color:rgba(255,255,255,0.65);font-size:0.84rem;font-weight:600;" id="room-lbl">meetvault.live/MTG-DA22D7</span>
               <div class="ctrl-group">
                 <button class="ctrl" id="btn-mic" onclick="toggleMic()">
                   <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z"/></svg>
@@ -740,17 +813,28 @@
         <div class="view" id="view-settings">
           <h2 style="font-size:1.4rem;font-weight:800;margin-bottom:4px;">Settings</h2>
           <p style="color:var(--text-secondary);font-size:0.86rem;margin-bottom:24px;">Manage your account and preferences.</p>
-          <div class="settings-panel">
-            <div style="display:flex;align-items:center;gap:14px;margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid var(--border);">
-              <div style="width:48px;height:48px;border-radius:50%;background:#0F172A;color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.15rem;font-weight:700;">A</div>
-              <div>
-                <div style="font-size:0.96rem;font-weight:700;">Arfaaz Khan</div>
-                <div style="font-size:0.78rem;color:var(--text-secondary);">MTG-DA22D7 · Personal</div>
+          <div style="display:flex;gap:24px;align-items:flex-start;">
+            <div class="settings-panel" style="flex:1;">
+              <div style="display:flex;align-items:center;gap:14px;margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid var(--border);">
+                <div style="width:48px;height:48px;border-radius:50%;background:#0F172A;color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.15rem;font-weight:700;">A</div>
+                <div>
+                  <div style="font-size:0.96rem;font-weight:700;">Arfaaz Khan</div>
+                  <div style="font-size:0.78rem;color:var(--text-secondary);">MTG-DA22D7 · Personal</div>
+                </div>
+              </div>
+              <div class="form-group"><label>Camera</label><select class="form-select"><option>HD Web Camera (Integrated)</option></select></div>
+              <div class="form-group"><label>Microphone</label><select class="form-select"><option>Default Microphone Array</option></select></div>
+              <button class="btn-blue-action" style="width:100%;justify-content:center;border-radius:8px;height:42px;" onclick="showToast('Settings saved!')">Save Settings</button>
+            </div>
+
+            <div class="settings-panel" style="width:280px;">
+              <h3 style="font-size:0.95rem;font-weight:800;margin-bottom:12px;">Account Access</h3>
+              <p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:16px;">Sign in to your MeetVault account or create a new workspace.</p>
+              <div style="display:flex;flex-direction:column;gap:10px;">
+                <a href="login.html" class="btn-blue-action" style="display:flex;align-items:center;justify-content:center;height:40px;border-radius:8px;text-decoration:none;">Log In</a>
+                <a href="signup.html" class="btn-light-blue" style="display:flex;align-items:center;justify-content:center;height:40px;border-radius:8px;text-decoration:none;">Create Account</a>
               </div>
             </div>
-            <div class="form-group"><label>Camera</label><select class="form-select"><option>HD Web Camera (Integrated)</option></select></div>
-            <div class="form-group"><label>Microphone</label><select class="form-select"><option>Default Microphone Array</option></select></div>
-            <button class="btn-blue-action" style="width:100%;justify-content:center;border-radius:8px;height:42px;" onclick="alert('Settings saved!')">Save Settings</button>
           </div>
         </div>
 
@@ -768,11 +852,11 @@
         <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
       </button>
     </div>
-    <div class="drawer-opt" onclick="startCall()">
+    <div class="drawer-opt" onclick="createNewMeeting()">
       <div class="dopt-icon"><svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg></div>
       <div><div class="dopt-title">Instant Meeting</div><div class="dopt-sub">Start immediately with camera & mic</div></div>
     </div>
-    <div class="drawer-opt" onclick="copyLink()">
+    <div class="drawer-opt" onclick="createNewMeeting()">
       <div class="dopt-icon green"><svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg></div>
       <div><div class="dopt-title">Create Meeting Link</div><div class="dopt-sub">Generate & share a room code</div></div>
     </div>
@@ -814,16 +898,84 @@ function closeDrawer(e){
 }
 
 /* ── Call / Media Stream ───────────────────────────────── */
-let stream=null, micOn=true, camOn=true;
-async function startCall(){
+let stream=null, micOn=true, camOn=true, currentRoomCode='MTG-DA22D7';
+
+function createNewMeeting(){
+  const code = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+  currentRoomCode = code;
+  document.getElementById('room-lbl').textContent = 'meetvault.live/' + code;
+  const badge = document.getElementById('room-badge-text');
+  if(badge) badge.textContent = code;
+  const codeEl = document.querySelector('.hero-code');
+  if(codeEl) codeEl.textContent = code;
+  const link = 'https://meetvault.live/' + code;
+  navigator.clipboard.writeText(link).catch(()=>{});
+  showToast('Meeting Created! Code: ' + code + ' (Link copied)');
+  startCall(code);
+}
+
+function copyCurrentRoomLink(){
+  const link = 'https://meetvault.live/' + currentRoomCode;
+  navigator.clipboard.writeText(link).catch(()=>{});
+  showToast('Meeting link copied: ' + currentRoomCode);
+}
+
+function toggleUserMenu(forceState){
+  const menu = document.getElementById('user-dropdown');
+  if(!menu) return;
+  if(typeof forceState === 'boolean'){
+    menu.classList.toggle('open', forceState);
+  } else {
+    menu.classList.toggle('open');
+  }
+}
+
+document.addEventListener('click', (e) => {
+  const wrap = document.querySelector('.user-menu-wrap');
+  if(wrap && !wrap.contains(e.target)){
+    toggleUserMenu(false);
+  }
+});
+
+function showToast(msg){
+  let container = document.getElementById('toast-container');
+  if(!container){
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    container.className = 'toast-container';
+    document.body.appendChild(container);
+  }
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.innerHTML = `<span>${msg}</span>`;
+  container.appendChild(t);
+  setTimeout(() => {
+    t.style.opacity = '0';
+    t.style.transform = 'translateY(10px)';
+    t.style.transition = 'all 0.2s ease';
+    setTimeout(() => t.remove(), 200);
+  }, 3200);
+}
+
+async function startCall(code){
+  if(code) {
+    currentRoomCode = code;
+    document.getElementById('room-lbl').textContent = 'meetvault.live/' + code;
+    const badge = document.getElementById('room-badge-text');
+    if(badge) badge.textContent = code;
+  }
   closeDrawer(); switchView('room');
   const vid=document.getElementById('webcam-video');
   const ph=document.getElementById('cam-ph');
   try {
     stream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
     vid.srcObject=stream; vid.style.display='block'; ph.style.display='none';
+    micOn=true; camOn=true;
+    document.getElementById('btn-mic').classList.remove('off');
+    document.getElementById('btn-cam').classList.remove('off');
   } catch(e){ vid.style.display='none'; ph.style.display='flex'; }
 }
+
 function stopStream(){ if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } }
 function toggleMic(){ micOn=!micOn; if(stream) stream.getAudioTracks().forEach(t=>t.enabled=micOn); document.getElementById('btn-mic').classList.toggle('off',!micOn); }
 function toggleCam(){
@@ -836,17 +988,18 @@ function toggleCam(){
 function shareScreen(){ navigator.mediaDevices.getDisplayMedia({video:true}).then(s=>{ document.getElementById('webcam-video').srcObject=s; }).catch(()=>{}); }
 function endCall(){ stopStream(); switchView('home'); }
 
-function doJoin(){
-  const code=document.getElementById('join-code').value.trim();
-  if(!code){ document.getElementById('join-code').focus(); return; }
-  document.getElementById('room-lbl').textContent='meetvault.live/'+code;
-  startCall();
+function doJoin(providedCode){
+  const inputEl = document.getElementById('join-code');
+  let code = providedCode || (inputEl ? inputEl.value.trim() : '');
+  if(!code){
+    code = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+  }
+  currentRoomCode = code;
+  document.getElementById('room-lbl').textContent = 'meetvault.live/' + code;
+  showToast('Joining Meeting: ' + code);
+  startCall(code);
 }
-function copyLink(){
-  const code='MTG-'+Math.random().toString(36).substring(2,7).toUpperCase();
-  navigator.clipboard.writeText('https://meetvault.live/'+code).catch(()=>{});
-  closeDrawer(); alert('Meeting link copied!\n\nhttps://meetvault.live/'+code);
-}
+function copyLink(){ createNewMeeting(); }
 function vaultSearch(){
   const q=document.getElementById('vault-q').value.trim();
   const res=document.getElementById('vault-result');
