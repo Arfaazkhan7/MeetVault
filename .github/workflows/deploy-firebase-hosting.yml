@@ -12,6 +12,36 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Inject production web config
+        env:
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          API_BASE_URL: https://meetvault-api.onrender.com/api/v1
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const files = ['web/login.html', 'web/signup.html', 'web/index.html'];
+          const firebaseApiKey = process.env.FIREBASE_API_KEY || '';
+          const apiBaseUrl = process.env.API_BASE_URL || '';
+
+          if (!/^AIza[0-9A-Za-z_-]{20,}$/.test(firebaseApiKey)) {
+            throw new Error('FIREBASE_API_KEY GitHub secret is missing or is not a Firebase Web API key.');
+          }
+
+          for (const file of files) {
+            let text = fs.readFileSync(file, 'utf8');
+            text = text.replaceAll('__FIREBASE_API_KEY__', firebaseApiKey);
+            text = text.replaceAll('__API_BASE_URL__', apiBaseUrl);
+            fs.writeFileSync(file, text);
+          }
+
+          for (const file of files) {
+            const text = fs.readFileSync(file, 'utf8');
+            if (text.includes('__FIREBASE_API_KEY__') || text.includes('AIzaSyD_placeholder_key')) {
+              throw new Error(`Firebase API key placeholder remains in ${file}.`);
+            }
+          }
+          NODE
+
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:

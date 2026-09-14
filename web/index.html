@@ -1067,7 +1067,9 @@
 <script>
 
 // ── Firebase & Google OAuth Initialization ──────────────────
+const API_BASE_URL = "__API_BASE_URL__";
 const firebaseConfig = {
+  apiKey: "__FIREBASE_API_KEY__",
   authDomain: "ai-meet-f8fd0.firebaseapp.com",
   projectId: "ai-meet-f8fd0",
   storageBucket: "ai-meet-f8fd0.firebasestorage.app",
@@ -1096,20 +1098,18 @@ async function loginWithGoogle() {
     const user = result.user;
     const idToken = await user.getIdToken();
 
-    // Verify token with backend if backend running
-    try {
-      const response = await fetch('/api/v1/auth/firebase/google', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id_token: idToken }),
-        signal: AbortSignal.timeout(3000)
-      });
-      const data = await response.json();
-      if (response.ok) {
-        localStorage.setItem('access_token', data.access_token);
-        if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
-      }
-    } catch (_) {}
+    const response = await fetch(`${API_BASE_URL}/auth/firebase/google`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_token: idToken }),
+      signal: AbortSignal.timeout(10000)
+    });
+    const data = await response.json();
+    if (!response.ok || !data.access_token) {
+      throw new Error(data.detail || 'MeetVault backend could not verify this Google account.');
+    }
+    localStorage.setItem('access_token', data.access_token);
+    if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
 
     const name = user.displayName || user.email.split('@')[0];
     const code = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
@@ -1121,7 +1121,6 @@ async function loginWithGoogle() {
       uid: user.uid,
       code: code
     }));
-    localStorage.setItem('access_token', 'google-oauth-' + Date.now());
 
     const msg = document.getElementById('msg');
     if (msg) {

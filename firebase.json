@@ -11,6 +11,16 @@
         "source": "/",
         "destination": "/login.html",
         "type": 302
+      },
+      {
+        "source": "/login",
+        "destination": "/login.html",
+        "type": 302
+      },
+      {
+        "source": "/signup",
+        "destination": "/signup.html",
+        "type": 302
       }
     ]
   }
