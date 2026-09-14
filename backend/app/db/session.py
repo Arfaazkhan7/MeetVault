@@ -41,6 +41,7 @@ except Exception as e:
     with engine.begin() as conn:
         for table, column, definition in (
             ("users", "account_type", "VARCHAR NOT NULL DEFAULT 'personal'"),
+            ("users", "firebase_uid", "VARCHAR"),
             ("companies", "workspace_code", "VARCHAR"),
         ):
             columns = {row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({table})")}

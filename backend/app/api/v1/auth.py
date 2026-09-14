@@ -122,6 +122,7 @@ def login_with_google(payload: FirebaseLoginRequest, db: Session = Depends(get_d
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    firebase_uid = decoded.get("uid") or decoded.get("sub")
     email = decoded.get("email")
     email_verified = decoded.get("email_verified", False)
     if not email or not email_verified:
@@ -135,10 +136,16 @@ def login_with_google(payload: FirebaseLoginRequest, db: Session = Depends(get_d
         db=db,
         email=email,
         full_name=decoded.get("name"),
+        firebase_uid=firebase_uid,
     )
     access_token = create_token(subject=user.public_id, token_type="access")
     refresh_token = create_token(subject=user.public_id, token_type="refresh")
-    return TokenResponse(access_token=access_token, refresh_token=refresh_token)
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        public_id=user.public_id,
+        user=UserResponse.model_validate(user),
+    )
 
 
 @router.post("/refresh", response_model=TokenResponse)

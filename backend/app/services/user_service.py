@@ -59,12 +59,26 @@ def get_or_create_firebase_personal_user(
     db: Session,
     email: str,
     full_name: str | None,
+    firebase_uid: str | None = None,
 ) -> User:
     email = email.lower().strip()
+
+    # 1. Search by firebase_uid
+    if firebase_uid:
+        user_by_uid = db.query(User).filter(User.firebase_uid == firebase_uid).first()
+        if user_by_uid:
+            return user_by_uid
+
+    # 2. Search by email
     user = get_user_by_email(db, email)
     if user:
+        if firebase_uid and not user.firebase_uid:
+            user.firebase_uid = firebase_uid
+            db.commit()
+            db.refresh(user)
         return user
 
+    # 3. Create new user ONCE with permanent public_id and firebase_uid
     display_name = (full_name or email.split("@")[0]).strip()
     user = User(
         public_id=_generate_public_id(db),
@@ -72,6 +86,7 @@ def get_or_create_firebase_personal_user(
         full_name=display_name,
         hashed_password=None,
         account_type="personal",
+        firebase_uid=firebase_uid,
     )
     db.add(user)
     db.flush()

@@ -1310,15 +1310,15 @@ async function loginWithGoogle() {
     localStorage.setItem('access_token', data.access_token);
     if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
 
-    const name = user.displayName || user.email.split('@')[0];
-    const code = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+    const name = (data.user && data.user.full_name) || user.displayName || user.email.split('@')[0];
+    const publicId = data.public_id || (data.user && data.user.public_id) || '';
 
     localStorage.setItem('mv_user', JSON.stringify({
       email: user.email,
       name: name,
       photo: user.photoURL,
       uid: user.uid,
-      code: code
+      public_id: publicId
     }));
 
     const msg = document.getElementById('msg');
@@ -1423,13 +1423,17 @@ function initAuthState(){
     const firstName = parts[0] || 'User';
     const lastName = parts.slice(1).join(' ');
     const initials = (firstName[0] + (lastName[0] || '')).toUpperCase();
+    const publicId = user.public_id || user.user_id || 'USR-0001';
 
     if(authModal) authModal.style.display = 'none';
 
     if(heroGreet) heroGreet.textContent = 'Good to see you,';
     if(heroFirst) heroFirst.textContent = firstName;
     if(heroLast) heroLast.textContent = lastName;
-    if(heroCode && user.code) heroCode.textContent = user.code;
+    if(heroCode) {
+      heroCode.textContent = publicId;
+      heroCode.title = 'Click to copy MeetVault User ID';
+    }
 
     if(authArea){
       authArea.innerHTML = `
@@ -1443,6 +1447,7 @@ function initAuthState(){
             <div style="padding:10px 14px;border-bottom:1px solid var(--border);">
               <div style="font-weight:700;font-size:0.84rem;color:#0F172A;">${user.name || firstName}</div>
               <div style="font-size:0.75rem;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;">${user.email}</div>
+              <div style="font-size:0.72rem;font-weight:700;color:#2563eb;margin-top:2px;">ID: ${publicId}</div>
             </div>
             <a class="dropdown-item" onclick="switchView('settings'); toggleUserMenu(false);">Settings</a>
             <a class="dropdown-item" onclick="logoutUser()" style="color:#EF4444;">Sign Out</a>
@@ -1451,13 +1456,33 @@ function initAuthState(){
     }
 
     if(settingsName) settingsName.textContent = user.name || firstName;
-    if(settingsCode) settingsCode.textContent = 'Code: ' + (user.code || 'MTG-ACTIVE');
+    if(settingsCode) settingsCode.textContent = 'User ID: ' + publicId;
     if(settingsAvatar) settingsAvatar.textContent = initials;
     if(settingsAuthPanel){
       settingsAuthPanel.innerHTML = `
         <h3 style="font-size:0.95rem;font-weight:800;margin-bottom:8px;">Account Connected</h3>
-        <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:16px;">Signed in as <strong>${user.email}</strong></p>
+        <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:4px;">Signed in as <strong>${user.email}</strong></p>
+        <p style="font-size:0.75rem;color:#2563eb;font-weight:700;margin-bottom:16px;">MeetVault ID: ${publicId}</p>
         <button class="btn-red-action" style="width:100%;justify-content:center;border-radius:8px;height:38px;background:#EF4444;" onclick="logoutUser()">Sign Out</button>`;
+    }
+
+    // Async sync with backend GET /auth/me for real persistent user identity
+    const token = localStorage.getItem('access_token');
+    if (token && !token.startsWith('mv-local-')) {
+      const baseUrl = (typeof API_BASE_URL !== 'undefined' && API_BASE_URL && !API_BASE_URL.startsWith('__'))
+        ? API_BASE_URL
+        : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000/api/v1' : 'https://meetvault-api.onrender.com/api/v1');
+      fetch(`${baseUrl}/auth/me`, { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(meData => {
+          if (meData && meData.public_id) {
+            user.public_id = meData.public_id;
+            user.name = meData.full_name || user.name;
+            localStorage.setItem('mv_user', JSON.stringify(user));
+            if (heroCode) heroCode.textContent = meData.public_id;
+            if (settingsCode) settingsCode.textContent = 'User ID: ' + meData.public_id;
+          }
+        }).catch(() => {});
     }
   } catch(e){
     window.location.href = 'login.html';
@@ -2258,6 +2283,7 @@ function shiftWeek(dir){ weekOffset += dir; buildCalendar(); }
 
 let cachedCloudMeetings = [];
 let fetchHistoryError = false;
+let fetchHistoryStatusCode = null;
 
 async function fetchMeetingHistory() {
   const baseUrl = (typeof API_BASE_URL !== 'undefined' && API_BASE_URL && !API_BASE_URL.startsWith('__'))
@@ -2266,17 +2292,22 @@ async function fetchMeetingHistory() {
   const token = localStorage.getItem('access_token');
   const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
   try {
-    const res = await fetch(`${baseUrl}/meetings/history`, { headers });
+    const res = await fetch(`${baseUrl}/meetings/history`, { headers, signal: AbortSignal.timeout(8000) });
+    fetchHistoryStatusCode = res.status;
     if (res.ok) {
       fetchHistoryError = false;
       cachedCloudMeetings = await res.json();
       return cachedCloudMeetings;
     } else {
       fetchHistoryError = true;
+      let errBody = '';
+      try { errBody = await res.text(); } catch(_) {}
+      console.warn(`Meeting history API returned HTTP ${res.status}:`, errBody);
     }
   } catch (err) {
     console.error('Failed to fetch meeting history:', err);
     fetchHistoryError = true;
+    fetchHistoryStatusCode = 0;
   }
   return cachedCloudMeetings;
 }
@@ -2308,10 +2339,22 @@ async function renderUpcoming(){
   const cloudMeetings = await fetchMeetingHistory();
 
   if (fetchHistoryError && (!cloudMeetings || cloudMeetings.length === 0)) {
+    let title = "Unable to load meeting history";
+    let sub = "Please check your network connection or sign in again.";
+    if (fetchHistoryStatusCode === 401) {
+      title = "Session expired";
+      sub = "Please sign in again to access meeting history.";
+    } else if (fetchHistoryStatusCode === 404) {
+      title = "Meeting history service is unavailable";
+      sub = "The backend service could not be reached.";
+    } else if (fetchHistoryStatusCode >= 500) {
+      title = "Unable to load meeting history";
+      sub = "Server error. Please try again later.";
+    }
     list.innerHTML = `
       <div class="upcoming-empty">
-        <div class="upcoming-empty-title" style="color:#ef4444;">Unable to load meeting history</div>
-        <div class="upcoming-empty-sub">Please check your network connection or sign in again.</div>
+        <div class="upcoming-empty-title" style="color:#ef4444;">${title}</div>
+        <div class="upcoming-empty-sub">${sub}</div>
       </div>`;
     return;
   }
@@ -2371,7 +2414,11 @@ async function renderVaultMeetings() {
   const meetings = await fetchMeetingHistory();
 
   if (fetchHistoryError && (!meetings || meetings.length === 0)) {
-    container.innerHTML = `<div style="padding:30px; text-align:center; color:#ef4444; font-weight:600; background:#fff; border-radius:12px; border:1px solid #fee2e2;">Unable to load meeting history. Please check your connection.</div>`;
+    let msg = "Unable to load meeting history. Please check your connection.";
+    if (fetchHistoryStatusCode === 401) msg = "Session expired. Please sign in again.";
+    else if (fetchHistoryStatusCode === 404) msg = "Meeting history service is unavailable.";
+    else if (fetchHistoryStatusCode >= 500) msg = "Unable to load meeting history. Server error.";
+    container.innerHTML = `<div style="padding:30px; text-align:center; color:#ef4444; font-weight:600; background:#fff; border-radius:12px; border:1px solid #fee2e2;">${msg}</div>`;
     return;
   }
 

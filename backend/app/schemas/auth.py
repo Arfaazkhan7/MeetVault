@@ -75,11 +75,22 @@ class FirebaseLoginRequest(BaseModel):
 
 
 # ── Token payloads ─────────────────────────────────────────────────────────────
+class UserResponse(BaseModel):
+    public_id: str
+    email: str
+    full_name: str | None = None
+    firebase_uid: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
     workspace_id: str | None = None
+    public_id: str | None = None
+    user: UserResponse | None = None
 
 
 class RefreshRequest(BaseModel):
@@ -87,18 +98,11 @@ class RefreshRequest(BaseModel):
 
 
 # ── User responses — NEVER include hashed_password ────────────────────────────
-class UserResponse(BaseModel):
-    public_id: str
-    email: str
-    full_name: str | None
-
-    model_config = {"from_attributes": True}
-
-
 class MeResponse(BaseModel):
     public_id: str
     email: str
-    full_name: str | None
+    full_name: str | None = None
+    firebase_uid: str | None = None
     current_workspace_id: str | None = None
     account_type: str = "personal"
 

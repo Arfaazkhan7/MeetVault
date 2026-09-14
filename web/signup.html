@@ -275,7 +275,10 @@
       }
       localStorage.setItem('access_token', data.access_token);
       if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
-      return user.displayName || user.email.split('@')[0];
+      return {
+        name: (data.user && data.user.full_name) || user.displayName || user.email.split('@')[0],
+        public_id: data.public_id || (data.user && data.user.public_id) || ''
+      };
     }
 
     async function loginWithGoogle() {
@@ -292,9 +295,8 @@
         provider.setCustomParameters({ prompt: 'select_account' });
         const result = await firebase.auth().signInWithPopup(provider);
         const user = result.user;
-        const name = await completeGoogleBackendLogin(user);
-        const code = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
-        localStorage.setItem('mv_user', JSON.stringify({ email: user.email, name, photo: user.photoURL, uid: user.uid, code }));
+        const authData = await completeGoogleBackendLogin(user);
+        localStorage.setItem('mv_user', JSON.stringify({ email: user.email, name: authData.name, photo: user.photoURL, uid: user.uid, public_id: authData.public_id }));
         setMsg('success', '✅ Account ready! Redirecting…');
         setTimeout(() => { window.location.href = 'index.html'; }, 700);
       } catch (err) {
@@ -315,9 +317,8 @@
       firebase.auth().getRedirectResult().then(async result => {
         if (result && result.user) {
           const user = result.user;
-          const name = await completeGoogleBackendLogin(user);
-          const code = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
-          localStorage.setItem('mv_user', JSON.stringify({ email: user.email, name, photo: user.photoURL, uid: user.uid, code }));
+          const authData = await completeGoogleBackendLogin(user);
+          localStorage.setItem('mv_user', JSON.stringify({ email: user.email, name: authData.name, photo: user.photoURL, uid: user.uid, public_id: authData.public_id }));
           window.location.href = 'index.html';
         }
       }).catch(err => setMsg('error', 'Google sign-in failed: ' + (err.message || 'Unknown error')));
@@ -346,7 +347,11 @@
           body: JSON.stringify({ full_name: name, email, password: pass, account_type: 'personal' }),
           signal: AbortSignal.timeout(3000)
         });
-        if (r.ok) { saveUser(email, name); return; }
+        if (r.ok) {
+          const regData = await r.json();
+          saveUser(email, name, regData.public_id);
+          return;
+        }
       } catch (_) {}
 
       const users = JSON.parse(localStorage.getItem('mv_users') || '{}');
@@ -359,10 +364,16 @@
       saveUser(email, name);
     }
 
-    function saveUser(email, name) {
+    function saveUser(email, name, publicId) {
       if (!name) name = email.split('@')[0].replace(/[._-]/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
-      const code = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
-      localStorage.setItem('mv_user', JSON.stringify({ email, name, code }));
+      localStorage.setItem('mv_user', JSON.stringify({ email, name, public_id: publicId || '' }));
+      const existingToken = localStorage.getItem('access_token');
+      if (!existingToken || existingToken.startsWith('mv-local-') || existingToken.startsWith('mail-')) {
+        localStorage.setItem('access_token', 'mv-local-token:' + email);
+      }
+      setMsg('success', '✅ Account created! Redirecting…');
+      setTimeout(() => { window.location.href = 'index.html'; }, 800);
+    }
       const existingToken = localStorage.getItem('access_token');
       if (!existingToken || existingToken.startsWith('mv-local-') || existingToken.startsWith('mail-')) {
         localStorage.setItem('access_token', 'mv-local-token:' + email);
