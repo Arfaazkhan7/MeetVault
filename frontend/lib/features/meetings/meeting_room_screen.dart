@@ -874,7 +874,7 @@ class _ParticipantTile extends StatelessWidget {
               VideoTrackRenderer(
                 track,
                 fit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-                mirrorMode: participant is LocalParticipant
+                mirrorMode: (participant is LocalParticipant && publication?.source != TrackSource.screenShareVideo)
                     ? VideoViewMirrorMode.mirror
                     : VideoViewMirrorMode.off,
               )

@@ -461,6 +461,7 @@
     }
     .room-video { flex: 1; position: relative; }
     #webcam-video { width:100%; height:100%; object-fit:cover; display:block; transform: scaleX(-1); }
+    #stage-screen-video, .screen-share-video { width:100% !important; height:100% !important; object-fit:contain !important; display:block !important; transform: none !important; -webkit-transform: none !important; background:#000 !important; }
 
     .app.in-meeting-fullscreen .sidebar {
       display: none !important;
@@ -1725,7 +1726,7 @@ function renderMeetGrid(){
 
     if (mainIsScreen) {
       stageWrap.innerHTML = `
-        <video id="stage-screen-video" autoplay playsinline style="transform:none; width:100%; height:100%; object-fit:contain; background:#000;"></video>
+        <video id="stage-screen-video" class="screen-share-video" autoplay playsinline style="transform:none !important; -webkit-transform:none !important; width:100%; height:100%; object-fit:contain; background:#000;"></video>
         <div class="meet-name-tag">💻 You (Presenting)</div>
         <button class="pin-btn pinned" onclick="unpinStage()" title="Unpin presentation">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M16 9V4l1 0V2H7v2l1 0v5L6 11v2h5v7l1 1 1-1v-7h5v-2l-2-2z"/></svg>
