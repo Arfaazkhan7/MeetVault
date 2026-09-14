@@ -843,6 +843,14 @@
 </div>
 
 <script>
+/* ── Require Authentication on First Launch ────────── */
+(function requireAuth(){
+  const user = localStorage.getItem('mv_user');
+  if(!user){
+    window.location.href = 'login.html';
+  }
+})();
+
 /* ── Notes Persistence ────────────────────────────────── */
 (function(){
   const n = localStorage.getItem('mv_notes_v6');
@@ -965,8 +973,10 @@ function logoutUser(){
   localStorage.removeItem('mv_user');
   localStorage.removeItem('access_token');
   toggleUserMenu(false);
-  initAuthState();
   showToast('Signed out successfully');
+  setTimeout(() => {
+    window.location.href = 'login.html';
+  }, 400);
 }
 
 function toggleUserMenu(forceState){
