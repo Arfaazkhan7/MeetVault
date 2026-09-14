@@ -1,52 +1,16 @@
-name: Deploy Flutter Web to Firebase Hosting
+name: Deploy Web to Firebase Hosting
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      api_base_url:
-        description: Production FastAPI base URL, for example https://meetvault-api.run.app/api/v1
-        required: false
-        default: https://meetvault-api.onrender.com/api/v1
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-
-      - name: Install dependencies
-        working-directory: frontend
-        run: flutter pub get
-
-      - name: Analyze
-        working-directory: frontend
-        run: flutter analyze --no-fatal-infos --no-fatal-warnings
-
-      - name: Test
-        working-directory: frontend
-        run: flutter test
-
-      - name: Build Flutter web
-        working-directory: frontend
-        run: |
-          flutter build web --release \
-            --dart-define=API_BASE_URL="${{ github.event.inputs.api_base_url || 'https://meetvault-api.onrender.com/api/v1' }}" \
-            --dart-define=FIREBASE_API_KEY="${{ secrets.FIREBASE_API_KEY }}" \
-            --dart-define=FIREBASE_AUTH_DOMAIN="ai-meet-f8fd0.firebaseapp.com" \
-            --dart-define=FIREBASE_PROJECT_ID="ai-meet-f8fd0" \
-            --dart-define=FIREBASE_STORAGE_BUCKET="ai-meet-f8fd0.firebasestorage.app" \
-            --dart-define=FIREBASE_MESSAGING_SENDER_ID="661020533786" \
-            --dart-define=FIREBASE_APP_ID="1:661020533786:web:ef4fd4bdd3c72a8e6c5da3" \
-            --dart-define=FIREBASE_MEASUREMENT_ID="G-C5KTB28SWG" \
-            --dart-define=APP_BUILD_SHA="${{ github.sha }}"
 
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
