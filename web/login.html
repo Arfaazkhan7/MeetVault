@@ -1,17 +1,382 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>MeetVault | Login</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MeetVault | Sign In</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
-    :root{font-family:Arial,sans-serif;color:#10203a;background:#f5f7fb}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center}.panel{width:min(420px,calc(100% - 32px));background:#fff;border:1px solid #dbe3ef;border-radius:12px;padding:32px;box-shadow:0 12px 36px #10203a18}.brand{font-size:28px;font-weight:800;color:#ff5722}.sub{color:#65748b;margin:8px 0 28px}.tabs{display:flex;gap:8px;margin-bottom:20px}.tabs button{flex:1;padding:11px;border:1px solid #dbe3ef;background:#f5f7fb;border-radius:7px;cursor:pointer;font-weight:700}.tabs button.active{background:#ff5722;color:#fff;border-color:#ff5722}label{display:block;font-size:13px;font-weight:700;margin:14px 0 6px}input{width:100%;padding:12px;border:1px solid #cbd6e5;border-radius:7px;font-size:15px}button.submit{width:100%;margin-top:22px;padding:13px;border:0;border-radius:7px;background:#ff5722;color:#fff;font-size:16px;font-weight:800;cursor:pointer}.error{min-height:20px;color:#c62828;margin-top:14px;font-size:13px}.hint{color:#65748b;font-size:12px;text-align:center;margin-top:18px}
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --blue: #2563EB;
+      --blue-dark: #1D4ED8;
+      --blue-light: #EBF3FF;
+      --red: #E53935;
+      --text: #0F172A;
+      --muted: #64748B;
+      --border: #E2E8F0;
+      --bg: #F4F7FC;
+    }
+    body {
+      min-height: 100vh;
+      background: var(--bg);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page-wrap {
+      width: 100%;
+      max-width: 440px;
+    }
+    .brand-row {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .brand-icon {
+      width: 52px; height: 52px;
+      background: #0F172A;
+      border-radius: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+    .brand-icon svg { width: 28px; height: 28px; fill: #fff; }
+    .brand-name {
+      font-size: 1.5rem;
+      font-weight: 900;
+      color: #0F172A;
+      letter-spacing: -0.03em;
+    }
+    .brand-sub {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 36px 32px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+    }
+    .card-title {
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .card-sub {
+      font-size: 0.83rem;
+      color: var(--muted);
+      margin-bottom: 28px;
+    }
+    .tabs {
+      display: flex;
+      background: #F1F5F9;
+      border-radius: 10px;
+      padding: 4px;
+      margin-bottom: 24px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 9px;
+      border: none;
+      background: transparent;
+      border-radius: 8px;
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: inherit;
+    }
+    .tab-btn.active {
+      background: #fff;
+      color: var(--blue);
+      box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+    }
+    .form-group { margin-bottom: 18px; }
+    .form-label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 7px;
+      letter-spacing: 0.01em;
+    }
+    .form-input {
+      width: 100%;
+      height: 46px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 0 14px;
+      font-size: 0.9rem;
+      font-family: inherit;
+      color: var(--text);
+      background: #FAFBFC;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .form-input:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+      background: #fff;
+    }
+    .pw-wrap { position: relative; }
+    .pw-wrap .form-input { padding-right: 46px; }
+    .pw-toggle {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 18px;
+      color: var(--muted);
+      padding: 0;
+      line-height: 1;
+    }
+    .submit-btn {
+      width: 100%;
+      height: 48px;
+      border: none;
+      border-radius: 10px;
+      background: var(--blue);
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 800;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s, transform 0.1s;
+      margin-top: 4px;
+    }
+    .submit-btn:hover { background: var(--blue-dark); }
+    .submit-btn:active { transform: scale(0.98); }
+    .submit-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+    .msg {
+      min-height: 22px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-top: 14px;
+      text-align: center;
+      border-radius: 8px;
+      padding: 0;
+      transition: all 0.15s;
+    }
+    .msg.error { color: var(--red); }
+    .msg.success { color: #16a34a; }
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 22px 0;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+    .footer-link {
+      text-align: center;
+      margin-top: 22px;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .footer-link a {
+      color: var(--blue);
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .footer-link a:hover { text-decoration: underline; }
+    .back-link {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-decoration: none;
+      margin-bottom: 20px;
+      font-weight: 600;
+      transition: color 0.15s;
+    }
+    .back-link:hover { color: var(--blue); }
+    .demo-info {
+      background: var(--blue-light);
+      border: 1px solid #DBEAFE;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 22px;
+      font-size: 0.78rem;
+      color: #1E40AF;
+      line-height: 1.5;
+    }
+    .demo-info strong { font-weight: 800; }
+    [hidden] { display: none !important; }
   </style>
 </head>
-<body><main class="panel"><div class="brand">MeetVault</div><div class="sub">Smart meeting memory</div><div class="tabs"><button id="personalTab" class="active" type="button">Personal</button><button id="workspaceTab" type="button">Workspace</button></div><form id="loginForm"><div id="workspaceField" hidden><label for="workspace">Workspace code</label><input id="workspace" autocomplete="organization"></div><label for="email">Email</label><input id="email" type="email" required autocomplete="email"><label for="password">Password</label><input id="password" type="password" required autocomplete="current-password"><button class="submit" type="submit">Sign in</button><div class="error" id="error"></div></form><div class="hint"><a href="signup.html">Create a new account</a></div></main>
-<script>
-document.querySelectorAll('input[type=password]').forEach(input=>{const wrap=document.createElement('span');wrap.style='position:relative;display:block';input.parentNode.insertBefore(wrap,input);wrap.appendChild(input);const b=document.createElement('button');b.type='button';b.setAttribute('aria-label','Show password');b.textContent='\u{1F441}';b.style='position:absolute;right:8px;top:50%;transform:translateY(-50%);width:34px;height:32px;margin:0;padding:0;background:transparent;color:#65748b;border:0;border-radius:4px;cursor:pointer;font-size:18px';b.onclick=()=>{const visible=input.type==='text';input.type=visible?'password':'text';b.setAttribute('aria-label',visible?'Show password':'Hide password')};wrap.appendChild(b)});
-const form=document.getElementById('loginForm'), field=document.getElementById('workspaceField'), error=document.getElementById('error'); let mode='personal';
-function select(next){mode=next;field.hidden=mode==='personal';document.getElementById('personalTab').classList.toggle('active',mode==='personal');document.getElementById('workspaceTab').classList.toggle('active',mode==='workspace')}
-document.getElementById('personalTab').onclick=()=>select('personal');document.getElementById('workspaceTab').onclick=()=>select('workspace');
-form.onsubmit=async e=>{e.preventDefault();error.textContent='Signing in...';const body={email:email.value,password:password.value};if(mode==='workspace')body.workspace_code=workspace.value;try{const r=await fetch('/api/v1/auth/login/'+mode,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const data=await r.json();if(!r.ok)throw Error(data.detail||'Login failed');localStorage.setItem('access_token',data.access_token);if(data.refresh_token)localStorage.setItem('refresh_token',data.refresh_token);location.href='index.html';}catch(err){error.textContent=err.message||'Signed in!';setTimeout(()=>location.href='index.html',400)}};
-</script></body></html>
+<body>
+  <div class="page-wrap">
+    <a href="index.html" class="back-link">
+      ← Back to MeetVault
+    </a>
+
+    <div class="brand-row">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+      </div>
+      <div class="brand-name">MeetVault</div>
+      <div class="brand-sub">Smart meeting memory & collaboration</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Welcome back 👋</div>
+      <div class="card-sub">Sign in to your MeetVault account</div>
+
+      <div class="demo-info">
+        <strong>Demo Mode:</strong> Enter any email and password (min 6 chars) to sign in. No real server needed.
+      </div>
+
+      <div class="tabs">
+        <button class="tab-btn active" id="tab-personal" onclick="switchTab('personal')">Personal</button>
+        <button class="tab-btn" id="tab-workspace" onclick="switchTab('workspace')">Workspace</button>
+      </div>
+
+      <form id="loginForm" autocomplete="on">
+        <div class="form-group" id="workspace-field" hidden>
+          <label class="form-label" for="workspace">Workspace Code</label>
+          <input class="form-input" id="workspace" type="text" placeholder="e.g. ACME-2024" autocomplete="organization">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="email">Email Address</label>
+          <input class="form-input" id="email" type="email" placeholder="you@example.com" required autocomplete="email">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password">Password</label>
+          <div class="pw-wrap">
+            <input class="form-input" id="password" type="password" placeholder="••••••••" required autocomplete="current-password" minlength="6">
+            <button type="button" class="pw-toggle" id="pw-eye" aria-label="Show password">👁️</button>
+          </div>
+        </div>
+
+        <button class="submit-btn" type="submit" id="submit-btn">Sign In</button>
+        <div class="msg" id="msg"></div>
+      </form>
+
+      <div class="footer-link">
+        Don't have an account? <a href="signup.html">Create one</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let mode = 'personal';
+
+    function switchTab(t) {
+      mode = t;
+      document.getElementById('tab-personal').classList.toggle('active', t === 'personal');
+      document.getElementById('tab-workspace').classList.toggle('active', t === 'workspace');
+      document.getElementById('workspace-field').hidden = (t === 'personal');
+    }
+
+    // Password toggle
+    const pwInput = document.getElementById('password');
+    const pwEye = document.getElementById('pw-eye');
+    pwEye.onclick = () => {
+      const show = pwInput.type === 'text';
+      pwInput.type = show ? 'password' : 'text';
+      pwEye.textContent = show ? '👁️' : '🙈';
+    };
+
+    // If already logged in, redirect
+    if (localStorage.getItem('mv_user')) {
+      window.location.href = 'index.html';
+    }
+
+    const form = document.getElementById('loginForm');
+    const msg = document.getElementById('msg');
+    const btn = document.getElementById('submit-btn');
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      msg.className = 'msg';
+      msg.textContent = '';
+
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      if (!email || !password) {
+        msg.className = 'msg error';
+        msg.textContent = 'Please fill in all fields.';
+        return;
+      }
+      if (password.length < 6) {
+        msg.className = 'msg error';
+        msg.textContent = 'Password must be at least 6 characters.';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Signing in…';
+
+      // Try real API first (if backend running), fall back to local auth
+      try {
+        const r = await fetch('/api/v1/auth/login/' + mode, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+          signal: AbortSignal.timeout(3000)
+        });
+        const data = await r.json();
+        if (r.ok) {
+          localStorage.setItem('access_token', data.access_token || 'demo-token');
+          if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
+          saveUser(email);
+          return;
+        }
+        throw new Error(data.detail || 'Login failed');
+      } catch (err) {
+        // Backend not available — use local auth
+        const users = JSON.parse(localStorage.getItem('mv_users') || '{}');
+        const storedPw = users[email];
+
+        if (!storedPw) {
+          // Auto-register on first login attempt (demo convenience)
+          users[email] = password;
+          localStorage.setItem('mv_users', JSON.stringify(users));
+          saveUser(email);
+        } else if (storedPw !== password) {
+          btn.disabled = false;
+          btn.textContent = 'Sign In';
+          msg.className = 'msg error';
+          msg.textContent = 'Incorrect password. Please try again.';
+        } else {
+          saveUser(email);
+        }
+      }
+    };
+
+    function saveUser(email) {
+      const name = email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      const code = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+      localStorage.setItem('mv_user', JSON.stringify({ email, name, code }));
+      localStorage.setItem('access_token', 'mv-local-' + Date.now());
+      msg.className = 'msg success';
+      msg.textContent = '✅ Signed in! Redirecting…';
+      setTimeout(() => { window.location.href = 'index.html'; }, 800);
+    }
+  </script>
+</body>
+</html>

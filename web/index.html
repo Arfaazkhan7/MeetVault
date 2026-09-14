@@ -590,31 +590,11 @@
 
     <!-- FLOATING TOP CONTROLS (TOP RIGHT CORNER) -->
     <div class="top-controls">
-      <a href="login.html" class="top-login-btn">Login</a>
+      <!-- Login/User state is injected dynamically by JS on page load -->
+      <div id="top-auth-area"></div>
       <div class="notif-btn" onclick="showToast('No new notifications')">
         <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
         <div class="notif-dot"></div>
-      </div>
-      <div class="user-menu-wrap" style="position:relative;">
-        <div class="user-avatar" onclick="toggleUserMenu()">A</div>
-        <div class="user-dropdown" id="user-dropdown">
-          <div style="padding:10px 14px 8px;border-bottom:1px solid #E2E8F0;">
-            <div style="font-weight:700;font-size:0.86rem;color:#0F172A;">Arfaaz Khan</div>
-            <div style="font-size:0.75rem;color:#64748B;">arfaaz@meetvault.com</div>
-          </div>
-          <a href="login.html" class="dropdown-item">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12H12v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"/></svg>
-            Sign In / Login
-          </a>
-          <a href="signup.html" class="dropdown-item">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9 -2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-            Create Account
-          </a>
-          <div class="dropdown-item" onclick="switchView('settings');toggleUserMenu(false);">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6-3.6z"/></svg>
-            Settings
-          </div>
-        </div>
       </div>
     </div>
 
@@ -628,11 +608,11 @@
           <!-- HERO SECTION -->
           <div class="hero">
             <div class="hero-left">
-              <div class="hero-greet">Good to see you,</div>
-              <div class="hero-name">
-                Arfaaz <span class="hero-name-blue">Khan</span> <span>👋</span>
+              <div class="hero-greet" id="hero-greet">Good to see you,</div>
+              <div class="hero-name" id="hero-name">
+                <span id="hero-firstname">Guest</span> <span class="hero-name-blue" id="hero-lastname"></span> <span>👋</span>
               </div>
-              <div class="hero-code">MTG-DA22D7</div>
+              <div class="hero-code" id="hero-code" style="cursor:pointer;" onclick="copyHeroCode()" title="Click to copy meeting code">MTG-DA22D7</div>
             </div>
 
             <!-- Line Art Desk Illustration -->
@@ -815,25 +795,20 @@
           <p style="color:var(--text-secondary);font-size:0.86rem;margin-bottom:24px;">Manage your account and preferences.</p>
           <div style="display:flex;gap:24px;align-items:flex-start;">
             <div class="settings-panel" style="flex:1;">
-              <div style="display:flex;align-items:center;gap:14px;margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid var(--border);">
-                <div style="width:48px;height:48px;border-radius:50%;background:#0F172A;color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.15rem;font-weight:700;">A</div>
+              <div id="settings-user-row" style="display:flex;align-items:center;gap:14px;margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid var(--border);">
+                <div id="settings-avatar" style="width:48px;height:48px;border-radius:50%;background:#0F172A;color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.15rem;font-weight:700;">G</div>
                 <div>
-                  <div style="font-size:0.96rem;font-weight:700;">Arfaaz Khan</div>
-                  <div style="font-size:0.78rem;color:var(--text-secondary);">MTG-DA22D7 · Personal</div>
+                  <div id="settings-name" style="font-size:0.96rem;font-weight:700;">Guest User</div>
+                  <div id="settings-code" style="font-size:0.78rem;color:var(--text-secondary);">Not signed in</div>
                 </div>
               </div>
               <div class="form-group"><label>Camera</label><select class="form-select"><option>HD Web Camera (Integrated)</option></select></div>
               <div class="form-group"><label>Microphone</label><select class="form-select"><option>Default Microphone Array</option></select></div>
-              <button class="btn-blue-action" style="width:100%;justify-content:center;border-radius:8px;height:42px;" onclick="showToast('Settings saved!')">Save Settings</button>
+              <button class="btn-blue-action" style="width:100%;justify-content:center;border-radius:8px;height:42px;" onclick="showToast('Settings saved!')" id="settings-save-btn">Save Settings</button>
             </div>
 
-            <div class="settings-panel" style="width:280px;">
-              <h3 style="font-size:0.95rem;font-weight:800;margin-bottom:12px;">Account Access</h3>
-              <p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:16px;">Sign in to your MeetVault account or create a new workspace.</p>
-              <div style="display:flex;flex-direction:column;gap:10px;">
-                <a href="login.html" class="btn-blue-action" style="display:flex;align-items:center;justify-content:center;height:40px;border-radius:8px;text-decoration:none;">Log In</a>
-                <a href="signup.html" class="btn-light-blue" style="display:flex;align-items:center;justify-content:center;height:40px;border-radius:8px;text-decoration:none;">Create Account</a>
-              </div>
+            <div class="settings-panel" style="width:280px;" id="settings-auth-panel">
+              <!-- Injected by JS based on login state -->
             </div>
           </div>
         </div>
@@ -876,7 +851,8 @@
 
 function updateNoteCount(el){
   localStorage.setItem('mv_notes_v6', el.value);
-  document.getElementById('notes-count').textContent = el.value.length + '/500';
+  const countEl = document.getElementById('notes-count');
+  if(countEl) countEl.textContent = el.value.length + '/500';
 }
 
 /* ── View Switching ────────────────────────────────────── */
@@ -891,33 +867,106 @@ function switchView(name){
 }
 
 /* ── Drawer ────────────────────────────────────────────── */
-function openDrawer(){ document.getElementById('drawer-overlay').classList.add('open'); }
+function openDrawer(){
+  const drawer = document.getElementById('drawer-overlay');
+  if(drawer) drawer.classList.add('open');
+}
 function closeDrawer(e){
-  if(!e || e.target===document.getElementById('drawer-overlay'))
-    document.getElementById('drawer-overlay').classList.remove('open');
+  const drawer = document.getElementById('drawer-overlay');
+  if(!e || e.target === drawer){
+    if(drawer) drawer.classList.remove('open');
+  }
 }
 
-/* ── Call / Media Stream ───────────────────────────────── */
-let stream=null, micOn=true, camOn=true, currentRoomCode='MTG-DA22D7';
+/* ── Auth & Profile Management ─────────────────────────── */
+function initAuthState(){
+  const userStr = localStorage.getItem('mv_user');
+  const authArea = document.getElementById('top-auth-area');
+  const heroGreet = document.getElementById('hero-greet');
+  const heroFirst = document.getElementById('hero-firstname');
+  const heroLast = document.getElementById('hero-lastname');
+  const heroCode = document.getElementById('hero-code');
+  
+  const settingsName = document.getElementById('settings-name');
+  const settingsCode = document.getElementById('settings-code');
+  const settingsAvatar = document.getElementById('settings-avatar');
+  const settingsAuthPanel = document.getElementById('settings-auth-panel');
 
-function createNewMeeting(){
-  const code = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
-  currentRoomCode = code;
-  document.getElementById('room-lbl').textContent = 'meetvault.live/' + code;
-  const badge = document.getElementById('room-badge-text');
-  if(badge) badge.textContent = code;
-  const codeEl = document.querySelector('.hero-code');
-  if(codeEl) codeEl.textContent = code;
-  const link = 'https://meetvault.live/' + code;
-  navigator.clipboard.writeText(link).catch(()=>{});
-  showToast('Meeting Created! Code: ' + code + ' (Link copied)');
-  startCall(code);
+  if(userStr){
+    try {
+      const user = JSON.parse(userStr);
+      const parts = (user.name || user.email.split('@')[0]).trim().split(' ');
+      const firstName = parts[0] || 'User';
+      const lastName = parts.slice(1).join(' ');
+      const initials = (firstName[0] + (lastName[0] || '')).toUpperCase();
+
+      if(heroGreet) heroGreet.textContent = 'Good to see you,';
+      if(heroFirst) heroFirst.textContent = firstName;
+      if(heroLast) heroLast.textContent = lastName;
+      if(heroCode && user.code) heroCode.textContent = user.code;
+
+      if(authArea){
+        authArea.innerHTML = `
+          <div class="user-menu-wrap" style="position:relative;">
+            <div class="user-pill" onclick="toggleUserMenu()" style="display:flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;background:#F1F5F9;border:1px solid var(--border);border-radius:999px;cursor:pointer;user-select:none;">
+              <div style="width:28px;height:28px;border-radius:50%;background:#0F172A;color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;">${initials}</div>
+              <span style="font-size:0.82rem;font-weight:700;color:#0F172A;">${firstName}</span>
+              <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:#64748B;"><path d="M7 10l5 5 5-5z"/></svg>
+            </div>
+            <div class="user-dropdown" id="user-dropdown">
+              <div style="padding:10px 14px;border-bottom:1px solid var(--border);">
+                <div style="font-weight:700;font-size:0.84rem;color:#0F172A;">${user.name || firstName}</div>
+                <div style="font-size:0.75rem;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;">${user.email}</div>
+              </div>
+              <a class="dropdown-item" onclick="switchView('settings'); toggleUserMenu(false);">Settings</a>
+              <a class="dropdown-item" onclick="logoutUser()" style="color:#EF4444;">Sign Out</a>
+            </div>
+          </div>`;
+      }
+
+      if(settingsName) settingsName.textContent = user.name || firstName;
+      if(settingsCode) settingsCode.textContent = 'Code: ' + (user.code || 'MTG-ACTIVE');
+      if(settingsAvatar) settingsAvatar.textContent = initials;
+      if(settingsAuthPanel){
+        settingsAuthPanel.innerHTML = `
+          <h3 style="font-size:0.95rem;font-weight:800;margin-bottom:8px;">Account Connected</h3>
+          <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:16px;">Signed in as <strong>${user.email}</strong></p>
+          <button class="btn-red-action" style="width:100%;justify-content:center;border-radius:8px;height:38px;background:#EF4444;" onclick="logoutUser()">Sign Out</button>`;
+      }
+      return;
+    } catch(e){}
+  }
+
+  // Guest State
+  if(heroGreet) heroGreet.textContent = 'Welcome to MeetVault,';
+  if(heroFirst) heroFirst.textContent = 'Guest';
+  if(heroLast) heroLast.textContent = '';
+  
+  if(authArea){
+    authArea.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;">
+        <a href="login.html" class="top-login-btn">Sign In</a>
+        <a href="signup.html" class="top-login-btn" style="background:#0F172A;color:#fff;">Sign Up</a>
+      </div>`;
+  }
+
+  if(settingsName) settingsName.textContent = 'Guest User';
+  if(settingsCode) settingsCode.textContent = 'Not signed in';
+  if(settingsAvatar) settingsAvatar.textContent = 'G';
+  if(settingsAuthPanel){
+    settingsAuthPanel.innerHTML = `
+      <h3 style="font-size:0.95rem;font-weight:800;margin-bottom:8px;">Sign In to MeetVault</h3>
+      <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:16px;">Sync your meeting transcripts, notes, and AI summaries.</p>
+      <a href="login.html" class="top-login-btn" style="width:100%;justify-content:center;height:38px;box-sizing:border-box;">Sign In</a>`;
+  }
 }
 
-function copyCurrentRoomLink(){
-  const link = 'https://meetvault.live/' + currentRoomCode;
-  navigator.clipboard.writeText(link).catch(()=>{});
-  showToast('Meeting link copied: ' + currentRoomCode);
+function logoutUser(){
+  localStorage.removeItem('mv_user');
+  localStorage.removeItem('access_token');
+  toggleUserMenu(false);
+  initAuthState();
+  showToast('Signed out successfully');
 }
 
 function toggleUserMenu(forceState){
@@ -936,6 +985,38 @@ document.addEventListener('click', (e) => {
     toggleUserMenu(false);
   }
 });
+
+/* ── Call / Media Stream ───────────────────────────────── */
+let stream=null, micOn=true, camOn=true, currentRoomCode='MTG-DA22D7';
+
+function copyHeroCode(){
+  const codeEl = document.getElementById('hero-code');
+  const code = codeEl ? codeEl.textContent.trim() : 'MTG-DA22D7';
+  navigator.clipboard.writeText(code).catch(()=>{});
+  showToast('Meeting code copied: ' + code);
+}
+
+function createNewMeeting(){
+  const code = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+  currentRoomCode = code;
+  const roomLbl = document.getElementById('room-lbl');
+  if(roomLbl) roomLbl.textContent = 'meetvault.live/' + code;
+  const badge = document.getElementById('room-badge-text');
+  if(badge) badge.textContent = code;
+  const heroCode = document.getElementById('hero-code');
+  if(heroCode) heroCode.textContent = code;
+  
+  const link = 'https://meetvault.live/' + code;
+  navigator.clipboard.writeText(link).catch(()=>{});
+  showToast('Meeting Created! Code: ' + code + ' (Link copied)');
+  startCall(code);
+}
+
+function copyCurrentRoomLink(){
+  const link = 'https://meetvault.live/' + currentRoomCode;
+  navigator.clipboard.writeText(link).catch(()=>{});
+  showToast('Meeting link copied: ' + currentRoomCode);
+}
 
 function showToast(msg){
   let container = document.getElementById('toast-container');
@@ -960,20 +1041,28 @@ function showToast(msg){
 async function startCall(code){
   if(code) {
     currentRoomCode = code;
-    document.getElementById('room-lbl').textContent = 'meetvault.live/' + code;
+    const roomLbl = document.getElementById('room-lbl');
+    if(roomLbl) roomLbl.textContent = 'meetvault.live/' + code;
     const badge = document.getElementById('room-badge-text');
     if(badge) badge.textContent = code;
   }
-  closeDrawer(); switchView('room');
+  closeDrawer();
+  switchView('room');
   const vid=document.getElementById('webcam-video');
   const ph=document.getElementById('cam-ph');
   try {
     stream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-    vid.srcObject=stream; vid.style.display='block'; ph.style.display='none';
+    if(vid){ vid.srcObject=stream; vid.style.display='block'; }
+    if(ph){ ph.style.display='none'; }
     micOn=true; camOn=true;
-    document.getElementById('btn-mic').classList.remove('off');
-    document.getElementById('btn-cam').classList.remove('off');
-  } catch(e){ vid.style.display='none'; ph.style.display='flex'; }
+    const btnMic = document.getElementById('btn-mic');
+    const btnCam = document.getElementById('btn-cam');
+    if(btnMic) btnMic.classList.remove('off');
+    if(btnCam) btnCam.classList.remove('off');
+  } catch(e){
+    if(vid) vid.style.display='none';
+    if(ph) ph.style.display='flex';
+  }
 }
 
 function stopStream(){ if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } }
@@ -983,9 +1072,10 @@ function toggleCam(){
   const vid=document.getElementById('webcam-video'); const ph=document.getElementById('cam-ph');
   if(stream) stream.getVideoTracks().forEach(t=>t.enabled=camOn);
   document.getElementById('btn-cam').classList.toggle('off',!camOn);
-  vid.style.display=camOn?'block':'none'; ph.style.display=camOn?'none':'flex';
+  if(vid) vid.style.display=camOn?'block':'none';
+  if(ph) ph.style.display=camOn?'none':'flex';
 }
-function shareScreen(){ navigator.mediaDevices.getDisplayMedia({video:true}).then(s=>{ document.getElementById('webcam-video').srcObject=s; }).catch(()=>{}); }
+function shareScreen(){ navigator.mediaDevices.getDisplayMedia({video:true}).then(s=>{ const vid=document.getElementById('webcam-video'); if(vid) vid.srcObject=s; }).catch(()=>{}); }
 function endCall(){ stopStream(); switchView('home'); }
 
 function doJoin(providedCode){
@@ -993,17 +1083,21 @@ function doJoin(providedCode){
   let code = providedCode || (inputEl ? inputEl.value.trim() : '');
   if(!code){
     code = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+  } else if(!code.toUpperCase().startsWith('MTG-')){
+    code = 'MTG-' + code.toUpperCase();
+  } else {
+    code = code.toUpperCase();
   }
   currentRoomCode = code;
-  document.getElementById('room-lbl').textContent = 'meetvault.live/' + code;
   showToast('Joining Meeting: ' + code);
   startCall(code);
 }
-function copyLink(){ createNewMeeting(); }
+
 function vaultSearch(){
-  const q=document.getElementById('vault-q').value.trim();
-  const res=document.getElementById('vault-result');
-  if(!q) return;
+  const qEl = document.getElementById('vault-q');
+  const q = qEl ? qEl.value.trim() : '';
+  const res = document.getElementById('vault-result');
+  if(!q || !res) return;
   res.style.display='block';
   res.innerHTML='<em style="color:#9CA3AF;">Searching for "'+q+'"…</em>';
   setTimeout(()=>{ res.innerHTML='<strong>Result:</strong> Based on 3 recent meetings: team chose Faster-Whisper for transcription and PostgreSQL queue for async AI processing.'; }, 600);
@@ -1023,7 +1117,7 @@ const MEETINGS_DB = {
   6:  [{ time:'2:00 PM',  title:'Client Demo',      sub:'External · 45 min' }],
 };
 
-let weekOffset    = 0;
+let weekOffset     = 0;
 let selectedOffset = 1; // Default offset MON 14
 
 function buildCalendar(){
@@ -1031,6 +1125,7 @@ function buildCalendar(){
   baseDate.setDate(baseDate.getDate() + weekOffset * 7);
 
   const container = document.getElementById('cal-days-row');
+  if(!container) return;
   container.innerHTML = '';
 
   for(let i = 0; i < 7; i++){
@@ -1059,6 +1154,7 @@ function shiftWeek(dir){ weekOffset += dir; buildCalendar(); }
 
 function renderUpcoming(){
   const list = document.getElementById('upcoming-list');
+  if(!list) return;
   const meetings = MEETINGS_DB[selectedOffset] || [];
 
   if(meetings.length === 0){
@@ -1083,12 +1179,13 @@ function renderUpcoming(){
           <div class="meeting-title">${m.title}</div>
           <div class="meeting-sub">${m.sub}</div>
         </div>
-        <button class="btn-join-sm" onclick="startCall()">Join</button>
+        <button class="btn-join-sm" onclick="doJoin('MTG-' + Math.random().toString(36).substring(2,7).toUpperCase())">Join</button>
       </div>`).join('');
   }
 }
 
-// Initialize
+// Initialize on Load
+initAuthState();
 buildCalendar();
 </script>
 </body>
