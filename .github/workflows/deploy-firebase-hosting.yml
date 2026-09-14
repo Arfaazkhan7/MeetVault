@@ -7,7 +7,8 @@ on:
     inputs:
       api_base_url:
         description: Production FastAPI base URL, for example https://meetvault-api.run.app/api/v1
-        required: true
+        required: false
+        default: https://meetvault-api.onrender.com/api/v1
 
 jobs:
   build-and-deploy:
@@ -44,7 +45,8 @@ jobs:
             --dart-define=FIREBASE_STORAGE_BUCKET="ai-meet-f8fd0.firebasestorage.app" \
             --dart-define=FIREBASE_MESSAGING_SENDER_ID="661020533786" \
             --dart-define=FIREBASE_APP_ID="1:661020533786:web:ef4fd4bdd3c72a8e6c5da3" \
-            --dart-define=FIREBASE_MEASUREMENT_ID="G-C5KTB28SWG"
+            --dart-define=FIREBASE_MEASUREMENT_ID="G-C5KTB28SWG" \
+            --dart-define=APP_BUILD_SHA="${{ github.sha }}"
 
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
