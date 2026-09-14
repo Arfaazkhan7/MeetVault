@@ -33,7 +33,7 @@
 
       --border:        #E2E8F0;
       --r-card:        16px;
-      --shadow-card:   0 2px 10px rgba(0, 0, 0, 0.03);
+      --shadow-card:   0 2px 12px rgba(0, 0, 0, 0.03);
     }
 
     html, body {
@@ -46,37 +46,42 @@
     }
 
     /* ═══════════════════════════════════════════════
-       APP SHELL (FIXED 100VH NO SCROLL)
+       APP SHELL (PERFECT 100VH VIEWPORT FIT)
     ═══════════════════════════════════════════════ */
-    .app { display: flex; height: 100vh; width: 100vw; overflow: hidden; }
+    .app { display: flex; height: 100vh; width: 100vw; overflow: hidden; position: relative; }
+
+    /* BACKGROUND DECORATIVE SVG WAVES */
+    .bg-waves {
+      position: absolute; inset: 0; pointer-events: none; z-index: 1; opacity: 0.6;
+    }
 
     /* ═══════════════════════════════════════════════
        SIDEBAR
     ═══════════════════════════════════════════════ */
     .sidebar {
-      width: 120px;
+      width: 124px;
       height: 100vh;
       flex-shrink: 0;
       background: #FFFFFF;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 20px 12px;
+      padding: 24px 12px 20px 12px;
       z-index: 20;
       border-right: 1px solid var(--border);
     }
 
     .brand {
       display: flex; flex-direction: column; align-items: center; gap: 6px;
-      margin-bottom: 28px; cursor: pointer;
+      margin-bottom: 32px; cursor: pointer;
     }
     .brand-icon {
-      width: 38px; height: 38px; border-radius: 12px; background: #0F172A;
+      width: 40px; height: 40px; border-radius: 12px; background: #0F172A;
       display: flex; align-items: center; justify-content: center;
     }
-    .brand-icon svg { width: 20px; height: 20px; fill: #fff; }
+    .brand-icon svg { width: 22px; height: 22px; fill: #fff; }
     .brand-name {
-      font-size: 0.6rem; font-weight: 900; letter-spacing: 0.08em;
+      font-size: 0.62rem; font-weight: 900; letter-spacing: 0.08em;
       text-transform: uppercase; color: #0F172A;
     }
 
@@ -84,9 +89,9 @@
 
     .nav-item {
       width: 100%; display: flex; align-items: center; gap: 10px;
-      padding: 10px 12px; border-radius: 12px;
+      padding: 10px 14px; border-radius: 12px;
       cursor: pointer; transition: all 0.15s ease; user-select: none;
-      color: var(--text-secondary); font-weight: 600; font-size: 0.84rem;
+      color: var(--text-secondary); font-weight: 600; font-size: 0.85rem;
     }
     .nav-item:hover { background: #F8FAFC; color: var(--text-primary); }
     .nav-item.active { background: var(--blue-light-bg); color: var(--blue); }
@@ -96,25 +101,25 @@
     .sidebar-bottom { width: 100%; }
 
     /* ═══════════════════════════════════════════════
-       MAIN CONTENT (FITS EXACT 100VH NO SCROLL)
+       MAIN CONTAINER
     ═══════════════════════════════════════════════ */
-    .main { flex: 1; display: flex; flex-direction: column; height: 100vh; overflow: hidden; min-width: 0; position: relative; }
+    .main { flex: 1; display: flex; flex-direction: column; height: 100vh; overflow: hidden; min-width: 0; position: relative; z-index: 2; }
 
-    /* TOP BAR RIGHT CONTROLS (FLOATING IN TOP RIGHT CORNER) */
+    /* FLOATING TOP CONTROLS (TOP RIGHT CORNER) */
     .top-controls {
-      position: absolute; top: 12px; right: 20px;
-      display: flex; align-items: center; gap: 12px; z-index: 30;
+      position: absolute; top: 20px; right: 40px;
+      display: flex; align-items: center; gap: 14px; z-index: 30;
     }
     .notif-btn {
       position: relative; width: 36px; height: 36px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      cursor: pointer; transition: background 0.15s; background: rgba(255,255,255,0.6);
+      cursor: pointer; transition: background 0.15s; background: rgba(255,255,255,0.7);
     }
     .notif-btn:hover { background: #FFFFFF; }
-    .notif-btn svg { width: 20px; height: 20px; fill: #475569; }
+    .notif-btn svg { width: 19px; height: 19px; fill: #475569; }
     .notif-dot {
       position: absolute; top: 7px; right: 7px;
-      width: 8px; height: 8px; background: #EF4444; border-radius: 50%; border: 2px solid var(--bg-page);
+      width: 7px; height: 7px; background: #EF4444; border-radius: 50%; border: 2px solid var(--bg-page);
     }
     .user-avatar {
       width: 36px; height: 36px; border-radius: 50%; background: #0F172A;
@@ -122,12 +127,12 @@
       font-weight: 700; font-size: 0.85rem; cursor: pointer;
     }
 
-    /* CONTENT WRAPPER FLUSH TO EDGES */
-    .content { flex: 1; height: 100vh; padding: 12px 20px 16px 20px; overflow: hidden; display: flex; flex-direction: column; }
+    /* CONTENT AREA */
+    .content { flex: 1; height: 100vh; padding: 24px 44px 28px 44px; overflow: hidden; display: flex; flex-direction: column; }
 
     .page-container {
-      width: 100%; max-width: 100%; height: 100%;
-      margin: 0; display: flex; flex-direction: column; overflow: hidden;
+      width: 100%; height: 100%;
+      display: flex; flex-direction: column; overflow: hidden;
     }
 
     /* Views */
@@ -136,76 +141,80 @@
     @keyframes fadeIn { from { opacity:0; transform:translateY(3px); } to { opacity:1; transform:translateY(0); } }
 
     /* ═══════════════════════════════════════════════
-       HERO SECTION (FLUSH ON LEFT AND RIGHT)
+       HERO SECTION
     ═══════════════════════════════════════════════ */
     .hero {
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
-      margin-bottom: 12px;
+      margin-bottom: 20px;
       flex-shrink: 0;
       position: relative;
       width: 100%;
     }
 
-    .hero-left { padding-top: 0; margin-left: 0; }
+    .hero-left { padding-top: 0; }
 
     .hero-greet {
       font-size: 0.95rem; font-weight: 500; color: var(--text-secondary);
-      margin-bottom: 2px;
+      margin-bottom: 3px;
     }
     .hero-name {
-      font-size: 1.95rem; font-weight: 800; color: var(--text-h1);
+      font-size: 2.1rem; font-weight: 800; color: #0F172A;
       letter-spacing: -0.03em; line-height: 1.1;
       display: flex; align-items: center; gap: 8px;
     }
+    .hero-name-blue { color: #2563EB; }
     .hero-code {
       font-size: 0.8rem; font-weight: 600; color: var(--text-muted);
-      margin-top: 4px;
+      margin-top: 6px;
     }
 
-    /* Decorative Illustration Right */
+    /* Decorative Line Art Illustration Right */
     .hero-art {
       position: relative;
-      width: 320px; height: 90px;
+      width: 380px; height: 100px;
       flex-shrink: 0;
-      margin-right: 80px; /* Leave space for top right controls */
+      margin-right: 90px; /* Space for top right controls */
     }
 
     .hero-handwrite {
       position: absolute;
-      top: 4px; right: 155px;
+      top: 2px; left: 20px;
       font-family: 'Caveat', cursive;
-      font-size: 1.05rem;
+      font-size: 1.15rem;
       font-weight: 700;
       color: #1E293B;
       line-height: 1.25;
       text-align: center;
       z-index: 2;
-      transform: rotate(-5deg);
+      transform: rotate(-6deg);
     }
 
-    .laptop-art { position: absolute; bottom: -6px; right: 40px; z-index: 2; }
-    .plant-art  { position: absolute; bottom: -8px; right: 0px; z-index: 2; }
-    .mug-art    { position: absolute; bottom: -6px; right: 130px; z-index: 2; }
+    /* Desk Line Art SVG */
+    .desk-art-svg {
+      position: absolute;
+      bottom: 0; right: 0;
+      z-index: 2;
+    }
 
     /* ═══════════════════════════════════════════════
-       ACTION CARDS (COMPACT & CENTERED)
+       ACTION CARDS (CENTERED WITH MARGINS)
     ═══════════════════════════════════════════════ */
     .action-row-wrap {
-      max-width: 700px; width: 100%;
-      margin: 0 auto 16px auto; flex-shrink: 0;
+      max-width: 720px; width: 100%;
+      margin: 0 auto 24px auto; flex-shrink: 0;
     }
 
     .action-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 20px;
+      gap: 24px;
     }
 
     .action-card {
       border-radius: var(--r-card);
-      padding: 18px 18px;
+      padding: 22px 20px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -219,33 +228,33 @@
     .card-join   { background: #F0F6FF; border: 1px solid #DBEAFE; }
 
     .card-circle-icon {
-      width: 40px; height: 40px; border-radius: 50%;
+      width: 42px; height: 42px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      margin-bottom: 10px; flex-shrink: 0;
+      margin-bottom: 12px; flex-shrink: 0;
     }
     .icon-red-bg  { background: var(--red-icon-bg); }
-    .icon-red-bg svg { width: 18px; height: 18px; fill: var(--red); }
+    .icon-red-bg svg { width: 19px; height: 19px; fill: var(--red); }
     
     .icon-blue-bg { background: var(--blue-icon-bg); }
-    .icon-blue-bg svg { width: 18px; height: 18px; fill: var(--blue); }
+    .icon-blue-bg svg { width: 19px; height: 19px; fill: var(--blue); }
 
-    .card-title { font-size: 0.92rem; font-weight: 700; color: var(--text-h1); margin-bottom: 3px; }
-    .card-sub   { font-size: 0.76rem; color: var(--text-secondary); margin-bottom: 14px; line-height: 1.35; }
+    .card-title { font-size: 0.95rem; font-weight: 700; color: var(--text-h1); margin-bottom: 4px; }
+    .card-sub   { font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.4; }
 
     .btn-red-action {
       display: inline-flex; align-items: center; gap: 6px;
       background: var(--red); color: #FFFFFF; border: none;
-      height: 36px; padding: 0 22px; border-radius: 8px;
-      font-size: 0.82rem; font-weight: 700; cursor: pointer; font-family: inherit;
-      box-shadow: 0 3px 10px rgba(229,57,53,0.25); transition: background 0.15s;
+      height: 38px; padding: 0 24px; border-radius: 8px;
+      font-size: 0.84rem; font-weight: 700; cursor: pointer; font-family: inherit;
+      box-shadow: 0 3px 10px rgba(229,57,53,0.3); transition: background 0.15s;
     }
     .btn-red-action:hover { background: var(--red-dark); }
     .btn-red-action svg { width: 14px; height: 14px; fill: #FFFFFF; }
 
-    .join-form { display: flex; align-items: center; width: 100%; max-width: 250px; height: 36px; }
+    .join-form { display: flex; align-items: center; width: 100%; max-width: 260px; height: 38px; }
     .join-input {
       height: 100%; flex: 1; border: 1px solid #CBD5E1; border-right: none;
-      border-radius: 8px 0 0 8px; padding: 0 10px; font-size: 0.76rem;
+      border-radius: 8px 0 0 8px; padding: 0 12px; font-size: 0.78rem;
       color: var(--text-primary); background: #FFFFFF; outline: none; font-family: inherit;
     }
     .join-input::placeholder { color: var(--text-muted); }
@@ -253,24 +262,32 @@
     
     .btn-blue-action {
       height: 100%; background: var(--blue); color: #FFFFFF; border: none;
-      border-radius: 0 8px 8px 0; padding: 0 16px; font-size: 0.82rem;
+      border-radius: 0 8px 8px 0; padding: 0 18px; font-size: 0.84rem;
       font-weight: 700; cursor: pointer; font-family: inherit;
       transition: background 0.15s; flex-shrink: 0;
     }
     .btn-blue-action:hover { background: var(--blue-dark); }
 
     /* ═══════════════════════════════════════════════
-       BOTTOM GRID (CENTERED WITH SPACING ON LEFT & RIGHT)
+       BOTTOM GRID (CENTERED WITH ELEGANT MARGINS)
     ═══════════════════════════════════════════════ */
+    .bottom-grid-wrap {
+      width: 100%;
+      max-width: 980px;
+      margin: 0 auto;
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
     .bottom-grid {
       flex: 1;
       min-height: 0;
       width: 100%;
-      max-width: 1075px;
-      margin: 0 auto;
       display: grid;
       grid-template-columns: 1.55fr 1fr;
-      gap: 20px;
+      gap: 22px;
       align-items: stretch;
       overflow: hidden;
     }
@@ -280,7 +297,7 @@
       border-radius: var(--r-card);
       border: 1px solid var(--border);
       box-shadow: var(--shadow-card);
-      padding: 14px 16px;
+      padding: 20px 22px;
       display: flex;
       flex-direction: column;
       height: 100%;
@@ -290,98 +307,98 @@
 
     .panel-head {
       display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 10px; flex-shrink: 0;
+      margin-bottom: 16px; flex-shrink: 0;
     }
     .panel-title-group { display: flex; align-items: center; gap: 8px; }
-    .panel-title-icon svg { width: 17px; height: 17px; fill: #475569; display: block; }
-    .panel-title { font-size: 0.95rem; font-weight: 700; color: var(--text-h1); }
+    .panel-title-icon svg { width: 18px; height: 18px; fill: #475569; display: block; }
+    .panel-title { font-size: 0.98rem; font-weight: 700; color: var(--text-h1); }
 
     .view-all-link {
       display: inline-flex; align-items: center; gap: 4px;
-      font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);
+      font-size: 0.82rem; font-weight: 600; color: var(--text-secondary);
       cursor: pointer; transition: color 0.15s; text-decoration: none;
     }
     .view-all-link:hover { color: var(--blue); }
-    .view-all-link svg { width: 13px; height: 13px; fill: currentColor; }
+    .view-all-link svg { width: 14px; height: 14px; fill: currentColor; }
 
-    .cal-wrap { margin-bottom: 14px; flex-shrink: 0; }
+    .cal-wrap { margin-bottom: 16px; flex-shrink: 0; }
     .cal-week { display: flex; align-items: center; justify-content: space-between; }
     
     .cal-nav {
-      width: 26px; height: 26px; border-radius: 50%;
+      width: 28px; height: 28px; border-radius: 50%;
       background: none; border: none; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       color: var(--text-secondary); flex-shrink: 0; transition: background 0.15s;
     }
     .cal-nav:hover { background: #F1F5F9; }
-    .cal-nav svg { width: 15px; height: 15px; fill: currentColor; }
+    .cal-nav svg { width: 16px; height: 16px; fill: currentColor; }
 
-    .cal-days { display: flex; flex: 1; justify-content: space-around; padding: 0 4px; }
+    .cal-days { display: flex; flex: 1; justify-content: space-around; padding: 0 6px; }
 
     .cal-day {
-      display: flex; flex-direction: column; align-items: center; gap: 3px;
-      padding: 3px 4px; border-radius: 10px; cursor: pointer;
-      transition: background 0.15s; min-width: 40px;
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      padding: 4px 6px; border-radius: 10px; cursor: pointer;
+      transition: background 0.15s; min-width: 42px;
     }
 
     .cal-day-name {
-      font-size: 0.62rem; font-weight: 700; letter-spacing: 0.04em;
+      font-size: 0.65rem; font-weight: 700; letter-spacing: 0.04em;
       text-transform: uppercase; color: var(--text-muted);
     }
     .cal-day.today .cal-day-name { color: var(--blue); }
 
     .cal-day-num {
-      width: 30px; height: 30px; border-radius: 50%;
+      width: 32px; height: 32px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      font-size: 0.85rem; font-weight: 700; color: var(--text-primary);
+      font-size: 0.88rem; font-weight: 700; color: var(--text-primary);
     }
     .cal-day.today .cal-day-num { background: var(--blue); color: #FFFFFF; }
     .cal-day.selected:not(.today) .cal-day-num { background: var(--blue-light-bg); color: var(--blue); }
 
-    .cal-dot-row { height: 5px; display: flex; align-items: center; justify-content: center; }
+    .cal-dot-row { height: 6px; display: flex; align-items: center; justify-content: center; }
     .cal-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--red); }
 
-    .cal-divider { border-bottom: 1px solid #F1F5F9; margin-bottom: 14px; flex-shrink: 0; }
+    .cal-divider { border-bottom: 1px solid #F1F5F9; margin-bottom: 18px; flex-shrink: 0; }
 
     .upcoming-body { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; overflow-y: auto; }
 
     .upcoming-empty {
       display: flex; flex-direction: column; align-items: center;
-      text-align: center; padding: 8px 0;
+      text-align: center; padding: 12px 0;
     }
     .upcoming-empty-icon {
-      width: 44px; height: 44px; border-radius: 12px;
+      width: 46px; height: 46px; border-radius: 12px;
       background: #F0F6FF;
-      display: flex; align-items: center; justify-content: center; margin-bottom: 10px;
+      display: flex; align-items: center; justify-content: center; margin-bottom: 12px;
     }
-    .upcoming-empty-icon svg { width: 20px; height: 20px; fill: var(--blue); }
-    .upcoming-empty-title { font-size: 0.9rem; font-weight: 700; color: var(--text-h1); margin-bottom: 3px; }
-    .upcoming-empty-sub   { font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 14px; }
+    .upcoming-empty-icon svg { width: 22px; height: 22px; fill: var(--blue); }
+    .upcoming-empty-title { font-size: 0.95rem; font-weight: 700; color: var(--text-h1); margin-bottom: 4px; }
+    .upcoming-empty-sub   { font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 16px; }
 
     .btn-light-blue {
       display: inline-flex; align-items: center; gap: 6px;
       background: var(--blue-light-bg); color: var(--blue);
-      border: none; height: 34px; padding: 0 18px;
-      border-radius: 8px; font-size: 0.8rem; font-weight: 700;
+      border: none; height: 36px; padding: 0 20px;
+      border-radius: 8px; font-size: 0.82rem; font-weight: 700;
       cursor: pointer; font-family: inherit; transition: background 0.15s;
     }
     .btn-light-blue:hover { background: #DBEAFE; }
-    .btn-light-blue svg { width: 13px; height: 13px; fill: var(--blue); }
+    .btn-light-blue svg { width: 14px; height: 14px; fill: var(--blue); }
 
     .meeting-item {
       display: flex; align-items: center; gap: 12px;
-      padding: 8px 0; border-bottom: 1px solid #F8FAFC;
+      padding: 10px 0; border-bottom: 1px solid #F8FAFC;
     }
     .meeting-item:last-child { border-bottom: none; }
-    .meeting-time { font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); width: 52px; flex-shrink: 0; }
-    .meeting-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); flex-shrink: 0; }
+    .meeting-time { font-size: 0.76rem; font-weight: 700; color: var(--text-secondary); width: 55px; flex-shrink: 0; }
+    .meeting-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--blue); flex-shrink: 0; }
     .meeting-info { flex: 1; }
-    .meeting-title { font-size: 0.84rem; font-weight: 700; color: var(--text-primary); }
-    .meeting-sub   { font-size: 0.72rem; color: var(--text-secondary); margin-top: 1px; }
+    .meeting-title { font-size: 0.86rem; font-weight: 700; color: var(--text-primary); }
+    .meeting-sub   { font-size: 0.74rem; color: var(--text-secondary); margin-top: 1px; }
     .btn-join-sm {
-      font-size: 0.74rem; font-weight: 700; color: var(--blue);
+      font-size: 0.76rem; font-weight: 700; color: var(--blue);
       background: var(--blue-light-bg); border: none; border-radius: 6px;
-      padding: 4px 12px; cursor: pointer; font-family: inherit; transition: background 0.15s;
+      padding: 5px 14px; cursor: pointer; font-family: inherit; transition: background 0.15s;
     }
     .btn-join-sm:hover { background: #DBEAFE; }
 
@@ -390,7 +407,7 @@
       background: #F8FAFC;
       border: 1px solid #F1F5F9;
       border-radius: 12px;
-      padding: 14px;
+      padding: 16px;
       flex: 1;
       min-height: 0;
       display: flex;
@@ -401,14 +418,14 @@
     .notes-textarea {
       width: 100%; flex: 1; min-height: 0;
       border: none; background: transparent;
-      font-size: 0.82rem; font-family: inherit;
+      font-size: 0.84rem; font-family: inherit;
       color: var(--text-primary); outline: none; resize: none;
-      line-height: 1.5;
+      line-height: 1.6;
     }
     .notes-textarea::placeholder { color: var(--text-muted); }
 
     .notes-count {
-      font-size: 0.7rem; color: var(--text-muted); font-weight: 600;
+      font-size: 0.72rem; color: var(--text-muted); font-weight: 600;
       text-align: right; margin-top: 6px; flex-shrink: 0;
     }
 
@@ -473,6 +490,13 @@
 <body>
 <div class="app">
 
+  <!-- BACKGROUND DECORATIVE WAVED LINES SVG -->
+  <svg class="bg-waves" viewBox="0 0 1440 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M120 180 C 400 80, 700 240, 1100 60 C 1250 -10, 1380 40, 1440 100 V0 H120 Z" fill="#E8F1FC" opacity="0.5"/>
+    <path d="M-50 450 C 200 350, 450 550, 700 400 C 950 250, 1200 480, 1480 320" stroke="#DBEAFE" stroke-width="2" fill="none"/>
+    <path d="M-20 700 C 300 600, 600 850, 950 650 C 1200 500, 1350 720, 1460 620" stroke="#E2E8F0" stroke-width="1.5" stroke-dasharray="6 6" fill="none"/>
+  </svg>
+
   <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="brand" onclick="switchView('home')">
@@ -510,7 +534,7 @@
   <!-- MAIN CONTAINER -->
   <div class="main">
 
-    <!-- FLOATING TOP CONTROLS (RIGHT CORNER) -->
+    <!-- FLOATING TOP CONTROLS (TOP RIGHT CORNER) -->
     <div class="top-controls">
       <div class="notif-btn" onclick="alert('No new notifications')">
         <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
@@ -526,46 +550,41 @@
         <!-- HOME VIEW -->
         <div class="view active" id="view-home">
 
-          <!-- HERO SECTION (STARTS AT THE VERY TOP) -->
+          <!-- HERO SECTION -->
           <div class="hero">
             <div class="hero-left">
               <div class="hero-greet">Good to see you,</div>
               <div class="hero-name">
-                Arfaaz Khan <span>👋</span>
+                Arfaaz <span class="hero-name-blue">Khan</span> <span>👋</span>
               </div>
               <div class="hero-code">MTG-DA22D7</div>
             </div>
 
+            <!-- Line Art Desk Illustration -->
             <div class="hero-art">
-              <div class="hero-handwrite">Brighter<br>Meetings<br>Better Ideas</div>
+              <div class="hero-handwrite">Better<br>Meetings<br>Brighter Ideas</div>
 
-              <div class="mug-art">
-                <svg width="38" height="42" viewBox="0 0 42 46" fill="none">
-                  <rect x="3" y="10" width="28" height="30" rx="4" fill="#BFDBFE"/>
-                  <rect x="3" y="10" width="28" height="6" rx="4" fill="#93C5FD"/>
-                  <path d="M31 16 Q40 16 40 24 Q40 32 31 32" stroke="#93C5FD" stroke-width="3" fill="none" stroke-linecap="round"/>
-                </svg>
-              </div>
-
-              <div class="laptop-art">
-                <svg width="85" height="68" viewBox="0 0 100 80" fill="none">
-                  <rect x="10" y="4" width="80" height="54" rx="6" fill="#E2E8F0"/>
-                  <rect x="14" y="8" width="72" height="46" rx="4" fill="#FFFFFF"/>
-                  <rect x="32" y="18" width="36" height="28" rx="3" fill="#BFDBFE" opacity="0.6"/>
-                  <circle cx="50" cy="32" r="8" fill="#93C5FD"/>
-                  <path d="M46 30 L54 30 L57 27 L57 37 L54 34 L46 34 Z" fill="#2563EB"/>
-                  <rect x="4" y="58" width="92" height="6" rx="3" fill="#CBD5E1"/>
-                </svg>
-              </div>
-
-              <div class="plant-art">
-                <svg width="38" height="48" viewBox="0 0 44 58" fill="none">
-                  <path d="M10 38 L8 54 Q8 56 10 56 L34 56 Q36 56 36 54 L34 38Z" fill="#D97706"/>
-                  <rect x="8" y="35" width="28" height="5" rx="2.5" fill="#F59E0B"/>
-                  <path d="M22 38 Q14 26 10 18 Q18 22 22 32" fill="#4ADE80"/>
-                  <path d="M22 38 Q30 26 34 18 Q26 22 22 32" fill="#22C55E"/>
-                </svg>
-              </div>
+              <svg class="desk-art-svg" width="280" height="95" viewBox="0 0 280 95" fill="none">
+                <!-- Desk Surface Line -->
+                <path d="M10 90 L270 90" stroke="#1E293B" stroke-width="1.5" stroke-linecap="round"/>
+                
+                <!-- Laptop -->
+                <rect x="150" y="30" width="56" height="48" rx="4" stroke="#1E293B" stroke-width="1.5" fill="#FFFFFF"/>
+                <circle cx="178" cy="54" r="5" stroke="#1E293B" stroke-width="1.5" fill="none"/>
+                <path d="M135 78 L221 78 C223 78 225 80 225 82 C225 84 223 86 221 86 L135 86 C133 86 131 84 131 82 C131 80 133 78 135 78 Z" stroke="#1E293B" stroke-width="1.5" fill="#FFFFFF"/>
+                
+                <!-- Coffee Mug -->
+                <rect x="226" y="58" width="16" height="22" rx="2" stroke="#1E293B" stroke-width="1.5" fill="#FFFFFF"/>
+                <path d="M242 63 C247 63 247 73 242 73" stroke="#1E293B" stroke-width="1.5" fill="none"/>
+                
+                <!-- Plant in Pot -->
+                <path d="M248 60 L245 86 C245 88 247 90 249 90 L267 90 C269 90 271 88 271 86 L268 60 Z" stroke="#1E293B" stroke-width="1.5" fill="#FFFFFF"/>
+                <!-- Leaves -->
+                <path d="M256 60 Q242 45 238 28 Q252 32 256 50" stroke="#1E293B" stroke-width="1.5" fill="#FFFFFF"/>
+                <path d="M256 60 Q270 45 274 28 Q260 32 256 50" stroke="#1E293B" stroke-width="1.5" fill="#FFFFFF"/>
+                <path d="M256 52 Q245 32 248 18 Q258 26 256 46" stroke="#1E293B" stroke-width="1.5" fill="#FFFFFF"/>
+                <path d="M256 52 Q267 32 264 18 Q254 26 256 46" stroke="#1E293B" stroke-width="1.5" fill="#FFFFFF"/>
+              </svg>
             </div>
           </div>
 
@@ -604,66 +623,68 @@
             </div>
           </div>
 
-          <!-- BOTTOM GRID (EXPANDS TO FILL HEIGHT NO SCROLL) -->
-          <div class="bottom-grid">
+          <!-- BOTTOM GRID (CENTERED WITH ELEGANT MARGINS) -->
+          <div class="bottom-grid-wrap">
+            <div class="bottom-grid">
 
-            <!-- Upcoming Meetings Panel -->
-            <div class="panel">
-              <div class="panel-head">
-                <div class="panel-title-group">
-                  <div class="panel-title-icon">
-                    <svg viewBox="0 0 24 24"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-2 .9-2 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg>
+              <!-- Upcoming Meetings Panel -->
+              <div class="panel">
+                <div class="panel-head">
+                  <div class="panel-title-group">
+                    <div class="panel-title-icon">
+                      <svg viewBox="0 0 24 24"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-2 .9-2 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg>
+                    </div>
+                    <span class="panel-title">Upcoming Meetings</span>
                   </div>
-                  <span class="panel-title">Upcoming Meetings</span>
+                  <a class="view-all-link" onclick="switchView('vault')">
+                    View all
+                    <svg viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
+                  </a>
                 </div>
-                <a class="view-all-link" onclick="switchView('vault')">
-                  View all
-                  <svg viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
-                </a>
-              </div>
 
-              <div class="cal-wrap">
-                <div class="cal-week">
-                  <button class="cal-nav" onclick="shiftWeek(-1)">
-                    <svg viewBox="0 0 24 24"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6z"/></svg>
-                  </button>
-                  <div class="cal-days" id="cal-days-row"></div>
-                  <button class="cal-nav" onclick="shiftWeek(1)">
-                    <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
-                  </button>
-                </div>
-              </div>
-
-              <div class="cal-divider"></div>
-
-              <div class="upcoming-body" id="upcoming-list"></div>
-            </div>
-
-            <!-- Notes Panel -->
-            <div class="panel">
-              <div class="panel-head">
-                <div class="panel-title-group">
-                  <div class="panel-title-icon">
-                    <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
+                <div class="cal-wrap">
+                  <div class="cal-week">
+                    <button class="cal-nav" onclick="shiftWeek(-1)">
+                      <svg viewBox="0 0 24 24"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6z"/></svg>
+                    </button>
+                    <div class="cal-days" id="cal-days-row"></div>
+                    <button class="cal-nav" onclick="shiftWeek(1)">
+                      <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
+                    </button>
                   </div>
-                  <span class="panel-title">Notes</span>
                 </div>
-                <a class="view-all-link" onclick="alert('All notes')">
-                  View all
-                  <svg viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
-                </a>
+
+                <div class="cal-divider"></div>
+
+                <div class="upcoming-body" id="upcoming-list"></div>
               </div>
 
-              <div class="notes-box">
-                <textarea class="notes-textarea" id="notes-field"
-                  placeholder="Write a quick note..."
-                  maxlength="500"
-                  oninput="updateNoteCount(this)"></textarea>
-                <div class="notes-count" id="notes-count">0/500</div>
-              </div>
-            </div>
+              <!-- Notes Panel -->
+              <div class="panel">
+                <div class="panel-head">
+                  <div class="panel-title-group">
+                    <div class="panel-title-icon">
+                      <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
+                    </div>
+                    <span class="panel-title">Notes</span>
+                  </div>
+                  <a class="view-all-link" onclick="alert('All notes')">
+                    View all
+                    <svg viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
+                  </a>
+                </div>
 
-          </div><!-- /bottom-grid -->
+                <div class="notes-box">
+                  <textarea class="notes-textarea" id="notes-field"
+                    placeholder="Write a quick note..."
+                    maxlength="500"
+                    oninput="updateNoteCount(this)"></textarea>
+                  <div class="notes-count" id="notes-count">0/500</div>
+                </div>
+              </div>
+
+            </div><!-- /bottom-grid -->
+          </div><!-- /bottom-grid-wrap -->
 
         </div><!-- /view-home -->
 
@@ -759,12 +780,12 @@
 <script>
 /* ── Notes Persistence ────────────────────────────────── */
 (function(){
-  const n = localStorage.getItem('mv_notes_v5');
+  const n = localStorage.getItem('mv_notes_v6');
   if(n){ const el=document.getElementById('notes-field'); if(el){ el.value=n; updateNoteCount(el); } }
 })();
 
 function updateNoteCount(el){
-  localStorage.setItem('mv_notes_v5', el.value);
+  localStorage.setItem('mv_notes_v6', el.value);
   document.getElementById('notes-count').textContent = el.value.length + '/500';
 }
 
