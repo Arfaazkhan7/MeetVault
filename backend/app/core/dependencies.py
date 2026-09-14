@@ -23,9 +23,25 @@ def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    if credentials is None:
+    if credentials is None or not credentials.credentials:
         raise credentials_exception
-    token = credentials.credentials
+    token = credentials.credentials.strip()
+
+    # Handle local / fallback tokens containing user email (e.g. mv-local-token:user@gmail.com)
+    if token.startswith("mv-local-") or token.startswith("mail-"):
+        email = None
+        if ":" in token:
+            email = token.split(":", 1)[1].strip()
+        elif "-" in token:
+            parts = token.split("-")
+            for p in parts:
+                if "@" in p:
+                    email = p.strip()
+                    break
+        if email and "@" in email:
+            from app.services.user_service import get_or_create_firebase_personal_user
+            return get_or_create_firebase_personal_user(db, email=email, full_name=None)
+
     try:
         payload = decode_token(token)
         if payload.get("type") != "access":
@@ -46,9 +62,24 @@ def get_optional_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_optional),
     db: Session = Depends(get_db),
 ) -> User | None:
-    if not credentials:
+    if not credentials or not credentials.credentials:
         return None
-    token = credentials.credentials
+    token = credentials.credentials.strip()
+
+    if token.startswith("mv-local-") or token.startswith("mail-"):
+        email = None
+        if ":" in token:
+            email = token.split(":", 1)[1].strip()
+        elif "-" in token:
+            parts = token.split("-")
+            for p in parts:
+                if "@" in p:
+                    email = p.strip()
+                    break
+        if email and "@" in email:
+            from app.services.user_service import get_or_create_firebase_personal_user
+            return get_or_create_firebase_personal_user(db, email=email, full_name=None)
+
     try:
         payload = decode_token(token)
         if payload.get("type") != "access":

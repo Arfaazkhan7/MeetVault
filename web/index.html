@@ -1486,7 +1486,7 @@ function loginWithEmailInApp(e){
   const name = email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   const code = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
   localStorage.setItem('mv_user', JSON.stringify({ email, name, code }));
-  localStorage.setItem('access_token', 'mail-' + Date.now());
+  localStorage.setItem('access_token', 'mv-local-token:' + email);
   showToast('✅ Signed in successfully!');
   initAuthState();
 }

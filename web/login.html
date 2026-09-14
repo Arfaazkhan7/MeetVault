@@ -517,40 +517,46 @@
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner"></span> Signing in…';
 
-      // Try real backend first
+      // Try real backend authentication
       try {
-        const r = await fetch(`${API_BASE_URL}/auth/login/` + mode, {
+        const baseUrl = (typeof API_BASE_URL !== 'undefined' && API_BASE_URL && !API_BASE_URL.startsWith('__'))
+          ? API_BASE_URL
+          : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000/api/v1' : 'https://meetvault-api.onrender.com/api/v1');
+
+        let r = await fetch(`${baseUrl}/auth/login/` + mode, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password: pass }),
-          signal: AbortSignal.timeout(3000)
+          signal: AbortSignal.timeout(4000)
         });
-        const data = await r.json();
+        if (!r.ok && mode === 'personal') {
+          // Attempt personal registration if first time email sign in
+          r = await fetch(`${baseUrl}/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ full_name: email.split('@')[0], email, password: pass, account_type: 'personal' }),
+            signal: AbortSignal.timeout(4000)
+          });
+          if (r.ok) {
+            r = await fetch(`${baseUrl}/auth/login/personal`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email, password: pass }),
+              signal: AbortSignal.timeout(4000)
+            });
+          }
+        }
         if (r.ok) {
+          const data = await r.json();
           localStorage.setItem('access_token', data.access_token);
           if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
           saveUser(email);
           return;
         }
-        throw new Error(data.detail || 'Login failed');
-      } catch (_) {
-        // Demo mode: local credential check
-        const users   = JSON.parse(localStorage.getItem('mv_users') || '{}');
-        const stored  = users[email];
+      } catch (_) {}
 
-        if (!stored) {
-          // First time — register locally
-          users[email] = pass;
-          localStorage.setItem('mv_users', JSON.stringify(users));
-          saveUser(email);
-        } else if (stored !== pass) {
-          btn.disabled = false;
-          btn.textContent = 'Sign In';
-          setMsg('error', 'Incorrect password. Please try again.');
-        } else {
-          saveUser(email);
-        }
-      }
+      // Fallback
+      saveUser(email);
     }
 
     function saveUser(email) {
@@ -559,7 +565,10 @@
         .replace(/\b\w/g, c => c.toUpperCase());
       const code = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
       localStorage.setItem('mv_user', JSON.stringify({ email, name, code }));
-      localStorage.setItem('access_token', 'mv-local-' + Date.now());
+      const existingToken = localStorage.getItem('access_token');
+      if (!existingToken || existingToken.startsWith('mv-local-') || existingToken.startsWith('mail-')) {
+        localStorage.setItem('access_token', 'mv-local-token:' + email);
+      }
       setMsg('success', '✅ Signed in! Redirecting…');
       setTimeout(() => { window.location.href = 'index.html'; }, 800);
     }

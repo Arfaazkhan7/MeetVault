@@ -363,7 +363,10 @@
       if (!name) name = email.split('@')[0].replace(/[._-]/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
       const code = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
       localStorage.setItem('mv_user', JSON.stringify({ email, name, code }));
-      localStorage.setItem('access_token', 'mv-local-' + Date.now());
+      const existingToken = localStorage.getItem('access_token');
+      if (!existingToken || existingToken.startsWith('mv-local-') || existingToken.startsWith('mail-')) {
+        localStorage.setItem('access_token', 'mv-local-token:' + email);
+      }
       setMsg('success', '✅ Account created! Redirecting…');
       setTimeout(() => { window.location.href = 'index.html'; }, 800);
     }
