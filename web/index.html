@@ -695,32 +695,11 @@
     }
 
 
-    .google-modal-overlay {
-      position: fixed; inset: 0; background: rgba(15,23,42,0.6);
-      backdrop-filter: blur(4px); z-index: 2000;
-      display: flex; align-items: center; justify-content: center; padding: 20px;
-    }
-    .google-picker-card {
-      background: #FFFFFF; border-radius: 16px; width: 100%; max-width: 380px;
-      padding: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.18);
-    }
-    .google-account-item {
-      display: flex; align-items: center; gap: 12px; padding: 10px 12px;
-      border-radius: 10px; cursor: pointer; transition: all 0.15s;
-      border: 1px solid #E2E8F0; margin-bottom: 8px;
-    }
+    
+    
+    
     .google-account-item:hover { background: #F8FAFC; border-color: #CBD5E1; }
-    .google-avatar {
-      width: 36px; height: 36px; border-radius: 50%; color: #fff;
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 700; font-size: 0.9rem; flex-shrink: 0;
-    }
-
-
-    /* Immersive Meeting Fullscreen Mode: Hides Sidebar & Top Controls */
-    .app.in-meeting-fullscreen .sidebar {
-      display: none !important;
-    }
+    
     .app.in-meeting-fullscreen .top-controls {
       display: none !important;
     }
@@ -752,6 +731,8 @@
 
 </style>
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 </head>
 <body>
 <div class="app">
@@ -1091,6 +1072,93 @@
 </div>
 
 <script>
+
+// ── Firebase & Google OAuth Initialization ──────────────────
+const firebaseConfig = {
+  authDomain: "ai-meet-f8fd0.firebaseapp.com",
+  projectId: "ai-meet-f8fd0",
+  storageBucket: "ai-meet-f8fd0.firebasestorage.app",
+  messagingSenderId: "661020533786",
+  appId: "1:661020533786:web:ef4fd4bdd3c72a8e6c5da3"
+};
+
+if (typeof firebase !== 'undefined' && !firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
+
+async function loginWithGoogle() {
+  if (typeof firebase === 'undefined' || !firebase.auth) {
+    alert("Google Sign-In service is initializing. Please ensure internet connectivity and try again.");
+    return;
+  }
+
+  const provider = new firebase.auth.GoogleAuthProvider();
+  provider.addScope('email');
+  provider.addScope('profile');
+  // FORCE GOOGLE OAUTH ACCOUNT CHOOSER SCREEN EVERY TIME
+  provider.setCustomParameters({ prompt: 'select_account' });
+
+  try {
+    const result = await firebase.auth().signInWithPopup(provider);
+    const user = result.user;
+    const idToken = await user.getIdToken();
+
+    // Verify token with backend if backend running
+    try {
+      const response = await fetch('/api/v1/auth/firebase/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_token: idToken }),
+        signal: AbortSignal.timeout(3000)
+      });
+      const data = await response.json();
+      if (response.ok) {
+        localStorage.setItem('access_token', data.access_token);
+        if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
+      }
+    } catch (_) {}
+
+    const name = user.displayName || user.email.split('@')[0];
+    const code = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+
+    localStorage.setItem('mv_user', JSON.stringify({
+      email: user.email,
+      name: name,
+      photo: user.photoURL,
+      uid: user.uid,
+      code: code
+    }));
+    localStorage.setItem('access_token', 'google-oauth-' + Date.now());
+
+    const msg = document.getElementById('msg');
+    if (msg) {
+      msg.className = 'msg success';
+      msg.textContent = '✅ Signed in as ' + name + '! Redirecting…';
+    } else if (typeof showToast === 'function') {
+      showToast('✅ Signed in as ' + name);
+    }
+
+    setTimeout(() => { window.location.href = 'index.html'; }, 600);
+  } catch (err) {
+    if (err.code === 'auth/popup-closed-by-user') return;
+    console.warn('Popup sign-in fallback to OAuth redirect:', err);
+    try {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      await firebase.auth().signInWithRedirect(provider);
+    } catch (e2) {
+      console.error('Google Sign-In Error:', e2);
+      const msg = document.getElementById('msg');
+      if (msg) {
+        msg.className = 'msg error';
+        msg.textContent = 'Google sign-in error: ' + (e2.message || err.message);
+      }
+    }
+  }
+}
+
+const loginWithGoogleInApp = loginWithGoogle;
+
 /* ── Notes Persistence ────────────────────────────────── */
 (function(){
   const n = localStorage.getItem('mv_notes_v6');
@@ -1231,38 +1299,12 @@ function dismissAuthModal(){
 }
 
 
-function loginWithGoogleInApp(){
-  const modal = document.getElementById('google-picker-modal-app');
-  if(modal) modal.style.display = 'flex';
-}
 function closeGooglePickerApp(){
   const modal = document.getElementById('google-picker-modal-app');
   if(modal) modal.style.display = 'none';
 }
-function selectGoogleAccountApp(email, name){
-  const code = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
-  localStorage.setItem('mv_user', JSON.stringify({ email, name, code }));
-  localStorage.setItem('access_token', 'google-oauth-' + Date.now());
-  showToast('✅ Signed in as ' + name + ' via Google!');
-  closeGooglePickerApp();
-  initAuthState();
-}
-function promptCustomGoogleAccountApp(){
-  const input = prompt("Enter your Google Account email:", "yourname@gmail.com");
-  if(input && input.includes('@')){
-    const email = input.trim();
-    const name = email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-    selectGoogleAccountApp(email, name);
-  }
 }
 
-/* old loginWithGoogleInApp */ function old_loginWithGoogleInApp(){
-  const user = { email: 'alex.google@gmail.com', name: 'Alex Mercer', code: 'MTG-GOOG1' };
-  localStorage.setItem('mv_user', JSON.stringify(user));
-  localStorage.setItem('access_token', 'goog-' + Date.now());
-  showToast('✅ Signed in with Google!');
-  initAuthState();
-}
 
 function loginWithEmailInApp(e){
   e.preventDefault();
@@ -1691,31 +1733,7 @@ initAuthState();
 buildCalendar();
 </script>
 
-<!-- GOOGLE ACCOUNT SELECTOR MODAL IN APP -->
-<div class="google-modal-overlay" id="google-picker-modal-app" style="display:none;">
-  <div class="google-picker-card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-      <div style="display:flex;align-items:center;gap:8px;">
-        <svg width="20" height="20" viewBox="0 0 18 18">
-          <path fill="#4285F4" d="M17.64 9.2c0-.74-.06-1.28-.19-1.84H9v3.34h4.96c-.1.83-.64 2.08-1.84 2.92l2.84 2.2c1.7-1.57 2.68-3.88 2.68-6.62z"/>
-          <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.84-2.2c-.76.53-1.78.9-3.12.9-2.38 0-4.41-1.57-5.13-3.74L.97 13.04C2.45 15.98 5.48 18 9 18z"/>
-          <path fill="#FBBC05" d="M3.87 10.78c-.19-.58-.3-1.2-.3-1.78s.11-1.2.3-1.78L.97 4.96C.35 6.18 0 7.55 0 9s.35 2.82.97 4.04l2.9-2.26z"/>
-          <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.59C13.46.89 11.43 0 9 0 5.48 0 2.45 2.02.97 4.96l2.9 2.26C4.59 5.05 6.62 3.58 9 3.58z"/>
-        </svg>
-        <span style="font-weight:800;font-size:0.92rem;color:#0F172A;">Sign in with Google</span>
-      </div>
-      <button onclick="closeGooglePickerApp()" style="background:none;border:none;font-size:1.2rem;cursor:pointer;color:#64748B;line-height:1;">&times;</button>
-    </div>
 
-    <div style="font-size:0.83rem;color:#475569;margin-bottom:16px;">Choose an account to continue to <strong>MeetVault</strong></div>
-
-    <div class="google-account-list">
-      <div class="google-account-item" onclick="selectGoogleAccountApp('arfaaz.khan@gmail.com', 'Arfaaz Khan')">
-        <div class="google-avatar" style="background:#2563EB;">A</div>
-        <div>
-          <div style="font-weight:700;font-size:0.85rem;color:#0F172A;">Arfaaz Khan</div>
-          <div style="font-size:0.75rem;color:#64748B;">arfaaz.khan@gmail.com</div>
-        </div>
       </div>
 
       <div class="google-account-item" onclick="selectGoogleAccountApp('user.google@gmail.com', 'Google User')">

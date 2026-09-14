@@ -12,7 +12,8 @@ class FirebaseAuthService {
 
     final provider = GoogleAuthProvider()
       ..addScope('email')
-      ..addScope('profile');
+      ..addScope('profile')
+      ..setCustomParameters({'prompt': 'select_account'});
 
     final credential = await FirebaseAuth.instance.signInWithPopup(provider);
     final token = await credential.user?.getIdToken();
