@@ -102,3 +102,21 @@ class MeetingConnectionResponse(BaseModel):
     token: str
     token_expires_at: datetime
     participant: MeetingParticipantResponse
+
+
+class MeetingHistoryItemResponse(BaseModel):
+    meeting_id: str
+    title: str
+    description: Optional[str] = None
+    meeting_code: Optional[str] = None
+    meeting_type: str = "PERSONAL"
+    status: str
+    started_at: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
+    duration_seconds: Optional[int] = None
+    my_role: str = "ATTENDEE"
+    my_join_time: Optional[datetime] = None
+    my_leave_time: Optional[datetime] = None
+    my_duration_seconds: Optional[int] = None
+    participants: list[MeetingParticipantResponse] = []
+    model_config = {"from_attributes": True}

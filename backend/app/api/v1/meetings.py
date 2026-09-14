@@ -21,6 +21,7 @@ from app.schemas.meeting import (
     MeetingConnectionResponse,
     JoinByInviteCodeRequest,
     MeetingStartResponse,
+    MeetingHistoryItemResponse,
 )
 from app.services.meeting_service import (
     create_meeting,
@@ -39,11 +40,24 @@ from app.services.meeting_service import (
     get_meeting_by_invite_code,
     start_meeting,
     end_meeting,
+    get_user_meeting_history,
 )
 from app.services.livekit_service import generate_meeting_token, room_name_for_meeting
 from app.core.config import settings
 
 router = APIRouter(tags=["meetings"])
+
+
+@router.get("/meetings/history", response_model=list[MeetingHistoryItemResponse])
+def get_user_cloud_meeting_history(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Fetch complete permanent cloud meeting history for the authenticated user.
+    Survives app restarts and cross-device logins when using the same Google/User account.
+    """
+    return get_user_meeting_history(db, current_user.public_id)
 
 
 # ── Personal Meetings ───────────────────────────────────────────────────

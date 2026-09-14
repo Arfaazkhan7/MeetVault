@@ -22,14 +22,14 @@
       --bg:        #F0F4FF;
       --success:   #16a34a;
     }
-    html, body { min-height: 100vh; font-family: 'Inter', -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
+    html, body { min-height: 100vh; font-family: 'Inter', -apple-system, sans-serif; -webkit-font-smoothing: antialiased; overflow-y: auto !important; overflow-x: hidden !important; }
     body {
       background:
         radial-gradient(ellipse 80% 50% at 50% -10%, rgba(37,99,235,0.12) 0%, transparent 70%),
         radial-gradient(ellipse 60% 40% at 90% 90%, rgba(139,92,246,0.08) 0%, transparent 70%),
         #F0F4FF;
-      display: flex; align-items: center; justify-content: center;
-      padding: 24px; position: relative; overflow: hidden;
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+      padding: 40px 20px 80px 20px; position: relative;
     }
     body::before {
       content: ''; position: fixed; top: -120px; left: -120px;

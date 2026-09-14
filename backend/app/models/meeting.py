@@ -20,6 +20,7 @@ class Meeting(Base):
     scheduled_start_time = Column(DateTime(timezone=True), nullable=True)
     start_time = Column(DateTime(timezone=True), nullable=True)
     end_time = Column(DateTime(timezone=True), nullable=True)
+    duration_seconds = Column(Integer, nullable=True)
 
     deleted_at = Column(DateTime(timezone=True), nullable=True)
 

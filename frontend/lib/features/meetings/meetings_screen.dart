@@ -80,45 +80,74 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
     });
     try {
       final api = ApiService();
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-
       final List<Map<String, dynamic>> allMeetings = [];
 
-      if (authProvider.isPersonal) {
-        // Personal users: fetch personal meetings directly
-        try {
-          final meetResp = await api.get('/meetings/personal');
-          if (meetResp.statusCode == 200) {
-            final meetings = List<Map<String, dynamic>>.from(
-              json.decode(meetResp.body) as List,
-            );
-            for (final m in meetings) {
-              allMeetings.add({...m, 'project_name': 'Personal'});
-            }
+      // 1. Primary: Fetch Cloud Meeting History for the Authenticated User identity
+      try {
+        final histResp = await api.get('/meetings/history');
+        if (histResp.statusCode == 200) {
+          final histList = List<Map<String, dynamic>>.from(
+            json.decode(histResp.body) as List,
+          );
+          for (final h in histList) {
+            allMeetings.add({
+              'public_id': h['meeting_id'],
+              'meeting_id': h['meeting_id'],
+              'title': h['title'] ?? 'Untitled Meeting',
+              'invite_code': h['meeting_code'],
+              'scheduled_start_time': h['started_at'] ?? h['created_at'],
+              'started_at': h['started_at'],
+              'ended_at': h['ended_at'],
+              'duration_seconds': h['duration_seconds'],
+              'role': h['role'],
+              'status': h['status'] ?? 'COMPLETED',
+              'participants': h['participants'],
+              'participant_count': (h['participants'] as List?)?.length ?? 1,
+              'project_name': h['role'] == 'HOST' ? 'Host' : 'Attendee',
+            });
           }
-        } catch (_) {}
-      } else {
-        // Org users: fetch via company loop
-        final compResp = await api.get('/companies');
-        final companies = List<Map<String, dynamic>>.from(
-          json.decode(compResp.body) as List,
-        );
+        }
+      } catch (_) {}
 
-        for (final company in companies) {
-          final compId = company['public_id'] ?? company['id'];
-          if (compId == null) continue;
-
+      // 2. Fallback: if no history found via /meetings/history, try personal/company endpoints
+      if (allMeetings.isEmpty) {
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        if (authProvider.isPersonal) {
           try {
-            final meetResp = await api.get('/companies/$compId/meetings');
-            final meetings = List<Map<String, dynamic>>.from(
-              json.decode(meetResp.body) as List,
-            );
-            for (final m in meetings) {
-              allMeetings.add({...m, 'project_name': m['project_id'] ?? 'General'});
+            final meetResp = await api.get('/meetings/personal');
+            if (meetResp.statusCode == 200) {
+              final meetings = List<Map<String, dynamic>>.from(
+                json.decode(meetResp.body) as List,
+              );
+              for (final m in meetings) {
+                allMeetings.add({...m, 'project_name': 'Personal'});
+              }
             }
-          } catch (_) {
-            // skip unavailable companies
-          }
+          } catch (_) {}
+        } else {
+          try {
+            final compResp = await api.get('/companies');
+            if (compResp.statusCode == 200) {
+              final companies = List<Map<String, dynamic>>.from(
+                json.decode(compResp.body) as List,
+              );
+              for (final company in companies) {
+                final compId = company['public_id'] ?? company['id'];
+                if (compId == null) continue;
+                try {
+                  final meetResp = await api.get('/companies/$compId/meetings');
+                  if (meetResp.statusCode == 200) {
+                    final meetings = List<Map<String, dynamic>>.from(
+                      json.decode(meetResp.body) as List,
+                    );
+                    for (final m in meetings) {
+                      allMeetings.add({...m, 'project_name': m['project_id'] ?? 'General'});
+                    }
+                  }
+                } catch (_) {}
+              }
+            }
+          } catch (_) {}
         }
       }
 
@@ -590,6 +619,17 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
 // Meeting card
 // ---------------------------------------------------------------------------
 
+String _formatDuration(dynamic sec) {
+  if (sec == null) return '0 min';
+  final seconds = sec is int ? sec : int.tryParse(sec.toString()) ?? 0;
+  if (seconds <= 0) return '0 min';
+  final mins = seconds ~/ 60;
+  if (mins < 60) return '$mins min';
+  final hrs = mins ~/ 60;
+  final rMins = mins % 60;
+  return '${hrs}h ${rMins}m';
+}
+
 class _MeetingCard extends StatelessWidget {
   final Map<String, dynamic> meeting;
   final Widget statusBadge;
@@ -604,14 +644,20 @@ class _MeetingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final title = meeting['title']?.toString() ?? 'Untitled Meeting';
-    final projectName = meeting['project_name']?.toString() ?? '—';
-    final startTime =
-        _formatDate(meeting['scheduled_start_time']?.toString());
-    final participantCount = meeting['participant_count'] ?? 0;
+    final startTime = _formatDate(meeting['scheduled_start_time']?.toString() ?? meeting['started_at']?.toString());
+    final code = meeting['invite_code']?.toString() ?? meeting['meeting_code']?.toString() ?? '—';
+    final role = meeting['role']?.toString() ?? 'PARTICIPANT';
+    final durationStr = _formatDuration(meeting['duration_seconds']);
+
+    final participants = (meeting['participants'] as List?) ?? [];
+    final participantNames = participants.isNotEmpty
+        ? participants.map((p) => (p['name'] ?? p['email'] ?? 'User').toString()).join(', ')
+        : '${meeting['participant_count'] ?? 1} participant(s)';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         onTap: onTap,
         child: Padding(
@@ -625,49 +671,60 @@ class _MeetingCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       title,
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w600),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
                     ),
                   ),
                   const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: role.toUpperCase() == 'HOST' ? const Color(0xFFEEF2FF) : const Color(0xFFF0FDF4),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: role.toUpperCase() == 'HOST' ? const Color(0xFFC7D2FE) : const Color(0xFFBBF7D0)),
+                    ),
+                    child: Text(
+                      role.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: role.toUpperCase() == 'HOST' ? const Color(0xFF3730A3) : const Color(0xFF166534),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
                   statusBadge,
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  const Icon(Icons.schedule, size: 14, color: Color(0xFF64748B)),
+                  const SizedBox(width: 6),
+                  Text(startTime, style: const TextStyle(fontSize: 13, color: Color(0xFF64748B))),
+                  const SizedBox(width: 12),
+                  const Icon(Icons.timer_outlined, size: 14, color: Color(0xFF64748B)),
+                  const SizedBox(width: 4),
+                  Text(durationStr, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(4)),
+                    child: Text(code, style: const TextStyle(fontFamily: 'monospace', fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF2563EB))),
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
               Row(
                 children: [
-                  const Icon(Icons.folder_outlined,
-                      size: 14, color: Colors.grey),
-                  const SizedBox(width: 4),
+                  const Icon(Icons.people_outline, size: 14, color: Color(0xFF64748B)),
+                  const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      projectName,
-                      style: const TextStyle(fontSize: 13, color: Colors.grey),
+                      'Participants: $participantNames',
+                      style: const TextStyle(fontSize: 13, color: Color(0xFF475569)),
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  const Icon(Icons.schedule, size: 14, color: Colors.grey),
-                  const SizedBox(width: 4),
-                  Text(
-                    startTime,
-                    style: const TextStyle(fontSize: 13, color: Colors.grey),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  const Icon(Icons.people_outline,
-                      size: 14, color: Colors.grey),
-                  const SizedBox(width: 4),
-                  Text(
-                    '$participantCount participant${participantCount == 1 ? '' : 's'}',
-                    style: const TextStyle(fontSize: 13, color: Colors.grey),
                   ),
                 ],
               ),

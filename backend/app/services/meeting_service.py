@@ -396,6 +396,12 @@ def end_meeting(db: Session, meeting: Meeting, user: User) -> Meeting:
     meeting.status = MeetingStatus.COMPLETED.value
     meeting.end_time = now
     
+    if meeting.start_time:
+        st = meeting.start_time
+        if st.tzinfo is None:
+            st = st.replace(tzinfo=timezone.utc)
+        meeting.duration_seconds = int((now - st).total_seconds())
+    
     # Mark all joined participants as left
     active_participants = db.query(MeetingParticipant).filter(
         MeetingParticipant.meeting_id == meeting.public_id,
@@ -414,3 +420,64 @@ def end_meeting(db: Session, meeting: Meeting, user: User) -> Meeting:
     db.commit()
     db.refresh(meeting)
     return meeting
+
+
+def get_user_meeting_history(db: Session, user_public_id: str) -> list[dict]:
+    """
+    Fetch complete cloud meeting history for the authenticated user.
+    Returns meetings where the user was HOST or ATTENDEE, including start/end times,
+    meeting codes, total duration, my role, and real participant lists.
+    """
+    part_records = (
+        db.query(MeetingParticipant)
+        .filter(MeetingParticipant.user_id == user_public_id)
+        .all()
+    )
+    part_map = {p.meeting_id: p for p in part_records}
+
+    meetings = (
+        db.query(Meeting)
+        .filter(
+            (Meeting.owner_id == user_public_id) | (Meeting.public_id.in_(list(part_map.keys())) if part_map else False),
+            Meeting.deleted_at.is_(None),
+        )
+        .order_by(Meeting.created_at.desc())
+        .all()
+    )
+
+    history = []
+    for m in meetings:
+        my_part = part_map.get(m.public_id)
+        if m.owner_id == user_public_id:
+            my_role = MeetingRole.HOST.value
+        elif my_part:
+            my_role = my_part.role
+        else:
+            my_role = MeetingRole.ATTENDEE.value
+
+        duration = m.duration_seconds
+        if duration is None and m.start_time and m.end_time:
+            st = m.start_time if m.start_time.tzinfo else m.start_time.replace(tzinfo=timezone.utc)
+            et = m.end_time if m.end_time.tzinfo else m.end_time.replace(tzinfo=timezone.utc)
+            duration = int((et - st).total_seconds())
+
+        participants_data = list_meeting_participants(db, m.public_id)
+
+        history.append({
+            "meeting_id": m.public_id,
+            "title": m.title,
+            "description": m.description,
+            "meeting_code": m.invite_code,
+            "meeting_type": m.meeting_type,
+            "status": m.status,
+            "started_at": m.start_time or m.created_at,
+            "ended_at": m.end_time,
+            "duration_seconds": duration,
+            "my_role": my_role,
+            "my_join_time": my_part.join_time if my_part else None,
+            "my_leave_time": my_part.leave_time if my_part else None,
+            "my_duration_seconds": my_part.attendance_duration_seconds if my_part else None,
+            "participants": participants_data,
+        })
+
+    return history
