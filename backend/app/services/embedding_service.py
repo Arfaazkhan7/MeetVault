@@ -18,52 +18,37 @@ import hashlib
 EMBEDDING_DIM = 1536
 
 
-def _det_hash(token: str, max_dim: int = EMBEDDING_DIM) -> int:
-    """Deterministic hash function independent of Python process hash seeds."""
-    return int(hashlib.md5(token.encode('utf-8')).hexdigest()[:8], 16) % max_dim
-
-
 def generate_text_embedding(text: str) -> List[float]:
-    """Generate normalized 1536-dimensional semantic vector embedding for text."""
+    """Generate normalized 1536-dimensional semantic vector embedding for text using OpenAI."""
     if not text or not text.strip():
         return [0.0] * EMBEDDING_DIM
 
-    # Clean and tokenize text into words
-    words = re.findall(r'\b\w+\b', text.lower())
-    if not words:
-        return [0.0] * EMBEDDING_DIM
+    from app.core.config import settings
+    
+    if not settings.OPENAI_API_KEY:
+        # Fallback for local tests without an API key
+        import hashlib
+        import math
+        def _det_hash(token: str, max_dim: int = EMBEDDING_DIM) -> int:
+            return int(hashlib.md5(token.encode('utf-8')).hexdigest()[:8], 16) % max_dim
+        
+        words = text.lower().split()
+        vector = [0.0] * EMBEDDING_DIM
+        for word in words:
+            vector[_det_hash(f"w_{word}")] += 1.0
+        magnitude = math.sqrt(sum(val * val for val in vector))
+        if magnitude > 0:
+            vector = [val / magnitude for val in vector]
+        return vector
 
-    vector = [0.0] * EMBEDDING_DIM
-
-    for i, word in enumerate(words):
-        # 1. Word token feature
-        h1 = _det_hash(f"w_{word}")
-        vector[h1] += 1.0
-
-        # 2. Character n-gram features (3-grams and 4-grams for subword matching)
-        if len(word) >= 3:
-            for j in range(len(word) - 2):
-                ngram = word[j:j+3]
-                h_ng = _det_hash(f"ng3_{ngram}")
-                vector[h_ng] += 0.4
-        if len(word) >= 4:
-            for j in range(len(word) - 3):
-                ngram = word[j:j+4]
-                h_ng = _det_hash(f"ng4_{ngram}")
-                vector[h_ng] += 0.5
-
-        # 3. Word bigram features
-        if i < len(words) - 1:
-            bigram = f"{word}_{words[i+1]}"
-            h_bi = _det_hash(f"bi_{bigram}")
-            vector[h_bi] += 1.2
-
-    # L2 normalize vector to unit length
-    magnitude = math.sqrt(sum(val * val for val in vector))
-    if magnitude > 0:
-        vector = [val / magnitude for val in vector]
-
-    return vector
+    import openai
+    client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
+    response = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=text,
+        dimensions=EMBEDDING_DIM
+    )
+    return response.data[0].embedding
 
 
 def calculate_cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
@@ -260,6 +245,66 @@ class EmbeddingService:
                 meeting_id=doc.meeting_id,
             )
             count += 1
+        return count
+
+    @classmethod
+    def index_meeting_entities(cls, db: Session, company_id: str, meeting_id: str) -> int:
+        """Index all entities (segments, summaries, etc.) specifically for one meeting."""
+        count = 0
+        meeting = db.query(Meeting).filter(Meeting.public_id == meeting_id).first()
+        if not meeting:
+            return 0
+            
+        project_id = meeting.project_id
+
+        # 1. Transcript segments
+        segments = db.query(TranscriptSegment).filter(TranscriptSegment.meeting_id == meeting_id).all()
+        for seg in segments:
+            cls.create_or_update_embedding(
+                db, company_id=company_id, source_type="transcript_segment", source_id=str(seg.id),
+                content_text=seg.text, project_id=project_id, meeting_id=meeting_id,
+                speaker_label=seg.speaker_label, participant_id=str(seg.user_id) if seg.user_id else None
+            )
+            count += 1
+
+        # 2. Summary
+        summary = db.query(MeetingSummary).filter(MeetingSummary.meeting_id == meeting_id).first()
+        if summary:
+            text = f"{summary.summary_text} Takeaways: {summary.key_takeaways or ''}"
+            cls.create_or_update_embedding(
+                db, company_id=company_id, source_type="meeting_summary", source_id=str(summary.id),
+                content_text=text, project_id=project_id, meeting_id=meeting_id
+            )
+            count += 1
+
+        # 3. Questions
+        from app.models.intelligence import Question, Commitment, Risk
+        questions = db.query(Question).filter(Question.meeting_id == meeting_id).all()
+        for q in questions:
+            cls.create_or_update_embedding(
+                db, company_id=company_id, source_type="question", source_id=str(q.id),
+                content_text=q.question, project_id=project_id, meeting_id=meeting_id
+            )
+            count += 1
+
+        # 4. Commitments
+        commitments = db.query(Commitment).filter(Commitment.meeting_id == meeting_id).all()
+        for c in commitments:
+            cls.create_or_update_embedding(
+                db, company_id=company_id, source_type="commitment", source_id=str(c.id),
+                content_text=f"{c.person} committed to: {c.commitment}", project_id=project_id, meeting_id=meeting_id
+            )
+            count += 1
+
+        # 5. Risks
+        risks = db.query(Risk).filter(Risk.meeting_id == meeting_id).all()
+        for r in risks:
+            cls.create_or_update_embedding(
+                db, company_id=company_id, source_type="risk", source_id=str(r.id),
+                content_text=f"Risk: {r.title}", project_id=project_id, meeting_id=meeting_id
+            )
+            count += 1
+
         return count
 
     @classmethod
