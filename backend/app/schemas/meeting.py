@@ -96,6 +96,7 @@ class MeetingStartResponse(BaseModel):
 
 class MeetingConnectionResponse(BaseModel):
     meeting_id: str
+    meeting_title: str
     room_name: str
     livekit_url: str
     token: str

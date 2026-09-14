@@ -61,10 +61,11 @@ class _JoinMeetingScreenState extends State<JoinMeetingScreen> {
             AppRouter.meetingRoom,
             arguments: {
               'id': data['meeting_id'],
-              'title': data['participant']['meeting_title'] ?? data['meeting_id'],
+              'title': data['meeting_title'] ?? data['meeting_id'],
               'livekitUrl': data['livekit_url'],
               'token': data['token'],
               'roomName': data['room_name'],
+              'isHost': data['participant']?['role'] == 'HOST',
             },
           );
         }

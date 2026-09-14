@@ -242,7 +242,20 @@ def record_participant_join(
     meeting: Meeting,
     user_public_id: str,
 ) -> MeetingParticipant:
-    participant = get_meeting_participant(db, meeting, user_public_id)
+    participant = db.query(MeetingParticipant).filter(
+        MeetingParticipant.user_id == user_public_id,
+        MeetingParticipant.meeting_id == meeting.public_id,
+    ).first()
+    if not participant:
+        role = MeetingRole.HOST.value if meeting.owner_id == user_public_id else MeetingRole.ATTENDEE.value
+        participant = MeetingParticipant(
+            user_id=user_public_id,
+            meeting_id=meeting.public_id,
+            role=role,
+            status=ParticipantStatus.INVITED.value,
+        )
+        db.add(participant)
+        db.flush()
     now = datetime.now(timezone.utc)
     if not participant.join_time or participant.status == ParticipantStatus.LEFT.value:
         participant.join_time = now
@@ -334,10 +347,11 @@ def join_meeting_by_invite_code(
 
     if not participant:
         # Create new participant record
+        role = MeetingRole.HOST.value if meeting.owner_id == user.public_id else MeetingRole.ATTENDEE.value
         participant = MeetingParticipant(
             user_id=user.public_id,
             meeting_id=meeting.public_id,
-            role=MeetingRole.ATTENDEE.value,
+            role=role,
             status=ParticipantStatus.INVITED.value,
         )
         db.add(participant)

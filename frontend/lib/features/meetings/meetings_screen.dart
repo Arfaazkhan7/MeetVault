@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../core/navigation/app_router.dart';
 import '../../core/providers/auth_provider.dart';
@@ -233,11 +234,8 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
                   final res = await api.post('/meetings/personal', body: {'title': title});
                   if (res.statusCode == 201 && mounted) {
                     final data = json.decode(res.body);
-                    Navigator.pushNamed(
-                      context,
-                      AppRouter.meetingRoom,
-                      arguments: {'id': data['public_id'], 'title': data['title'], 'isHost': true},
-                    );
+                    await _showCreatedMeetingModal(data);
+                    _load();
                   }
                 } catch (e) {
                   if (mounted) {
@@ -323,6 +321,123 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _showCreatedMeetingModal(Map<String, dynamic> meeting) async {
+    if (!mounted) return;
+    final code = (meeting['invite_code'] ?? meeting['public_id'] ?? '').toString();
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final creatorName = authProvider.user?.fullName ?? authProvider.user?.email ?? 'Host';
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 24),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                meeting['title'] ?? 'Meeting Created',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.person_outline_rounded, size: 16, color: Color(0xFF64748B)),
+                const SizedBox(width: 6),
+                const Text('Created by: ', style: TextStyle(fontSize: 13, color: Color(0xFF64748B))),
+                Expanded(
+                  child: Text(
+                    creatorName,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.people_outline_rounded, size: 16, color: Color(0xFF64748B)),
+                const SizedBox(width: 6),
+                const Text('Members: ', style: TextStyle(fontSize: 13, color: Color(0xFF64748B))),
+                const Text('1 participant (Host)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF0F172A))),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Text('Meeting Invite Code:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFCBD5E1)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      code,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFFF5722),
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.copy_rounded, color: Color(0xFF2563EB), size: 20),
+                    tooltip: 'Copy Code',
+                    onPressed: () async {
+                      await Clipboard.setData(ClipboardData(text: code));
+                      if (dialogCtx.mounted) {
+                        ScaffoldMessenger.of(dialogCtx).showSnackBar(
+                          const SnackBar(content: Text('Invite code copied to clipboard')),
+                        );
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('Close'),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFFF5722),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
+            onPressed: () {
+              Navigator.pop(dialogCtx);
+              Navigator.pushNamed(context, AppRouter.meetingRoom, arguments: {
+                'id': meeting['public_id'],
+                'title': meeting['title'] ?? 'Meeting Room',
+                'isHost': true,
+              });
+            },
+            icon: const Icon(Icons.video_call_rounded),
+            label: const Text('Join Meeting'),
+          ),
+        ],
       ),
     );
   }

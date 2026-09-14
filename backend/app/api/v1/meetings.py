@@ -7,8 +7,9 @@ from app.core.dependencies import get_current_user, require_role, get_membership
 from app.core.meeting_dependencies import get_meeting_and_authorize, require_meeting_host
 from app.core.roles import Role
 from app.models.user import User
-from app.models.meeting import Meeting
+from app.models.meeting import Meeting, MeetingParticipant
 from app.models.company import CompanyMember
+from app.core.enums import MeetingRole, ParticipantStatus
 from app.schemas.meeting import (
     CreateMeetingRequest,
     CreatePersonalMeetingRequest,
@@ -129,6 +130,7 @@ def join_meeting_by_code(
 
     return {
         "meeting_id": meeting.public_id,
+        "meeting_title": meeting.title,
         "room_name": room_name_for_meeting(meeting),
         "livekit_url": settings.LIVEKIT_URL,
         "token": token,
@@ -241,10 +243,23 @@ def get_meeting_room_connection(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Generate a LiveKit JWT token for entering the meeting room."""
-    participant = get_meeting_participant(db, meeting, current_user.public_id)
+    participant = db.query(MeetingParticipant).filter(
+        MeetingParticipant.user_id == current_user.public_id,
+        MeetingParticipant.meeting_id == meeting.public_id,
+    ).first()
+    if not participant:
+        role = MeetingRole.HOST.value if meeting.owner_id == current_user.public_id else MeetingRole.ATTENDEE.value
+        participant = MeetingParticipant(
+            user_id=current_user.public_id,
+            meeting_id=meeting.public_id,
+            role=role,
+            status=ParticipantStatus.INVITED.value,
+        )
+        db.add(participant)
+        db.commit()
+        db.refresh(participant)
+
     token, expires_at = generate_meeting_token(meeting, current_user, participant)
-    participant = get_meeting_participant(db, meeting, current_user.public_id)
 
     participant_data = MeetingParticipantResponse(
         user_public_id=participant.user_id,
@@ -260,6 +275,7 @@ def get_meeting_room_connection(
 
     return {
         "meeting_id": meeting.public_id,
+        "meeting_title": meeting.title,
         "room_name": room_name_for_meeting(meeting),
         "livekit_url": settings.LIVEKIT_URL,
         "token": token,

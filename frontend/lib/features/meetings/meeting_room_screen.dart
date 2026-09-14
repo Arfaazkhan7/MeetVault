@@ -128,10 +128,11 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
         _connectionStatus = 'Connected';
       });
     } catch (error) {
+      final msg = error.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
       setState(() {
         _isConnecting = false;
         _connectionStatus = 'Failed';
-        _errorMessage = error.toString();
+        _errorMessage = 'Unable to connect to the meeting room: $msg';
       });
     }
   }
@@ -142,7 +143,14 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
       headers: _headers,
     ).timeout(const Duration(seconds: 20));
     if (response.statusCode != 200) {
-      throw Exception('Unable to enter meeting (${response.statusCode})');
+      try {
+        final errJson = json.decode(response.body);
+        final detail = errJson['detail'] ?? 'Unable to enter meeting (${response.statusCode})';
+        throw Exception(detail);
+      } catch (e) {
+        if (e is Exception) rethrow;
+        throw Exception('Unable to enter meeting (${response.statusCode})');
+      }
     }
     return _MeetingConnection.fromJson(json.decode(response.body));
   }
@@ -164,10 +172,13 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
     );
   }
 
-  Map<String, String> get _headers => {
-        'Authorization': 'Bearer ${widget.authToken}',
-        'Content-Type': 'application/json',
-      };
+  Map<String, String> get _headers {
+    final token = widget.authToken.isNotEmpty ? widget.authToken : (ApiService().token ?? '');
+    return {
+      'Authorization': 'Bearer $token',
+      'Content-Type': 'application/json',
+    };
+  }
 
   Future<void> _toggleMicrophone() async {
     final next = !_microphoneEnabled;
