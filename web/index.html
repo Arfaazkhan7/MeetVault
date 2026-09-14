@@ -716,6 +716,40 @@
       font-weight: 700; font-size: 0.9rem; flex-shrink: 0;
     }
 
+
+    /* Immersive Meeting Fullscreen Mode: Hides Sidebar & Top Controls */
+    .app.in-meeting-fullscreen .sidebar {
+      display: none !important;
+    }
+    .app.in-meeting-fullscreen .top-controls {
+      display: none !important;
+    }
+    .app.in-meeting-fullscreen .main {
+      padding: 0 !important;
+      margin: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      max-width: 100vw !important;
+    }
+    .app.in-meeting-fullscreen .content {
+      padding: 0 !important;
+      margin: 0 !important;
+      height: 100vh !important;
+      overflow: hidden !important;
+    }
+    .app.in-meeting-fullscreen .page-container {
+      padding: 0 !important;
+      margin: 0 !important;
+      max-width: 100vw !important;
+      height: 100vh !important;
+    }
+    .app.in-meeting-fullscreen .room-wrap {
+      height: 100vh !important;
+      border-radius: 0 !important;
+      margin: 0 !important;
+      border: none !important;
+    }
+
 </style>
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
@@ -1077,7 +1111,14 @@ function switchView(name){
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   const t = document.getElementById('view-' + name);
   if(t) t.classList.add('active');
-  if(name !== 'room') stopStream();
+
+  const app = document.querySelector('.app');
+  if(name === 'room'){
+    if(app) app.classList.add('in-meeting-fullscreen');
+  } else {
+    if(app) app.classList.remove('in-meeting-fullscreen');
+    stopStream();
+  }
 }
 
 /* ── Drawer ────────────────────────────────────────────── */
