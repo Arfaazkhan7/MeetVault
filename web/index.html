@@ -260,11 +260,14 @@
     .btn-blue-action:hover { background: var(--blue-dark); }
 
     /* ═══════════════════════════════════════════════
-       BOTTOM GRID (EXPANDS TO FILL REMAINING 100VH)
+       BOTTOM GRID (CENTERED WITH SPACING ON LEFT & RIGHT)
     ═══════════════════════════════════════════════ */
     .bottom-grid {
       flex: 1;
       min-height: 0;
+      width: 100%;
+      max-width: 960px;
+      margin: 0 auto;
       display: grid;
       grid-template-columns: 1.55fr 1fr;
       gap: 20px;
