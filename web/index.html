@@ -1546,7 +1546,7 @@ async function createNewMeeting(){
   closeDrawer();
   const token = localStorage.getItem('access_token');
   const headers = { 'Content-Type': 'application/json' };
-  if (token && !token.startsWith('mail-') && !token.startsWith('mv-local-')) {
+  if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
@@ -1633,6 +1633,28 @@ async function confirmJoinFromModal(){
     if(badge) badge.textContent = code;
     const heroCode = document.getElementById('hero-code');
     if(heroCode) heroCode.textContent = code;
+
+    const token = localStorage.getItem('access_token');
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    try {
+      const baseUrl = (typeof API_BASE_URL !== 'undefined' && API_BASE_URL && !API_BASE_URL.startsWith('__'))
+        ? API_BASE_URL
+        : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000/api/v1' : 'https://meetvault-api.onrender.com/api/v1');
+      const res = await fetch(`${baseUrl}/meetings/join`, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({ invite_code: code })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        currentMeetingId = data.meeting_id;
+        await fetch(`${baseUrl}/meetings/${currentMeetingId}/room/join`, {
+          method: 'POST',
+          headers: headers
+        }).catch(()=>{});
+      }
+    } catch(e){}
 
     startCall(code);
   }
@@ -2121,14 +2143,19 @@ async function endCall(){
         : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000/api/v1' : 'https://meetvault-api.onrender.com/api/v1');
       const token = localStorage.getItem('access_token');
       const headers = { 'Content-Type': 'application/json' };
-      if (token && !token.startsWith('mail-') && !token.startsWith('mv-local-')) {
+      if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
+
+      await fetch(`${baseUrl}/meetings/${currentMeetingId}/room/leave`, {
+        method: 'POST',
+        headers: headers
+      }).catch(()=>{});
 
       await fetch(`${baseUrl}/meetings/${currentMeetingId}/end`, {
         method: 'POST',
         headers: headers
-      });
+      }).catch(()=>{});
     } catch (e) {
       console.warn('Backend end meeting notification error:', e);
     }
@@ -2230,23 +2257,26 @@ function buildCalendar(){
 function shiftWeek(dir){ weekOffset += dir; buildCalendar(); }
 
 let cachedCloudMeetings = [];
+let fetchHistoryError = false;
 
 async function fetchMeetingHistory() {
   const baseUrl = (typeof API_BASE_URL !== 'undefined' && API_BASE_URL && !API_BASE_URL.startsWith('__'))
     ? API_BASE_URL
     : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000/api/v1' : 'https://meetvault-api.onrender.com/api/v1');
   const token = localStorage.getItem('access_token');
-  const headers = token && !token.startsWith('mail-') && !token.startsWith('mv-local-')
-    ? { 'Authorization': `Bearer ${token}` }
-    : {};
+  const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
   try {
     const res = await fetch(`${baseUrl}/meetings/history`, { headers });
     if (res.ok) {
+      fetchHistoryError = false;
       cachedCloudMeetings = await res.json();
       return cachedCloudMeetings;
+    } else {
+      fetchHistoryError = true;
     }
   } catch (err) {
     console.error('Failed to fetch meeting history:', err);
+    fetchHistoryError = true;
   }
   return cachedCloudMeetings;
 }
@@ -2277,43 +2307,39 @@ async function renderUpcoming(){
 
   const cloudMeetings = await fetchMeetingHistory();
 
-  if(!cloudMeetings || cloudMeetings.length === 0){
-    const meetings = MEETINGS_DB[selectedOffset] || [];
-    if(meetings.length === 0){
-      list.innerHTML = `
-        <div class="upcoming-empty">
-          <div class="upcoming-empty-icon">
-            <svg viewBox="0 0 24 24"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-2 .9-2 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg>
-          </div>
-          <div class="upcoming-empty-title">No meeting history found</div>
-          <div class="upcoming-empty-sub">Meetings hosted or attended on any device will appear here.</div>
-          <button class="btn-light-blue" onclick="openDrawer()">
-            <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-            New Meeting
-          </button>
-        </div>`;
-    } else {
-      list.innerHTML = meetings.map(m => `
-        <div class="meeting-item">
-          <span class="meeting-time">${m.time}</span>
-          <div class="meeting-dot"></div>
-          <div class="meeting-info">
-            <div class="meeting-title">${m.title}</div>
-            <div class="meeting-sub">${m.sub}</div>
-          </div>
-          <button class="btn-join-sm" onclick="doJoin('MTG-' + Math.random().toString(36).substring(2,7).toUpperCase())">Join</button>
-        </div>`).join('');
-    }
+  if (fetchHistoryError && (!cloudMeetings || cloudMeetings.length === 0)) {
+    list.innerHTML = `
+      <div class="upcoming-empty">
+        <div class="upcoming-empty-title" style="color:#ef4444;">Unable to load meeting history</div>
+        <div class="upcoming-empty-sub">Please check your network connection or sign in again.</div>
+      </div>`;
+    return;
+  }
+
+  if (!cloudMeetings || cloudMeetings.length === 0) {
+    list.innerHTML = `
+      <div class="upcoming-empty">
+        <div class="upcoming-empty-icon">
+          <svg viewBox="0 0 24 24"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-2 .9-2 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg>
+        </div>
+        <div class="upcoming-empty-title">No meeting history yet</div>
+        <div class="upcoming-empty-sub">Meetings hosted or attended on any device will appear here.</div>
+        <button class="btn-light-blue" onclick="openDrawer()">
+          <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+          New Meeting
+        </button>
+      </div>`;
     return;
   }
 
   list.innerHTML = cloudMeetings.map(m => {
     const timeStr = formatDateTimeStr(m.started_at || m.created_at);
-    const duration = formatDurationSec(m.duration_seconds);
+    const duration = formatDurationSec(m.duration_seconds || m.my_duration_seconds);
     const participantNames = m.participants && m.participants.length > 0
-      ? m.participants.map(p => p.name || p.email.split('@')[0]).join(', ')
+      ? m.participants.map(p => p.full_name || p.email.split('@')[0]).join(', ')
       : 'Host';
-    const roleBadge = m.role === 'HOST' 
+    const isHost = m.my_role === 'HOST';
+    const roleBadge = isHost 
       ? `<span style="font-size: 0.72rem; font-weight: 700; background: #e0e7ff; color: #3730a3; padding: 2px 6px; border-radius: 4px;">HOST</span>`
       : `<span style="font-size: 0.72rem; font-weight: 700; background: #dcfce7; color: #166534; padding: 2px 6px; border-radius: 4px;">ATTENDEE</span>`;
 
@@ -2340,49 +2366,34 @@ async function renderVaultMeetings() {
   const container = document.getElementById('vault-meetings-list');
   if (!container) return;
 
-  container.innerHTML = `<div style="padding:20px; color:#64748b; font-size:0.9rem;">Loading meetings from account cloud vault...</div>`;
+  container.innerHTML = `<div style="padding:20px; color:#64748b; font-size:0.9rem;">Loading meetings from cloud vault...</div>`;
 
-  let meetings = await fetchMeetingHistory();
+  const meetings = await fetchMeetingHistory();
+
+  if (fetchHistoryError && (!meetings || meetings.length === 0)) {
+    container.innerHTML = `<div style="padding:30px; text-align:center; color:#ef4444; font-weight:600; background:#fff; border-radius:12px; border:1px solid #fee2e2;">Unable to load meeting history. Please check your connection.</div>`;
+    return;
+  }
 
   if (!meetings || meetings.length === 0) {
-    meetings = [
-      {
-        meeting_id: 'sample-vault-1',
-        title: 'Cloud Architecture & AI Sync',
-        meeting_code: 'MTG-ARC982',
-        role: 'HOST',
-        started_at: new Date(Date.now() - 3600000 * 24).toISOString(),
-        duration_seconds: 2540,
-        participants: [
-          { name: 'Mohamed (You)', email: 'user@gmail.com', role: 'HOST', attendance_duration_seconds: 2540 },
-          { name: 'Arun', email: 'arun@meetvault.live', role: 'ATTENDEE', attendance_duration_seconds: 2400 },
-          { name: 'Priya', email: 'priya@meetvault.live', role: 'ATTENDEE', attendance_duration_seconds: 1800 }
-        ]
-      },
-      {
-        meeting_id: 'sample-vault-2',
-        title: 'Engineering Sprint Review',
-        meeting_code: 'MTG-SPR410',
-        role: 'ATTENDEE',
-        started_at: new Date(Date.now() - 3600000 * 48).toISOString(),
-        duration_seconds: 1980,
-        participants: [
-          { name: 'Karthik', email: 'karthik@meetvault.live', role: 'HOST', attendance_duration_seconds: 1980 },
-          { name: 'Mohamed (You)', email: 'user@gmail.com', role: 'ATTENDEE', attendance_duration_seconds: 1980 }
-        ]
-      }
-    ];
+    container.innerHTML = `
+      <div style="padding:40px 20px; text-align:center; color:#64748b; background:#fff; border-radius:14px; border:1px solid var(--border);">
+        <div style="font-size:1.1rem; font-weight:700; color:#0f172a; margin-bottom:6px;">No meeting history yet</div>
+        <div style="font-size:0.85rem;">Meetings you host or participate in will be permanently saved to your account.</div>
+      </div>`;
+    return;
   }
 
   cachedCloudMeetings = meetings;
 
   container.innerHTML = meetings.map(m => {
     const timeStr = formatDateTimeStr(m.started_at || m.created_at);
-    const duration = formatDurationSec(m.duration_seconds);
+    const duration = formatDurationSec(m.duration_seconds || m.my_duration_seconds);
     const participantNames = m.participants && m.participants.length > 0
-      ? m.participants.map(p => p.name || p.email.split('@')[0]).join(', ')
+      ? m.participants.map(p => p.full_name || p.email.split('@')[0]).join(', ')
       : 'Host';
-    const roleBadge = m.role === 'HOST' 
+    const isHost = m.my_role === 'HOST';
+    const roleBadge = isHost 
       ? `<span style="font-size: 0.72rem; font-weight: 700; background: #e0e7ff; color: #3730a3; padding: 3px 8px; border-radius: 6px;">HOST</span>`
       : `<span style="font-size: 0.72rem; font-weight: 700; background: #dcfce7; color: #166534; padding: 3px 8px; border-radius: 6px;">ATTENDEE</span>`;
 

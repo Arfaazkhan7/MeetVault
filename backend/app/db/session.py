@@ -8,8 +8,10 @@ from app.core.config import settings
 # Engine creation with PostgreSQL / SQLite fallback
 try:
     if "sqlite" in settings.DATABASE_URL:
+        logging.info("Connecting to SQLite database")
         engine = create_engine(settings.DATABASE_URL, connect_args={"check_same_thread": False})
     else:
+        logging.info("Connecting to Cloud PostgreSQL database (Supabase / Render)")
         engine = create_engine(
             settings.DATABASE_URL,
             pool_pre_ping=True,
@@ -17,14 +19,17 @@ try:
             max_overflow=10,
             echo=(settings.ENVIRONMENT == "development"),
         )
-        # Test connection
+        # Test connection & ensure tables exist
         with engine.connect() as conn:
             pass
+        from app.models.base import Base
+        import app.models  # noqa: F401
+        Base.metadata.create_all(bind=engine)
 except Exception as e:
     if settings.ENVIRONMENT == "production":
         logging.exception("Production database connection failed")
         raise
-    logging.warning(f"PostgreSQL connection failed ({e}). Falling back to SQLite local database.")
+    logging.warning(f"PostgreSQL connection failed ({e}). Falling back to local SQLite database.")
     sqlite_url = "sqlite:///./meetingdb.db"
     engine = create_engine(sqlite_url, connect_args={"check_same_thread": False})
     from app.models.base import Base

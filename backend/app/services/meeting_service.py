@@ -203,9 +203,19 @@ def list_meeting_participants(db: Session, meeting_id: str) -> list[dict]:
     users = db.query(User).filter(User.public_id.in_(user_ids)).all()
     user_map = {u.public_id: u for u in users}
 
+    now = datetime.now(timezone.utc)
     res = []
     for m in members:
         u = user_map.get(m.user_id)
+        dur = m.attendance_duration_seconds
+        if dur is None and m.join_time:
+            jt = m.join_time if m.join_time.tzinfo else m.join_time.replace(tzinfo=timezone.utc)
+            if m.leave_time:
+                lt = m.leave_time if m.leave_time.tzinfo else m.leave_time.replace(tzinfo=timezone.utc)
+                dur = max(0, int((lt - jt).total_seconds()))
+            else:
+                dur = max(0, int((now - jt).total_seconds()))
+
         res.append({
             "user_public_id": m.user_id,
             "meeting_id": m.meeting_id,
@@ -213,9 +223,9 @@ def list_meeting_participants(db: Session, meeting_id: str) -> list[dict]:
             "status": m.status,
             "join_time": m.join_time,
             "leave_time": m.leave_time,
-            "attendance_duration_seconds": m.attendance_duration_seconds,
+            "attendance_duration_seconds": dur,
             "email": u.email if u else None,
-            "full_name": u.full_name if u else None,
+            "full_name": u.full_name if u else (u.email.split('@')[0] if u and u.email else 'User'),
         })
     return res
 
@@ -283,9 +293,9 @@ def record_participant_leave(
         join_time = participant.join_time
         if join_time.tzinfo is None:
             join_time = join_time.replace(tzinfo=timezone.utc)
-        participant.attendance_duration_seconds = int(
+        participant.attendance_duration_seconds = max(0, int(
             (participant.leave_time - join_time).total_seconds()
-        )
+        ))
     db.commit()
     db.refresh(participant)
     return participant
@@ -400,7 +410,7 @@ def end_meeting(db: Session, meeting: Meeting, user: User) -> Meeting:
         st = meeting.start_time
         if st.tzinfo is None:
             st = st.replace(tzinfo=timezone.utc)
-        meeting.duration_seconds = int((now - st).total_seconds())
+        meeting.duration_seconds = max(0, int((now - st).total_seconds()))
     
     # Mark all joined participants as left
     active_participants = db.query(MeetingParticipant).filter(
@@ -415,7 +425,7 @@ def end_meeting(db: Session, meeting: Meeting, user: User) -> Meeting:
             join_time = p.join_time
             if join_time.tzinfo is None:
                 join_time = join_time.replace(tzinfo=timezone.utc)
-            p.attendance_duration_seconds = int((now - join_time).total_seconds())
+            p.attendance_duration_seconds = max(0, int((now - join_time).total_seconds()))
 
     db.commit()
     db.refresh(meeting)
@@ -445,6 +455,7 @@ def get_user_meeting_history(db: Session, user_public_id: str) -> list[dict]:
         .all()
     )
 
+    now = datetime.now(timezone.utc)
     history = []
     for m in meetings:
         my_part = part_map.get(m.public_id)
@@ -456,10 +467,26 @@ def get_user_meeting_history(db: Session, user_public_id: str) -> list[dict]:
             my_role = MeetingRole.ATTENDEE.value
 
         duration = m.duration_seconds
-        if duration is None and m.start_time and m.end_time:
-            st = m.start_time if m.start_time.tzinfo else m.start_time.replace(tzinfo=timezone.utc)
-            et = m.end_time if m.end_time.tzinfo else m.end_time.replace(tzinfo=timezone.utc)
-            duration = int((et - st).total_seconds())
+        if duration is None:
+            if m.start_time and m.end_time:
+                st = m.start_time if m.start_time.tzinfo else m.start_time.replace(tzinfo=timezone.utc)
+                et = m.end_time if m.end_time.tzinfo else m.end_time.replace(tzinfo=timezone.utc)
+                duration = max(0, int((et - st).total_seconds()))
+            elif m.start_time:
+                st = m.start_time if m.start_time.tzinfo else m.start_time.replace(tzinfo=timezone.utc)
+                duration = max(0, int((now - st).total_seconds()))
+
+        my_dur = my_part.attendance_duration_seconds if my_part else None
+        if my_dur is None and my_part and my_part.join_time:
+            jt = my_part.join_time if my_part.join_time.tzinfo else my_part.join_time.replace(tzinfo=timezone.utc)
+            if my_part.leave_time:
+                lt = my_part.leave_time if my_part.leave_time.tzinfo else my_part.leave_time.replace(tzinfo=timezone.utc)
+                my_dur = max(0, int((lt - jt).total_seconds()))
+            elif m.end_time:
+                et = m.end_time if m.end_time.tzinfo else m.end_time.replace(tzinfo=timezone.utc)
+                my_dur = max(0, int((et - jt).total_seconds()))
+            else:
+                my_dur = max(0, int((now - jt).total_seconds()))
 
         participants_data = list_meeting_participants(db, m.public_id)
 
@@ -476,7 +503,7 @@ def get_user_meeting_history(db: Session, user_public_id: str) -> list[dict]:
             "my_role": my_role,
             "my_join_time": my_part.join_time if my_part else None,
             "my_leave_time": my_part.leave_time if my_part else None,
-            "my_duration_seconds": my_part.attendance_duration_seconds if my_part else None,
+            "my_duration_seconds": my_dur,
             "participants": participants_data,
         })
 
