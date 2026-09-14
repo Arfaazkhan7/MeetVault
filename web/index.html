@@ -269,11 +269,11 @@
     .btn-blue-action:hover { background: var(--blue-dark); }
 
     /* ═══════════════════════════════════════════════
-       BOTTOM GRID (CENTERED WITH ELEGANT MARGINS)
+       BOTTOM GRID (CENTERED WITH REFINED MARGINS)
     ═══════════════════════════════════════════════ */
     .bottom-grid-wrap {
       width: 100%;
-      max-width: 980px;
+      max-width: 1040px;
       margin: 0 auto;
       flex: 1;
       min-height: 0;
@@ -297,7 +297,7 @@
       border-radius: var(--r-card);
       border: 1px solid var(--border);
       box-shadow: var(--shadow-card);
-      padding: 20px 22px;
+      padding: 18px 20px;
       display: flex;
       flex-direction: column;
       height: 100%;
@@ -307,7 +307,7 @@
 
     .panel-head {
       display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 16px; flex-shrink: 0;
+      margin-bottom: 12px; flex-shrink: 0;
     }
     .panel-title-group { display: flex; align-items: center; gap: 8px; }
     .panel-title-icon svg { width: 18px; height: 18px; fill: #475569; display: block; }
@@ -321,46 +321,52 @@
     .view-all-link:hover { color: var(--blue); }
     .view-all-link svg { width: 14px; height: 14px; fill: currentColor; }
 
-    .cal-wrap { margin-bottom: 16px; flex-shrink: 0; }
+    /* Compact Calendar Strip */
+    .cal-wrap { margin-bottom: 10px; flex-shrink: 0; }
     .cal-week { display: flex; align-items: center; justify-content: space-between; }
     
     .cal-nav {
-      width: 28px; height: 28px; border-radius: 50%;
+      width: 26px; height: 26px; border-radius: 50%;
       background: none; border: none; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       color: var(--text-secondary); flex-shrink: 0; transition: background 0.15s;
     }
     .cal-nav:hover { background: #F1F5F9; }
-    .cal-nav svg { width: 16px; height: 16px; fill: currentColor; }
+    .cal-nav svg { width: 15px; height: 15px; fill: currentColor; }
 
-    .cal-days { display: flex; flex: 1; justify-content: space-around; padding: 0 6px; }
+    .cal-days { display: flex; flex: 1; justify-content: space-around; padding: 0 4px; }
 
     .cal-day {
-      display: flex; flex-direction: column; align-items: center; gap: 4px;
-      padding: 4px 6px; border-radius: 10px; cursor: pointer;
-      transition: background 0.15s; min-width: 42px;
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+      padding: 2px 4px; border-radius: 10px; cursor: pointer;
+      transition: background 0.15s; min-width: 40px;
     }
 
     .cal-day-name {
-      font-size: 0.65rem; font-weight: 700; letter-spacing: 0.04em;
+      font-size: 0.62rem; font-weight: 700; letter-spacing: 0.04em;
       text-transform: uppercase; color: var(--text-muted);
     }
     .cal-day.today .cal-day-name { color: var(--blue); }
 
     .cal-day-num {
-      width: 32px; height: 32px; border-radius: 50%;
+      width: 28px; height: 28px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      font-size: 0.88rem; font-weight: 700; color: var(--text-primary);
+      font-size: 0.82rem; font-weight: 700; color: var(--text-primary);
     }
     .cal-day.today .cal-day-num { background: var(--blue); color: #FFFFFF; }
     .cal-day.selected:not(.today) .cal-day-num { background: var(--blue-light-bg); color: var(--blue); }
 
-    .cal-dot-row { height: 6px; display: flex; align-items: center; justify-content: center; }
+    .cal-dot-row { height: 5px; display: flex; align-items: center; justify-content: center; }
     .cal-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--red); }
 
-    .cal-divider { border-bottom: 1px solid #F1F5F9; margin-bottom: 18px; flex-shrink: 0; }
+    .cal-divider { border-bottom: 1px solid #F1F5F9; margin-bottom: 12px; flex-shrink: 0; }
 
-    .upcoming-body { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; overflow-y: auto; }
+    /* Upcoming Body (Hidden Scrollbar, Still Scrollable) */
+    .upcoming-body {
+      flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center;
+      overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none;
+    }
+    .upcoming-body::-webkit-scrollbar { display: none; width: 0; height: 0; }
 
     .upcoming-empty {
       display: flex; flex-direction: column; align-items: center;
