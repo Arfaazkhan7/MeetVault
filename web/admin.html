@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MeetVault | Admin Panel</title>
+  <meta name="description" content="MeetVault System Administrator Control Panel">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --purple: #7C3AED;
+      --purple-dark: #6D28D9;
+      --purple-glow: rgba(124,58,237,0.2);
+      --red: #EF4444;
+      --green: #10B981;
+      --blue: #3B82F6;
+      --amber: #F59E0B;
+      --bg: #0F172A;
+      --card: #1E293B;
+      --border: #334155;
+      --text: #F8FAFC;
+      --muted: #94A3B8;
+      --subtle: #64748B;
+    }
+
+    html, body {
+      min-height: 100vh;
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ─── LOGIN PAGE ─── */
+    #login-page {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+      background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(124,58,237,0.15) 0%, transparent 70%),
+                  var(--bg);
+    }
+    .login-card {
+      width: 100%;
+      max-width: 420px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px 32px;
+    }
+    .login-logo {
+      width: 64px; height: 64px;
+      background: linear-gradient(135deg, #7C3AED, #4F46E5);
+      border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 20px;
+      font-size: 32px;
+    }
+    .login-badge {
+      text-align: center;
+      font-size: 11px;
+      letter-spacing: 2px;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .login-title {
+      text-align: center;
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 32px;
+    }
+    .form-group { margin-bottom: 16px; }
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .form-input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 14px;
+      color: var(--text);
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .form-input:focus { border-color: var(--purple); }
+    .form-input::placeholder { color: var(--subtle); }
+    .btn-primary {
+      width: 100%;
+      padding: 14px;
+      background: var(--purple);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.2s, transform 0.1s;
+      margin-top: 8px;
+    }
+    .btn-primary:hover { background: var(--purple-dark); }
+    .btn-primary:active { transform: scale(0.99); }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+    .msg {
+      padding: 12px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-bottom: 16px;
+      display: none;
+    }
+    .msg.error { display: block; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #EF4444; }
+    .msg.success { display: block; background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); color: #10B981; }
+    .back-link {
+      display: block;
+      text-align: center;
+      margin-top: 20px;
+      font-size: 13px;
+      color: var(--subtle);
+      text-decoration: none;
+    }
+    .back-link:hover { color: var(--muted); }
+
+    /* ─── DASHBOARD PAGE ─── */
+    #dashboard-page { display: none; }
+
+    header {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .header-logo {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, #7C3AED, #4F46E5);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+    .header-title { font-size: 17px; font-weight: 700; }
+    .header-badge {
+      font-size: 10px; font-weight: 700; letter-spacing: 1px;
+      color: var(--purple);
+      background: rgba(124,58,237,0.15);
+      border: 1px solid rgba(124,58,237,0.3);
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+    .header-right { display: flex; align-items: center; gap: 8px; }
+    .btn-icon {
+      width: 36px; height: 36px;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      transition: background 0.2s;
+    }
+    .btn-icon:hover { background: rgba(255,255,255,0.05); }
+
+    main { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+
+    .section-title {
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+
+    /* Stats */
+    .stats-grid {
+      display: flex; flex-wrap: wrap; gap: 16px;
+      margin-bottom: 40px;
+    }
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      min-width: 150px;
+    }
+    .stat-icon { font-size: 24px; margin-bottom: 12px; }
+    .stat-value { font-size: 28px; font-weight: 800; }
+    .stat-label { font-size: 12px; color: var(--subtle); margin-top: 4px; }
+
+    /* Workspace Form */
+    .ws-form {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 40px;
+    }
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    @media(max-width: 600px){ .form-row { grid-template-columns: 1fr; } }
+    .ws-form .form-group { margin-bottom: 0; }
+    .ws-form .form-input { background: var(--bg); }
+    .btn-create {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 24px;
+      background: var(--purple);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      margin-top: 20px;
+      transition: background 0.2s;
+    }
+    .btn-create:hover { background: var(--purple-dark); }
+    .btn-create:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .success-banner {
+      background: rgba(16,185,129,0.1);
+      border: 1px solid rgba(16,185,129,0.3);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+    .success-banner-title {
+      color: var(--green); font-weight: 700; margin-bottom: 12px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .cred-row {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; padding: 3px 0;
+    }
+    .cred-label { color: var(--muted); width: 120px; flex-shrink: 0; }
+    .cred-value { color: #fff; font-weight: 600; }
+    .copy-btn {
+      background: none; border: none; cursor: pointer;
+      color: var(--subtle); font-size: 14px;
+    }
+    .copy-btn:hover { color: var(--muted); }
+    .ws-warning {
+      margin-top: 12px;
+      padding: 10px 12px;
+      background: rgba(245,158,11,0.1);
+      border-radius: 6px;
+      font-size: 12px;
+      color: var(--amber);
+    }
+
+    /* Workspaces list */
+    .ws-list {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .ws-item {
+      display: flex; align-items: center; gap: 16px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .ws-item:last-child { border-bottom: none; }
+    .ws-icon {
+      width: 44px; height: 44px; flex-shrink: 0;
+      background: rgba(124,58,237,0.15);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+    }
+    .ws-info { flex: 1; min-width: 0; }
+    .ws-name { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+    .ws-meta { display: flex; gap: 8px; flex-wrap: wrap; }
+    .badge {
+      font-size: 11px; font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .badge-purple { color: var(--purple); background: rgba(124,58,237,0.15); border: 1px solid rgba(124,58,237,0.3); }
+    .badge-blue { color: var(--blue); background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.3); }
+    .badge-green { color: var(--green); background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3); }
+    .ws-empty {
+      padding: 40px;
+      text-align: center;
+      color: var(--subtle);
+      font-size: 14px;
+    }
+
+    .spinner {
+      display: inline-block; width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<!-- ═══ LOGIN PAGE ═══════════════════════════════════════════ -->
+<div id="login-page">
+  <div class="login-card">
+    <div class="login-logo">🛡️</div>
+    <div class="login-badge">System Admin</div>
+    <h1 class="login-title">MeetVault Control Panel</h1>
+
+    <div class="msg" id="login-msg"></div>
+
+    <form id="login-form">
+      <div class="form-group">
+        <label class="form-label" for="email">Admin Email</label>
+        <input class="form-input" id="email" type="email" placeholder="system.admin@meetvault.com" required autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="password">Password</label>
+        <input class="form-input" id="password" type="password" placeholder="••••••••••" required autocomplete="current-password">
+      </div>
+      <button class="btn-primary" id="login-btn" type="submit">Sign In to Admin Panel</button>
+    </form>
+    <a class="back-link" href="login.html">← Back to Regular Login</a>
+  </div>
+</div>
+
+<!-- ═══ DASHBOARD PAGE ════════════════════════════════════════ -->
+<div id="dashboard-page">
+  <header>
+    <div class="header-left">
+      <div class="header-logo">🛡️</div>
+      <span class="header-title">MeetVault Admin</span>
+      <span class="header-badge">SYSTEM ADMIN</span>
+    </div>
+    <div class="header-right">
+      <button class="btn-icon" id="refresh-btn" title="Refresh">🔄</button>
+      <button class="btn-icon" id="logout-btn" title="Sign Out">🚪</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Stats -->
+    <div class="section-title">System Overview</div>
+    <div class="stats-grid" id="stats-grid">
+      <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-value" id="s-users">—</div><div class="stat-label">Total Users</div></div>
+      <div class="stat-card"><div class="stat-icon">🏢</div><div class="stat-value" id="s-ws">—</div><div class="stat-label">Workspaces</div></div>
+      <div class="stat-card"><div class="stat-icon">📁</div><div class="stat-value" id="s-proj">—</div><div class="stat-label">Projects</div></div>
+      <div class="stat-card"><div class="stat-icon">🎥</div><div class="stat-value" id="s-meet">—</div><div class="stat-label">Meetings</div></div>
+      <div class="stat-card"><div class="stat-icon">🎙️</div><div class="stat-value" id="s-rec">—</div><div class="stat-label">Recordings</div></div>
+    </div>
+
+    <!-- Create Workspace -->
+    <div class="section-title">Create New Workspace</div>
+    <div class="ws-form">
+      <div id="create-success" style="display:none"></div>
+      <div class="msg" id="create-msg"></div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Organization Name *</label>
+          <input class="form-input" id="org-name" placeholder="Acme Corp">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Admin Full Name</label>
+          <input class="form-input" id="admin-name" placeholder="Jane Admin">
+        </div>
+      </div>
+      <div class="form-row" style="margin-top:16px">
+        <div class="form-group">
+          <label class="form-label">Admin Email *</label>
+          <input class="form-input" id="admin-email" type="email" placeholder="admin@acme.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Admin Password *</label>
+          <input class="form-input" id="admin-pass" type="password" placeholder="••••••••••">
+        </div>
+      </div>
+      <button class="btn-create" id="create-btn">
+        <span>➕</span> Create Workspace
+      </button>
+    </div>
+
+    <!-- Workspaces -->
+    <div class="section-title" id="ws-title">All Workspaces</div>
+    <div class="ws-list" id="ws-list">
+      <div class="ws-empty">Loading workspaces…</div>
+    </div>
+  </main>
+</div>
+
+<script>
+  const API = '__API_BASE_URL__';
+
+  // ── Helpers ──────────────────────────────────────────────────
+  function token() { return localStorage.getItem('mv_admin_token'); }
+  function setToken(t) { localStorage.setItem('mv_admin_token', t); }
+  function clearToken() { localStorage.removeItem('mv_admin_token'); }
+
+  async function api(method, path, body) {
+    const opts = {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token() ? { Authorization: 'Bearer ' + token() } : {})
+      }
+    };
+    if (body) opts.body = JSON.stringify(body);
+    const r = await fetch(API + path, opts);
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
+    return data;
+  }
+
+  function showMsg(id, type, text) {
+    const el = document.getElementById(id);
+    el.className = 'msg ' + type;
+    el.textContent = text;
+  }
+
+  function copyText(text) {
+    navigator.clipboard.writeText(text).catch(() => {});
+  }
+
+  // ── Auth check ───────────────────────────────────────────────
+  if (token()) {
+    showDashboard();
+  }
+
+  // ── Login ────────────────────────────────────────────────────
+  document.getElementById('login-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = document.getElementById('login-btn');
+    const email = document.getElementById('email').value.trim();
+    const pass  = document.getElementById('password').value;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Signing in…';
+    try {
+      const data = await api('POST', '/admin/login', { email, password: pass });
+      setToken(data.access_token);
+      showDashboard();
+    } catch(err) {
+      showMsg('login-msg', 'error', err.message || 'Login failed');
+      btn.disabled = false;
+      btn.textContent = 'Sign In to Admin Panel';
+    }
+  });
+
+  document.getElementById('logout-btn').addEventListener('click', () => {
+    clearToken();
+    document.getElementById('dashboard-page').style.display = 'none';
+    document.getElementById('login-page').style.display = 'flex';
+  });
+
+  document.getElementById('refresh-btn').addEventListener('click', loadData);
+
+  // ── Create workspace ─────────────────────────────────────────
+  document.getElementById('create-btn').addEventListener('click', async () => {
+    const orgName   = document.getElementById('org-name').value.trim();
+    const adminName = document.getElementById('admin-name').value.trim();
+    const adminEmail= document.getElementById('admin-email').value.trim();
+    const adminPass = document.getElementById('admin-pass').value;
+
+    const msgEl = document.getElementById('create-msg');
+    msgEl.className = 'msg'; msgEl.textContent = '';
+
+    if (!orgName || !adminEmail || !adminPass) {
+      return showMsg('create-msg', 'error', 'Organization name, admin email and password are required.');
+    }
+
+    const btn = document.getElementById('create-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Creating…';
+
+    try {
+      const ws = await api('POST', '/admin/workspaces', {
+        organization_name: orgName,
+        admin_name: adminName || 'Admin',
+        admin_email: adminEmail,
+        admin_password: adminPass,
+      });
+
+      // Show success banner
+      const succEl = document.getElementById('create-success');
+      succEl.style.display = 'block';
+      succEl.innerHTML = `
+        <div class="success-banner">
+          <div class="success-banner-title">✅ Workspace Created Successfully!</div>
+          <div class="cred-row"><span class="cred-label">Organization</span><span class="cred-value">${ws.organization_name}</span></div>
+          <div class="cred-row">
+            <span class="cred-label">Workspace Code</span>
+            <span class="cred-value">${ws.workspace_code}</span>
+            <button class="copy-btn" onclick="copyText('${ws.workspace_code}')">📋</button>
+          </div>
+          <div class="cred-row">
+            <span class="cred-label">Admin Email</span>
+            <span class="cred-value">${ws.admin_email}</span>
+            <button class="copy-btn" onclick="copyText('${ws.admin_email}')">📋</button>
+          </div>
+          <div class="ws-warning">⚠️ Share the Workspace Code with your team. Members need it to join this workspace.</div>
+        </div>`;
+
+      // Clear form
+      ['org-name','admin-name','admin-email','admin-pass'].forEach(id => { document.getElementById(id).value = ''; });
+
+      loadData();
+    } catch(err) {
+      showMsg('create-msg', 'error', err.message || 'Failed to create workspace');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<span>➕</span> Create Workspace';
+    }
+  });
+
+  // ── Dashboard ────────────────────────────────────────────────
+  function showDashboard() {
+    document.getElementById('login-page').style.display = 'none';
+    document.getElementById('dashboard-page').style.display = 'block';
+    loadData();
+  }
+
+  async function loadData() {
+    try {
+      const [stats, workspaces] = await Promise.all([
+        api('GET', '/admin/stats'),
+        api('GET', '/admin/workspaces')
+      ]);
+
+      // Populate stats
+      document.getElementById('s-users').textContent = stats.total_users ?? 0;
+      document.getElementById('s-ws').textContent    = stats.total_workspaces ?? 0;
+      document.getElementById('s-proj').textContent  = stats.total_projects ?? 0;
+      document.getElementById('s-meet').textContent  = stats.total_meetings ?? 0;
+      document.getElementById('s-rec').textContent   = stats.total_recordings ?? 0;
+
+      // Populate workspaces
+      document.getElementById('ws-title').textContent = `All Workspaces (${workspaces.length})`;
+      const listEl = document.getElementById('ws-list');
+      if (workspaces.length === 0) {
+        listEl.innerHTML = '<div class="ws-empty">No workspaces created yet.</div>';
+      } else {
+        listEl.innerHTML = workspaces.map(ws => `
+          <div class="ws-item">
+            <div class="ws-icon">🏢</div>
+            <div class="ws-info">
+              <div class="ws-name">${ws.name}</div>
+              <div class="ws-meta">
+                <span class="badge badge-purple">${ws.workspace_code}</span>
+                <span class="badge badge-blue">${ws.member_count ?? 0} members</span>
+                <span class="badge badge-green">${ws.project_count ?? 0} projects</span>
+              </div>
+            </div>
+            <button class="copy-btn" title="Copy workspace code" onclick="copyText('${ws.workspace_code}'); this.textContent='✅'; setTimeout(()=>this.textContent='📋',1500);">📋</button>
+          </div>`).join('');
+      }
+    } catch(err) {
+      if (err.message.includes('403') || err.message.includes('401')) {
+        clearToken();
+        document.getElementById('dashboard-page').style.display = 'none';
+        document.getElementById('login-page').style.display = 'flex';
+        showMsg('login-msg', 'error', 'Session expired. Please sign in again.');
+      }
+    }
+  }
+</script>
+</body>
+</html>

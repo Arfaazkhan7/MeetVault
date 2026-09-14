@@ -2,10 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:livekit_client/livekit_client.dart';
-
-import '../../core/services/api_service.dart';
 
 class MeetingRoomScreen extends StatefulWidget {
   final String meetingId;
@@ -16,17 +15,19 @@ class MeetingRoomScreen extends StatefulWidget {
   final String? livekitUrl;
   final String? token;
   final String? roomName;
+  final String? inviteCode;
 
   const MeetingRoomScreen({
     super.key,
     required this.meetingId,
     required this.meetingTitle,
     required this.authToken,
-    this.apiBaseUrl = ApiService.baseUrl,
+    this.apiBaseUrl = 'http://localhost:8000/api/v1',
     this.isHost = false,
     this.livekitUrl,
     this.token,
     this.roomName,
+    this.inviteCode,
   });
 
   @override
@@ -41,16 +42,17 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
   DateTime? _joinedAt;
   bool _isConnecting = true;
   bool _isLeaving = false;
-  bool _allowPop = false;
   bool _microphoneEnabled = true;
   bool _cameraEnabled = true;
   bool _screenShareEnabled = false;
   String _connectionStatus = 'Connecting';
   String? _errorMessage;
+  String? _inviteCode;
 
   @override
   void initState() {
     super.initState();
+    _inviteCode = widget.inviteCode;
     _connect();
   }
 
@@ -75,18 +77,17 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
       String roomName;
 
       if (widget.livekitUrl != null && widget.token != null && widget.roomName != null) {
-        // Use pre-fetched connection details (from invite code join)
         livekitUrl = widget.livekitUrl!;
         token = widget.token!;
         roomName = widget.roomName!;
       } else {
-        // Fall back to API call (for direct meeting room access)
         final connection = await _requestConnection();
         livekitUrl = connection.livekitUrl;
         token = connection.token;
-        roomName = connection.roomName; // Fall back to API provided roomName
+        roomName = connection.roomName;
       }
 
+      setState(() => _connectionStatus = 'Joining room');
       await _recordJoin();
 
       final room = Room();
@@ -103,6 +104,8 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
         ..on<TrackUnsubscribedEvent>((event) => _refresh())
         ..on<LocalTrackPublishedEvent>((event) => _refresh())
         ..on<LocalTrackUnpublishedEvent>((event) => _refresh());
+
+      setState(() => _connectionStatus = 'Connecting to server');
 
       await room.connect(
         livekitUrl,
@@ -128,11 +131,17 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
         _connectionStatus = 'Connected';
       });
     } catch (error) {
-      final msg = error.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+      String msg = error.toString();
+      // Make LiveKit errors more human-friendly
+      if (msg.contains('LIVEKIT_URL is not configured') || msg.contains('LIVEKIT_API_KEY is not configured')) {
+        msg = 'LiveKit is not configured on the server. Please contact your administrator.';
+      } else if (msg.contains('SocketException') || msg.contains('Failed to fetch')) {
+        msg = 'Cannot reach the meeting server. Please check your connection.';
+      }
       setState(() {
         _isConnecting = false;
         _connectionStatus = 'Failed';
-        _errorMessage = 'Unable to connect to the meeting room: $msg';
+        _errorMessage = msg;
       });
     }
   }
@@ -141,44 +150,38 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
     final response = await http.post(
       Uri.parse('${widget.apiBaseUrl}/meetings/${widget.meetingId}/room/connect'),
       headers: _headers,
-    ).timeout(const Duration(seconds: 20));
+    );
     if (response.statusCode != 200) {
-      try {
-        final errJson = json.decode(response.body);
-        final detail = errJson['detail'] ?? 'Unable to enter meeting (${response.statusCode})';
-        throw Exception(detail);
-      } catch (e) {
-        if (e is Exception) rethrow;
-        throw Exception('Unable to enter meeting (${response.statusCode})');
-      }
+      final body = json.decode(response.body);
+      throw Exception(body['detail'] ?? 'Unable to enter meeting (${response.statusCode})');
     }
     return _MeetingConnection.fromJson(json.decode(response.body));
   }
 
   Future<void> _recordJoin() async {
-    final response = await http.post(
-      Uri.parse('${widget.apiBaseUrl}/meetings/${widget.meetingId}/room/join'),
-      headers: _headers,
-    ).timeout(const Duration(seconds: 20));
-    if (response.statusCode != 200) {
-      throw Exception('Unable to record joining time (${response.statusCode})');
+    try {
+      await http.post(
+        Uri.parse('${widget.apiBaseUrl}/meetings/${widget.meetingId}/room/join'),
+        headers: _headers,
+      );
+    } catch (_) {
+      // Non-critical: don't block room entry
     }
   }
 
   Future<void> _recordLeave() async {
-    await http.post(
-      Uri.parse('${widget.apiBaseUrl}/meetings/${widget.meetingId}/room/leave'),
-      headers: _headers,
-    );
+    try {
+      await http.post(
+        Uri.parse('${widget.apiBaseUrl}/meetings/${widget.meetingId}/room/leave'),
+        headers: _headers,
+      );
+    } catch (_) {}
   }
 
-  Map<String, String> get _headers {
-    final token = widget.authToken.isNotEmpty ? widget.authToken : (ApiService().token ?? '');
-    return {
-      'Authorization': 'Bearer $token',
-      'Content-Type': 'application/json',
-    };
-  }
+  Map<String, String> get _headers => {
+    'Authorization': 'Bearer ${widget.authToken}',
+    'Content-Type': 'application/json',
+  };
 
   Future<void> _toggleMicrophone() async {
     final next = !_microphoneEnabled;
@@ -201,17 +204,9 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
   Future<void> _leaveMeeting() async {
     if (_isLeaving) return;
     setState(() => _isLeaving = true);
-    try {
-      await _recordLeave();
-    } catch (_) {
-      // Leaving the LiveKit room must still work when the API is unavailable.
-    } finally {
-      await _room?.disconnect();
-      if (mounted) {
-        setState(() => _allowPop = true);
-        Navigator.of(context).pop();
-      }
-    }
+    await _recordLeave();
+    await _room?.disconnect();
+    if (mounted) Navigator.of(context).maybePop();
   }
 
   void _refresh() {
@@ -230,39 +225,208 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: _allowPop,
+      canPop: false,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop && !_allowPop) _leaveMeeting();
+        if (!didPop) _leaveMeeting();
       },
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(widget.meetingTitle),
-          actions: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Center(child: Text(_formatDuration(_elapsed))),
+        backgroundColor: const Color(0xFF0F172A),
+        body: Column(
+          children: [
+            // ── Top bar ──────────────────────────────────────────────
+            _buildTopBar(),
+            // ── Main content ─────────────────────────────────────────
+            Expanded(
+              child: _isConnecting ? _buildConnecting() : _buildRoom(),
             ),
+            // ── Bottom controls ──────────────────────────────────────
+            _buildControls(),
           ],
         ),
-        body: _isConnecting ? _buildConnecting() : _buildRoom(),
-        bottomNavigationBar: _buildControls(),
       ),
     );
   }
 
+  // ── Top Bar ──────────────────────────────────────────────────────────
+  Widget _buildTopBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: const BoxDecoration(
+        color: Color(0xFF1E293B),
+        border: Border(bottom: BorderSide(color: Color(0xFF334155))),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Row(
+          children: [
+            // Meeting title
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    widget.meetingTitle,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (_inviteCode != null && _inviteCode!.isNotEmpty)
+                    GestureDetector(
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: _inviteCode!));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Invite code copied: $_inviteCode')),
+                        );
+                      },
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _inviteCode!,
+                            style: const TextStyle(
+                              color: Color(0xFF94A3B8),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.copy, size: 12, color: Color(0xFF94A3B8)),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+
+            // Timer
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF334155),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: _connectionStatus == 'Connected'
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFFF59E0B),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _formatDuration(_elapsed),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(width: 12),
+
+            // Participant count
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF334155),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.people_outline, size: 16, color: Color(0xFF94A3B8)),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${_participants.length}',
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(width: 12),
+
+            // Leave button
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFEF4444),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: _isLeaving ? null : _leaveMeeting,
+              icon: const Icon(Icons.call_end, size: 18),
+              label: const Text('Leave', style: TextStyle(fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Connecting / Error ────────────────────────────────────────────────
   Widget _buildConnecting() {
     if (_errorMessage != null) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline, size: 40),
-              const SizedBox(height: 12),
-              Text(_errorMessage!, textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              FilledButton(onPressed: _connect, child: const Text('Retry')),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF7F1D1D),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.error_outline, size: 40, color: Color(0xFFFCA5A5)),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Connection Failed',
+                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Color(0xFF475569)),
+                    ),
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    child: const Text('Go Back'),
+                  ),
+                  const SizedBox(width: 12),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(backgroundColor: const Color(0xFFFF5722)),
+                    onPressed: _connect,
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('Retry'),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -272,86 +436,92 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const CircularProgressIndicator(),
-          const SizedBox(height: 16),
-          Text(_connectionStatus),
+          const SizedBox(
+            width: 48,
+            height: 48,
+            child: CircularProgressIndicator(
+              color: Color(0xFFFF5722),
+              strokeWidth: 3,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            _connectionStatus,
+            style: const TextStyle(color: Colors.white, fontSize: 16),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            widget.meetingTitle,
+            style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+          ),
         ],
       ),
     );
   }
 
+  // ── Room View (Video Grid) ────────────────────────────────────────────
   Widget _buildRoom() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 720;
-        if (compact) {
-          return Column(
-            children: [
-              Expanded(child: _ParticipantGrid(participants: _participants)),
-              SizedBox(
-                height: 112,
-                child: _ParticipantPanel(
-                  participants: _participants,
-                  status: _connectionStatus,
-                  isHost: widget.isHost,
-                ),
-              ),
-            ],
-          );
-        }
-        return Row(
-          children: [
-            Expanded(child: _ParticipantGrid(participants: _participants)),
-            SizedBox(
-              width: 280,
-              child: _ParticipantPanel(
-                participants: _participants,
-                status: _connectionStatus,
-                isHost: widget.isHost,
-              ),
-            ),
-          ],
-        );
-      },
-    );
+    return _ParticipantGrid(participants: _participants);
   }
 
+  // ── Bottom Controls Bar ───────────────────────────────────────────────
   Widget _buildControls() {
-    return SafeArea(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        color: Theme.of(context).colorScheme.surface,
-        child: Wrap(
-          alignment: WrapAlignment.center,
-          spacing: 10,
-          runSpacing: 10,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      decoration: const BoxDecoration(
+        color: Color(0xFF1E293B),
+        border: Border(top: BorderSide(color: Color(0xFF334155))),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            IconButton.filledTonal(
-              tooltip: _microphoneEnabled ? 'Mute' : 'Unmute',
+            _ControlButton(
+              icon: _microphoneEnabled ? Icons.mic : Icons.mic_off,
+              label: _microphoneEnabled ? 'Mute' : 'Unmute',
+              isActive: _microphoneEnabled,
+              isDestructive: !_microphoneEnabled,
               onPressed: _room == null ? null : _toggleMicrophone,
-              icon: Icon(_microphoneEnabled ? Icons.mic : Icons.mic_off),
             ),
-            IconButton.filledTonal(
-              tooltip: _cameraEnabled ? 'Camera off' : 'Camera on',
+            const SizedBox(width: 12),
+            _ControlButton(
+              icon: _cameraEnabled ? Icons.videocam : Icons.videocam_off,
+              label: _cameraEnabled ? 'Camera' : 'Camera Off',
+              isActive: _cameraEnabled,
+              isDestructive: !_cameraEnabled,
               onPressed: _room == null ? null : _toggleCamera,
-              icon: Icon(_cameraEnabled ? Icons.videocam : Icons.videocam_off),
             ),
-            IconButton.filledTonal(
-              tooltip: _screenShareEnabled ? 'Stop sharing' : 'Share screen',
+            const SizedBox(width: 12),
+            _ControlButton(
+              icon: _screenShareEnabled ? Icons.stop_screen_share : Icons.screen_share,
+              label: _screenShareEnabled ? 'Stop Share' : 'Screen',
+              isActive: !_screenShareEnabled,
+              isDestructive: _screenShareEnabled,
               onPressed: _room == null ? null : _toggleScreenShare,
-              icon: Icon(_screenShareEnabled ? Icons.stop_screen_share : Icons.screen_share),
             ),
-            if (widget.isHost)
-              IconButton.filledTonal(
-                tooltip: 'Host controls',
+            if (widget.isHost) ...[
+              const SizedBox(width: 12),
+              _ControlButton(
+                icon: Icons.more_horiz,
+                label: 'More',
+                isActive: true,
                 onPressed: () => _showHostControls(context),
-                icon: const Icon(Icons.admin_panel_settings),
               ),
-            FilledButton.icon(
-              onPressed: _isLeaving ? null : _leaveMeeting,
-              icon: const Icon(Icons.call_end),
-              label: const Text('Leave'),
-            ),
+            ],
+            const SizedBox(width: 24),
+            // End Meeting button (host) or Leave button
+            if (widget.isHost)
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFEF4444),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: _isLeaving ? null : () => _showHostControls(context),
+                icon: const Icon(Icons.call_end, size: 20),
+                label: const Text('End Meeting', style: TextStyle(fontWeight: FontWeight.w600)),
+              ),
           ],
         ),
       ),
@@ -367,11 +537,9 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
         headers: _headers,
       );
       if (response.statusCode == 200) {
+        await _recordLeave();
         await _room?.disconnect();
-        if (mounted) {
-          setState(() => _allowPop = true);
-          Navigator.of(context).pop();
-        }
+        if (mounted) Navigator.of(context).maybePop();
       } else {
         setState(() {
           _isLeaving = false;
@@ -389,31 +557,58 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
   void _showHostControls(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      backgroundColor: const Color(0xFF1E293B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
       builder: (context) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            const ListTile(
-              leading: Icon(Icons.people),
-              title: Text('Manage participants'),
-            ),
-            const ListTile(
-              leading: Icon(Icons.volume_off),
-              title: Text('Mute participant'),
-            ),
-            const ListTile(
-              leading: Icon(Icons.person_remove),
-              title: Text('Remove participant'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.cancel, color: Colors.red),
-              title: const Text('End Meeting', style: TextStyle(color: Colors.red)),
-              onTap: () {
-                Navigator.pop(context);
-                _endMeeting();
-              },
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF475569),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Host Controls',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (_inviteCode != null && _inviteCode!.isNotEmpty)
+                ListTile(
+                  leading: const Icon(Icons.share, color: Color(0xFF94A3B8)),
+                  title: Text('Share invite code: $_inviteCode',
+                    style: const TextStyle(color: Colors.white)),
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: _inviteCode!));
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Invite code copied: $_inviteCode')),
+                    );
+                  },
+                ),
+              ListTile(
+                leading: const Icon(Icons.cancel, color: Color(0xFFEF4444)),
+                title: const Text('End Meeting for Everyone',
+                  style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _endMeeting();
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -427,6 +622,53 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
   }
 }
 
+// ── Control Button Widget ─────────────────────────────────────────────────
+class _ControlButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isActive;
+  final bool isDestructive;
+  final VoidCallback? onPressed;
+
+  const _ControlButton({
+    required this.icon,
+    required this.label,
+    this.isActive = true,
+    this.isDestructive = false,
+    this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = isDestructive
+        ? const Color(0xFFEF4444)
+        : const Color(0xFF334155);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Material(
+          color: bgColor,
+          shape: const CircleBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onPressed,
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Icon(icon, color: Colors.white, size: 22),
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Participant Grid ──────────────────────────────────────────────────────
 class _ParticipantGrid extends StatelessWidget {
   final List<Participant> participants;
 
@@ -435,21 +677,39 @@ class _ParticipantGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (participants.isEmpty) {
-      return const Center(child: Text('Waiting for participants'));
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.people_outline, size: 48, color: Color(0xFF475569)),
+            SizedBox(height: 12),
+            Text(
+              'Waiting for participants...',
+              style: TextStyle(color: Color(0xFF94A3B8), fontSize: 15),
+            ),
+          ],
+        ),
+      );
     }
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = constraints.maxWidth > 1000
-            ? 3
-            : constraints.maxWidth > 620
-                ? 2
-                : 1;
+        final count = participants.length;
+        int columns;
+        if (count == 1) {
+          columns = 1;
+        } else if (count <= 4) {
+          columns = 2;
+        } else if (constraints.maxWidth > 1000) {
+          columns = 3;
+        } else {
+          columns = 2;
+        }
         return GridView.builder(
           padding: const EdgeInsets.all(12),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: columns,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
             childAspectRatio: 16 / 10,
           ),
           itemCount: participants.length,
@@ -460,6 +720,7 @@ class _ParticipantGrid extends StatelessWidget {
   }
 }
 
+// ── Participant Tile ──────────────────────────────────────────────────────
 class _ParticipantTile extends StatelessWidget {
   final Participant participant;
 
@@ -475,11 +736,21 @@ class _ParticipantTile extends StatelessWidget {
       }
     }
     final track = publication?.track;
+    final displayName = participant.name.isEmpty ? participant.identity : participant.name;
+
+    // Check mic status
+    bool isMuted = true;
+    for (final pub in participant.audioTrackPublications) {
+      if (pub.kind == TrackType.AUDIO && !pub.muted) {
+        isMuted = false;
+        break;
+      }
+    }
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: ColoredBox(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        color: const Color(0xFF1E293B),
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -488,28 +759,50 @@ class _ParticipantTile extends StatelessWidget {
             else
               Center(
                 child: CircleAvatar(
-                  radius: 32,
-                  child: Text(_initials(participant.name.isEmpty ? participant.identity : participant.name)),
+                  radius: 36,
+                  backgroundColor: const Color(0xFF334155),
+                  child: Text(
+                    _initials(displayName),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
+            // Name badge at bottom
             Positioned(
               left: 10,
               right: 10,
               bottom: 10,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.55),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  child: Text(
-                    participant.name.isEmpty ? participant.identity : participant.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.6),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isMuted ? Icons.mic_off : Icons.mic,
+                          size: 14,
+                          color: isMuted ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
           ],
@@ -522,52 +815,6 @@ class _ParticipantTile extends StatelessWidget {
     final parts = value.trim().split(RegExp(r'\s+')).where((part) => part.isNotEmpty).toList();
     if (parts.isEmpty) return '?';
     return parts.take(2).map((part) => part[0].toUpperCase()).join();
-  }
-}
-
-class _ParticipantPanel extends StatelessWidget {
-  final List<Participant> participants;
-  final String status;
-  final bool isHost;
-
-  const _ParticipantPanel({
-    required this.participants,
-    required this.status,
-    required this.isHost,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border(left: BorderSide(color: Theme.of(context).dividerColor)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ListTile(
-            leading: const Icon(Icons.wifi_tethering),
-            title: Text(status),
-            subtitle: Text('${participants.length} participant${participants.length == 1 ? '' : 's'}'),
-          ),
-          const Divider(height: 1),
-          Expanded(
-            child: ListView.builder(
-              itemCount: participants.length,
-              itemBuilder: (context, index) {
-                final participant = participants[index];
-                final displayName = participant.name.isEmpty ? participant.identity : participant.name;
-                return ListTile(
-                  leading: const CircleAvatar(child: Icon(Icons.person)),
-                  title: Text(displayName, maxLines: 1, overflow: TextOverflow.ellipsis),
-                  trailing: isHost ? const Icon(Icons.more_vert) : null,
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 

@@ -14,4 +14,5 @@ from .evidence import Evidence
 from .meeting_summary import MeetingSummary
 from .recording import MeetingRecording
 from .speaker_mapping import SpeakerMapping
-from .ai_job import AIJob
+from .processing_job import ProcessingJob
+from .intelligence import Question, Risk, UnresolvedIssue, Commitment, Reminder

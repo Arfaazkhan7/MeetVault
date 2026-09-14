@@ -19,7 +19,7 @@ jobs:
         run: |
           node <<'NODE'
           const fs = require('fs');
-          const files = ['web/login.html', 'web/signup.html', 'web/index.html'];
+          const files = ['web/login.html', 'web/signup.html', 'web/index.html', 'web/admin.html'];
           const firebaseApiKey = process.env.FIREBASE_API_KEY || '';
           const apiBaseUrl = process.env.API_BASE_URL || '';
 
@@ -34,7 +34,9 @@ jobs:
             fs.writeFileSync(file, text);
           }
 
-          for (const file of files) {
+          // Validate non-admin pages still have keys injected
+          const checkFiles = ['web/login.html', 'web/signup.html', 'web/index.html'];
+          for (const file of checkFiles) {
             const text = fs.readFileSync(file, 'utf8');
             if (text.includes('__FIREBASE_API_KEY__') || text.includes('AIzaSyD_placeholder_key')) {
               throw new Error(`Firebase API key placeholder remains in ${file}.`);

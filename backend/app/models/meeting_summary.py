@@ -13,15 +13,6 @@ class MeetingSummary(Base):
     summary_text = Column(Text, nullable=False)
     key_takeaways = Column(Text, nullable=True)  # JSON array of key points
     
-    # Analysis results
-    questions = Column(Text, nullable=True)  # JSON array
-    answers = Column(Text, nullable=True)  # JSON array
-    suggestions = Column(Text, nullable=True)  # JSON array
-    proposals = Column(Text, nullable=True)  # JSON array
-    concerns = Column(Text, nullable=True)  # JSON array
-    agreements = Column(Text, nullable=True)  # JSON array
-    disagreements = Column(Text, nullable=True)  # JSON array
-    
     # AI extraction metadata
     extracted_by = Column(String, nullable=True)
     extraction_confidence = Column(String, nullable=True)

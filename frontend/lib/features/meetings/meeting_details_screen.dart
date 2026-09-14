@@ -125,7 +125,23 @@ class _MeetingDetailsScreenState extends State<MeetingDetailsScreen> {
           IconButton(tooltip: 'Refresh', onPressed: _load, icon: const Icon(Icons.refresh)),
           IconButton(
             tooltip: 'Join room',
-            onPressed: _meeting == null ? null : () => Navigator.pushNamed(context, AppRouter.meetingRoom, arguments: {'id': widget.meetingId, 'title': _meeting!['title'], 'isHost': true}),
+            onPressed: _meeting == null ? null : () async {
+              try {
+                await _api.post('/meetings/${widget.meetingId}/start');
+              } catch (_) {}
+              if (mounted) {
+                Navigator.pushNamed(
+                  context, 
+                  AppRouter.meetingRoom, 
+                  arguments: {
+                    'id': widget.meetingId, 
+                    'title': _meeting!['title'], 
+                    'isHost': true, 
+                    'inviteCode': _meeting!['invite_code']
+                  }
+                );
+              }
+            },
             icon: const Icon(Icons.video_call),
           ),
         ],
@@ -196,7 +212,24 @@ class _MeetingDetailsScreenState extends State<MeetingDetailsScreen> {
                 ],
                 const SizedBox(height: 16),
                 FilledButton.icon(
-                  onPressed: () => Navigator.pushNamed(context, AppRouter.meetingRoom, arguments: {'id': widget.meetingId, 'title': meeting['title'], 'isHost': true}),
+                  onPressed: () async {
+                    try {
+                      // Attempt to start the meeting in case it's SCHEDULED
+                      await _api.post('/meetings/${widget.meetingId}/start');
+                    } catch (_) {}
+                    if (mounted) {
+                      Navigator.pushNamed(
+                        context, 
+                        AppRouter.meetingRoom, 
+                        arguments: {
+                          'id': widget.meetingId, 
+                          'title': meeting['title'], 
+                          'isHost': true, 
+                          'inviteCode': meeting['invite_code']
+                        }
+                      );
+                    }
+                  },
                   icon: const Icon(Icons.play_arrow),
                   label: const Text('Start / Join Meeting'),
                 ),

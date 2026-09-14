@@ -24,6 +24,7 @@ import '../../features/memory/decision_history_screen.dart';
 import '../../features/search/search_screen.dart';
 import '../../features/memory/ask_memory_screen.dart';
 import '../../features/settings/settings_screen.dart';
+import '../../features/admin/admin_login_screen.dart';
 import '../../features/admin/admin_screen.dart';
 
 class AppRouter {
@@ -52,6 +53,8 @@ class AppRouter {
   static const String askMemory = '/ask';
   static const String settings = '/settings';
   static const String admin = '/admin';
+  static const String adminLogin = '/admin/login';
+  static const String adminDashboard = '/admin/dashboard';
 
   static Map<String, WidgetBuilder> get routes => {
     login: (context) => const LoginScreen(),
@@ -68,7 +71,9 @@ class AppRouter {
     search: (context) => const SearchScreen(),
     askMemory: (context) => const AskMemoryScreen(),
     settings: (context) => const SettingsScreen(),
-    admin: (context) => const AdminScreen(),
+    admin: (context) => const AdminDashboardScreen(),
+    adminLogin: (context) => const AdminLoginScreen(),
+    adminDashboard: (context) => const AdminDashboardScreen(),
     joinMeeting: (context) => const JoinMeetingScreen(),
   };
 

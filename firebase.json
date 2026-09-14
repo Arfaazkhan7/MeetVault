@@ -21,6 +21,11 @@
         "source": "/signup",
         "destination": "/signup.html",
         "type": 302
+      },
+      {
+        "source": "/admin",
+        "destination": "/admin.html",
+        "type": 302
       }
     ]
   }

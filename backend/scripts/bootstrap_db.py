@@ -18,3 +18,9 @@ if engine.dialect.name == "postgresql":
         Embedding.__table__.c.embedding.type = Text()
 
 Base.metadata.create_all(bind=engine)
+
+# Seed default system admin and sample workspace if they don't exist
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from seed import seed
+seed()
