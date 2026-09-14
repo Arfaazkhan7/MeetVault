@@ -955,13 +955,6 @@
               <div class="room-code-badge" style="position:absolute;top:20px;left:24px;z-index:20;">
                 <span id="room-badge-text">MTG-DA22D7</span>
                 <button onclick="copyCurrentRoomLink()">Copy Link</button>
-                <select class="grid-selector-btn" id="grid-layout-select" onchange="changeGridCount(this.value)">
-                  <option value="12" selected>12 People (Grid View)</option>
-                  <option value="6">6 People</option>
-                  <option value="4">4 People (2x2)</option>
-                  <option value="2">2 People (Side-by-Side)</option>
-                  <option value="1">1 Person (Solo)</option>
-                </select>
               </div>
 
               <!-- DYNAMIC AUTO-ALIGNED VIDEO GRID -->
@@ -1342,7 +1335,8 @@ document.addEventListener('click', (e) => {
   }
 });
 
-/* ── WebRTC P2P Video Call Stream & Dynamic Meet Grid ───── */
+
+/* ── Real-Time Video Call & Dynamic Room Grid (Real Participants Only) ───── */
 let stream = null;
 let micOn = true;
 let camOn = true;
@@ -1350,23 +1344,7 @@ let currentRoomCode = 'MTG-DA22D7';
 
 let peer = null;
 let activePeerCall = null;
-let currentGridCount = 12;
-
-// Participant dataset matching reference screenshot
-const DEMO_PARTICIPANTS = [
-  { name: 'Jaxon Wooley', img: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80', speaking: false, muted: false },
-  { name: 'Alexis Lim', img: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=600&q=80', speaking: true, muted: false },
-  { name: 'Nina Duffy', img: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=600&q=80', speaking: false, muted: false },
-  { name: 'Joe Carlson', img: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80', speaking: false, muted: false },
-  { name: 'Mai Oneill', img: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&w=600&q=80', speaking: false, muted: false },
-  { name: 'Josh Jordan', img: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=600&q=80', speaking: false, muted: false },
-  { name: 'Rosa Michaels', img: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=600&q=80', speaking: false, muted: false },
-  { name: 'Jennie Kramer', img: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=600&q=80', speaking: false, muted: false },
-  { name: 'Lani Lee', img: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=600&q=80', speaking: false, muted: false },
-  { name: 'Hugo Novak', img: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=600&q=80', speaking: false, muted: false },
-  { name: 'Elizabeth Adams', img: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=600&q=80', speaking: false, muted: true },
-  { name: 'You', isLocal: true, speaking: false, muted: false }
-];
+let ROOM_PARTICIPANTS = [];
 
 function copyHeroCode(){
   const codeEl = document.getElementById('hero-code');
@@ -1417,34 +1395,61 @@ function showToast(msg){
   }, 3200);
 }
 
-function changeGridCount(countStr){
-  currentGridCount = parseInt(countStr) || 12;
-  renderMeetGrid(currentGridCount);
+function updateRoomParticipants() {
+  const userStr = localStorage.getItem('mv_user');
+  let userName = 'You';
+  if (userStr) {
+    try {
+      const u = JSON.parse(userStr);
+      userName = u.name || u.email.split('@')[0] || 'You';
+    } catch(e){}
+  }
+
+  // Base participant list contains ONLY real connected users
+  ROOM_PARTICIPANTS = [{
+    id: 'local',
+    name: userName,
+    isLocal: true,
+    speaking: false,
+    muted: !micOn
+  }];
+
+  if (activePeerCall && activePeerCall.remoteStream) {
+    ROOM_PARTICIPANTS.push({
+      id: 'remote-' + activePeerCall.peer,
+      name: 'Participant (' + (activePeerCall.peer || 'Remote') + ')',
+      isRemotePeer: true,
+      speaking: false,
+      muted: false,
+      stream: activePeerCall.remoteStream
+    });
+  }
+
+  renderMeetGrid();
 }
 
-function renderMeetGrid(count){
+function renderMeetGrid(){
   const grid = document.getElementById('meet-grid');
   const countBadge = document.getElementById('count-num');
   if(!grid) return;
 
+  const count = Math.max(1, ROOM_PARTICIPANTS.length);
   grid.className = 'meet-video-grid grid-' + count;
   if(countBadge) countBadge.textContent = count;
 
   grid.innerHTML = '';
 
-  const activeList = DEMO_PARTICIPANTS.slice(0, count);
-
-  activeList.forEach((p, idx) => {
+  ROOM_PARTICIPANTS.forEach((p, idx) => {
     const tile = document.createElement('div');
     tile.className = 'meet-tile' + (p.speaking ? ' speaking' : '');
-    tile.id = 'tile-' + idx;
+    tile.id = 'tile-' + p.id;
 
     let mediaHTML = '';
     if(p.isLocal){
       mediaHTML = `
         <video id="webcam-video" autoplay playsinline muted style="${camOn ? 'display:block;' : 'display:none;'}"></video>
         <div id="cam-ph" class="cam-placeholder" style="${camOn ? 'display:none;' : 'display:flex;'}">
-          <div class="avatar-circle">Y</div>
+          <div class="avatar-circle">${(p.name[0] || 'Y').toUpperCase()}</div>
           <div class="cam-status">Camera Off</div>
         </div>`;
     } else if(p.isRemotePeer){
@@ -1454,8 +1459,6 @@ function renderMeetGrid(count){
           <div class="avatar-circle" style="background:#2563EB;">P</div>
           <div class="cam-status">Camera Off</div>
         </div>`;
-    } else {
-      mediaHTML = `<img class="meet-tile-img" src="${p.img}" alt="${p.name}">`;
     }
 
     let badgeHTML = '';
@@ -1473,9 +1476,17 @@ function renderMeetGrid(count){
 
     tile.innerHTML = mediaHTML + badgeHTML + `<div class="meet-name-tag">${p.name}</div>`;
     grid.appendChild(tile);
+
+    if(p.isRemotePeer && p.stream){
+      const remoteVid = tile.querySelector('#remote-video');
+      if(remoteVid){
+        remoteVid.srcObject = p.stream;
+        remoteVid.play().catch(()=>{});
+      }
+    }
   });
 
-  // Re-attach camera stream to video element if local stream active
+  // Re-attach local camera stream
   const vid = document.getElementById('webcam-video');
   if(vid && stream){
     vid.srcObject = stream;
@@ -1505,8 +1516,8 @@ async function startCall(code){
     camOn = false;
   }
 
-  // Render dynamic grid matching reference screenshot
-  renderMeetGrid(currentGridCount);
+  // Render ONLY real participants in meeting
+  updateRoomParticipants();
 
   // Initialize P2P Multi-Device Connection via PeerJS
   initP2PCall(currentRoomCode);
@@ -1552,22 +1563,16 @@ function initP2PCall(roomCode) {
 }
 
 function attachRemoteCallStream(call) {
-  // Insert or update P2P Remote participant in DEMO_PARTICIPANTS array
-  DEMO_PARTICIPANTS[0] = { name: 'P2P Participant', isRemotePeer: true, speaking: false, muted: false };
-  renderMeetGrid(currentGridCount);
-
   call.on('stream', (remoteStream) => {
-    const remoteVid = document.getElementById('remote-video');
-    if (remoteVid) {
-      remoteVid.srcObject = remoteStream;
-      remoteVid.play().catch(()=>{});
-    }
+    call.remoteStream = remoteStream;
+    activePeerCall = call;
+    updateRoomParticipants();
     showToast('Participant connected to live video!');
   });
 
   call.on('close', () => {
-    DEMO_PARTICIPANTS[0] = { name: 'Jaxon Wooley', img: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80', speaking: false, muted: false };
-    renderMeetGrid(currentGridCount);
+    activePeerCall = null;
+    updateRoomParticipants();
     showToast('Participant left call');
   });
 }
@@ -1576,6 +1581,7 @@ function stopStream(){
   if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
   if(activePeerCall){ try{ activePeerCall.close(); }catch(e){} activePeerCall=null; }
   if(peer){ try{ peer.destroy(); }catch(e){} peer=null; }
+  ROOM_PARTICIPANTS = [];
 }
 
 function toggleMic(){
@@ -1583,14 +1589,14 @@ function toggleMic(){
   if(stream) stream.getAudioTracks().forEach(t=>t.enabled = micOn);
   const btnMic = document.getElementById('btn-mic');
   if(btnMic) btnMic.classList.toggle('off', !micOn);
-  renderMeetGrid(currentGridCount);
+  updateRoomParticipants();
 }
 function toggleCam(){
   camOn = !camOn;
   if(stream) stream.getVideoTracks().forEach(t=>t.enabled = camOn);
   const btnCam = document.getElementById('btn-cam');
   if(btnCam) btnCam.classList.toggle('off', !camOn);
-  renderMeetGrid(currentGridCount);
+  updateRoomParticipants();
 }
 function shareScreen(){
   navigator.mediaDevices.getDisplayMedia({video:true}).then(s => {
@@ -1621,6 +1627,7 @@ document.addEventListener('keydown', (e) => {
     }
   }
 });
+
 
 function doJoin(providedCode){
   const inputEl = document.getElementById('join-code');
