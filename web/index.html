@@ -1666,27 +1666,32 @@ function showToast(msg){
 
 function updateRoomParticipants() {
   const userStr = localStorage.getItem('mv_user');
-  let userName = 'You';
+  let userName = 'Participant';
   if (userStr) {
     try {
       const u = JSON.parse(userStr);
-      userName = u.name || u.email.split('@')[0] || 'You';
+      userName = u.name || (u.email ? u.email.split('@')[0] : 'Participant');
     } catch(e){}
   }
+
+  const localDisplayName = userName + ' (You)';
 
   // Base participant list contains ONLY real connected users
   ROOM_PARTICIPANTS = [{
     id: 'local',
-    name: userName,
+    name: localDisplayName,
+    rawName: userName,
     isLocal: true,
     speaking: false,
     muted: !micOn
   }];
 
   if (activePeerCall && activePeerCall.remoteStream) {
+    const rName = activePeerCall.remoteName || 'Participant';
     ROOM_PARTICIPANTS.push({
       id: 'remote-' + activePeerCall.peer,
-      name: 'Participant (' + (activePeerCall.peer || 'Remote') + ')',
+      name: rName,
+      rawName: rName,
       isRemotePeer: true,
       speaking: false,
       muted: false,
@@ -1722,20 +1727,22 @@ function createParticipantTile(p) {
   tile.className = 'meet-tile' + (p.speaking ? ' speaking' : '');
   tile.id = 'tile-' + p.id;
 
+  const initial = ((p.rawName || p.name || 'P')[0]).toUpperCase();
+
   let mediaHTML = '';
   if (p.isLocal) {
     mediaHTML = `
       <video id="webcam-video" autoplay playsinline muted style="${camOn ? 'display:block; transform:scaleX(-1);' : 'display:none;'}"></video>
       <div id="cam-ph" class="cam-placeholder" style="${camOn ? 'display:none;' : 'display:flex;'}">
-        <div class="avatar-circle">${(p.name[0] || 'Y').toUpperCase()}</div>
-        <div class="cam-status">Camera Off</div>
+        <div class="avatar-circle">${initial}</div>
+        <div class="cam-status" style="margin-top:6px; font-weight:600; font-size:0.85rem; color:#E2E8F0;">${p.name}</div>
       </div>`;
   } else if (p.isRemotePeer) {
     mediaHTML = `
       <video id="remote-video" autoplay playsinline style="transform:none;"></video>
       <div id="remote-cam-ph" class="cam-placeholder" style="display:none;">
-        <div class="avatar-circle" style="background:#2563EB;">P</div>
-        <div class="cam-status">Camera Off</div>
+        <div class="avatar-circle" style="background:#2563EB;">${initial}</div>
+        <div class="cam-status" style="margin-top:6px; font-weight:600; font-size:0.85rem; color:#E2E8F0;">${p.name}</div>
       </div>`;
   }
 
@@ -1758,7 +1765,7 @@ function createParticipantTile(p) {
       <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M16 9V4l1 0V2H7v2l1 0v5L6 11v2h5v7l1 1 1-1v-7h5v-2l-2-2z"/></svg>
     </button>`;
 
-  tile.innerHTML = mediaHTML + badgeHTML + pinBtnHTML + `<div class="meet-name-tag">${p.name}</div>`;
+  tile.innerHTML = mediaHTML + badgeHTML + pinBtnHTML + `<div class="meet-name-tag">👤 ${p.name}</div>`;
 
   if (p.isRemotePeer && p.stream) {
     setTimeout(() => {
@@ -1818,20 +1825,21 @@ function renderMeetGrid(){
         stageVid.play().catch(()=>{});
       }
     } else if (stageParticipant) {
+      const stageInitial = ((stageParticipant.rawName || stageParticipant.name || 'P')[0]).toUpperCase();
       let stageMediaHTML = '';
       if (stageParticipant.isLocal) {
         stageMediaHTML = `
           <video id="stage-local-video" autoplay playsinline muted style="${camOn ? 'display:block; transform:scaleX(-1);' : 'display:none;'}"></video>
           <div class="cam-placeholder" style="${camOn ? 'display:none;' : 'display:flex;'}">
-            <div class="avatar-circle">${(stageParticipant.name[0] || 'Y').toUpperCase()}</div>
-            <div class="cam-status">Camera Off</div>
+            <div class="avatar-circle">${stageInitial}</div>
+            <div class="cam-status" style="margin-top:6px; font-weight:600; font-size:0.85rem; color:#E2E8F0;">${stageParticipant.name}</div>
           </div>`;
       } else {
         stageMediaHTML = `
           <video id="stage-remote-video" autoplay playsinline style="transform:none;"></video>
           <div class="cam-placeholder" style="display:none;">
-            <div class="avatar-circle" style="background:#2563EB;">P</div>
-            <div class="cam-status">Camera Off</div>
+            <div class="avatar-circle" style="background:#2563EB;">${stageInitial}</div>
+            <div class="cam-status" style="margin-top:6px; font-weight:600; font-size:0.85rem; color:#E2E8F0;">${stageParticipant.name}</div>
           </div>`;
       }
       stageWrap.innerHTML = stageMediaHTML + `
@@ -1920,6 +1928,15 @@ async function startCall(code){
 function initP2PCall(roomCode) {
   if (typeof Peer === 'undefined') return;
   
+  const userStr = localStorage.getItem('mv_user');
+  let myName = 'Participant';
+  if (userStr) {
+    try {
+      const u = JSON.parse(userStr);
+      myName = u.name || (u.email ? u.email.split('@')[0] : 'Participant');
+    } catch(e){}
+  }
+
   const cleanCode = roomCode.toLowerCase().replace(/[^a-z0-9]/g, '');
   const hostPeerId = 'mv-room-' + cleanCode;
 
@@ -1934,8 +1951,25 @@ function initP2PCall(roomCode) {
     console.log('Room host live:', id);
   });
 
+  peer.on('connection', (conn) => {
+    conn.on('open', () => {
+      conn.send({ type: 'user_info', name: myName });
+    });
+    conn.on('data', (data) => {
+      if (data && data.type === 'user_info' && data.name) {
+        if (activePeerCall) {
+          activePeerCall.remoteName = data.name;
+          updateRoomParticipants();
+        }
+      }
+    });
+  });
+
   peer.on('call', (call) => {
     activePeerCall = call;
+    if (call.metadata && call.metadata.name) {
+      call.remoteName = call.metadata.name;
+    }
     if (stream) call.answer(stream);
     attachRemoteCallStream(call);
   });
@@ -1947,9 +1981,22 @@ function initP2PCall(roomCode) {
 
       peer.on('open', () => {
         if (stream) {
-          const call = peer.call(hostPeerId, stream);
+          const call = peer.call(hostPeerId, stream, { metadata: { name: myName } });
           activePeerCall = call;
           attachRemoteCallStream(call);
+
+          const conn = peer.connect(hostPeerId, { metadata: { name: myName } });
+          conn.on('open', () => {
+            conn.send({ type: 'user_info', name: myName });
+          });
+          conn.on('data', (data) => {
+            if (data && data.type === 'user_info' && data.name) {
+              if (activePeerCall) {
+                activePeerCall.remoteName = data.name;
+                updateRoomParticipants();
+              }
+            }
+          });
         }
       });
     }
