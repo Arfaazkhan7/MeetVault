@@ -755,7 +755,13 @@ class _ParticipantTile extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             if (track is VideoTrack)
-              VideoTrackRenderer(track)
+              VideoTrackRenderer(
+                track,
+                fit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                mirrorMode: participant is LocalParticipant
+                    ? VideoViewMirrorMode.mirror
+                    : VideoViewMirrorMode.off,
+              )
             else
               Center(
                 child: CircleAvatar(
