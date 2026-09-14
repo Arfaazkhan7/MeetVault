@@ -1540,14 +1540,50 @@ function copyHeroCode(){
 }
 
 let pendingMeetingCode = '';
+let currentMeetingId = null;
 
-function createNewMeeting(){
+async function createNewMeeting(){
   closeDrawer();
-  const code = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
-  pendingMeetingCode = code;
+  const token = localStorage.getItem('access_token');
+  const headers = { 'Content-Type': 'application/json' };
+  if (token && !token.startsWith('mail-') && !token.startsWith('mv-local-')) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  let meetingData = null;
+  try {
+    const baseUrl = (typeof API_BASE_URL !== 'undefined' && API_BASE_URL && !API_BASE_URL.startsWith('__'))
+      ? API_BASE_URL
+      : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000/api/v1' : 'https://meetvault-api.onrender.com/api/v1');
+
+    const res = await fetch(`${baseUrl}/meetings/personal`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({ title: 'Personal Sync' })
+    });
+    if (res.ok) {
+      meetingData = await res.json();
+      currentMeetingId = meetingData.public_id || meetingData.id;
+      pendingMeetingCode = meetingData.invite_code || meetingData.meeting_code;
+
+      try {
+        await fetch(`${baseUrl}/meetings/${currentMeetingId}/room/join`, {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify({ role: 'HOST' })
+        });
+      } catch (_) {}
+    }
+  } catch (err) {
+    console.warn('Backend personal meeting creation fallback:', err);
+  }
+
+  if (!pendingMeetingCode) {
+    pendingMeetingCode = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+  }
 
   const codeInput = document.getElementById('joining-modal-code');
-  if(codeInput) codeInput.value = code;
+  if(codeInput) codeInput.value = pendingMeetingCode;
 
   const creatorEl = document.getElementById('joining-modal-creator');
   if(creatorEl) {
@@ -1567,6 +1603,9 @@ function createNewMeeting(){
 
   const modal = document.getElementById('joining-info-modal');
   if(modal) modal.style.display = 'flex';
+
+  renderUpcoming();
+  renderVaultMeetings();
 }
 
 function closeJoiningModal(){
@@ -1583,7 +1622,7 @@ function copyJoiningCode(){
   }
 }
 
-function confirmJoinFromModal(){
+async function confirmJoinFromModal(){
   closeJoiningModal();
   const code = pendingMeetingCode || (document.getElementById('joining-modal-code') ? document.getElementById('joining-modal-code').value : '');
   if(code){
@@ -2025,10 +2064,34 @@ function stopScreenShare(){
   renderMeetGrid();
   showToast('Screen sharing stopped');
 }
-function endCall(){
+async function endCall(){
   stopStream();
+
+  if (currentMeetingId) {
+    try {
+      const baseUrl = (typeof API_BASE_URL !== 'undefined' && API_BASE_URL && !API_BASE_URL.startsWith('__'))
+        ? API_BASE_URL
+        : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000/api/v1' : 'https://meetvault-api.onrender.com/api/v1');
+      const token = localStorage.getItem('access_token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token && !token.startsWith('mail-') && !token.startsWith('mv-local-')) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      await fetch(`${baseUrl}/meetings/${currentMeetingId}/end`, {
+        method: 'POST',
+        headers: headers
+      });
+    } catch (e) {
+      console.warn('Backend end meeting notification error:', e);
+    }
+  }
+
   switchView('home');
   showToast('Meeting ended');
+
+  renderUpcoming();
+  renderVaultMeetings();
 }
 
 /* Back Key Handler (Escape / Backspace) to leave call */
