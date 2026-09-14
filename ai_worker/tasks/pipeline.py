@@ -144,7 +144,8 @@ def process_meeting_intelligence(ai_job_id: str):
 
         # Stage 7: Embeddings / RAG Update
         manager.update_stage(job, "UPDATING_RAG")
-        # TODO: Implement embedding generation (Phase G)
+        from app.services.embedding_service import EmbeddingService
+        EmbeddingService.index_meeting_entities(db, company_id=meeting.company_id, meeting_id=meeting.public_id)
 
         meeting.transcription_status = "completed"
         meeting.analysis_status = "completed"
