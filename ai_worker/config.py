@@ -17,6 +17,7 @@ class WorkerSettings:
     transcription_provider: str = _env("TRANSCRIPTION_PROVIDER", "openai")
     analysis_provider: str = _env("LLM_PROVIDER", "openai")
     backend_callback_url: str = _env("AI_WORKER_CALLBACK_URL")
+    hf_token: str = _env("HF_TOKEN")
 
 
 settings = WorkerSettings()

@@ -16,6 +16,7 @@ class AIJob(Base):
     requested_by_user_id = Column(String, nullable=False, index=True)
     job_type = Column(String, nullable=False, default="MEETING_AI_PIPELINE")
     status = Column(String, nullable=False, default="QUEUED", index=True)
+    current_stage = Column(String, nullable=False, default="QUEUED")
     retry_count = Column(Integer, nullable=False, default=0)
     max_retries = Column(Integer, nullable=False, default=3)
     started_at = Column(DateTime(timezone=True), nullable=True)

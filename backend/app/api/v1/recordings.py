@@ -24,11 +24,8 @@ from app.services.storage_service import StorageService, get_storage_service
 router = APIRouter(prefix="/meetings/{meeting_id}/recordings", tags=["recordings"])
 
 
-from fastapi import BackgroundTasks
-
 @router.post("", response_model=RecordingUploadResponse, status_code=status.HTTP_201_CREATED)
 async def upload_meeting_recording(
-    background_tasks: BackgroundTasks,
     duration_seconds: int | None = Form(default=None),
     file: UploadFile = File(...),
     meeting: Meeting = Depends(require_meeting_host),
@@ -44,10 +41,6 @@ async def upload_meeting_recording(
         duration_seconds=duration_seconds,
         storage=storage,
     )
-    
-    # Enqueue the meeting intelligence job
-    from ai_worker.tasks.pipeline import process_meeting_intelligence
-    background_tasks.add_task(process_meeting_intelligence, meeting.public_id)
     
     return response
 
