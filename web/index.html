@@ -4,192 +4,150 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MeetVault — Home</title>
-  <meta name="description" content="MeetVault: AI-based smart meeting memory and management system.">
+  <meta name="description" content="MeetVault: AI-powered smart meeting memory and collaboration.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --red:            #DC3545;
-      --red-dark:       #C82333;
-      --blue-cal:       #4A90D9;
-      --blue-cal-light: #EBF4FF;
+      /* Blues */
+      --blue:          #2563EB;
+      --blue-dark:     #1D4ED8;
+      --blue-light-bg: #EFF6FF;
+      --blue-nav-bg:   #EBF3FF;
+      --blue-icon-bg:  #DBEAFE;
+      --blue-cal:      #2563EB;
+      --blue-cal-bg:   #EFF6FF;
 
-      --bg-page:        #F3F4F6;
-      --bg-sidebar:     #FFFFFF;
-      --bg-card:        #FFFFFF;
+      /* Red (Create Meeting btn) */
+      --red:           #E53935;
+      --red-dark:      #C62828;
+      --red-icon-bg:   #FFEBEE;
+      --red-dot:       #E53935;
 
-      --text-primary:   #111827;
-      --text-secondary: #6B7280;
-      --text-muted:     #9CA3AF;
+      /* Background */
+      --bg-page:       #EAF1F8;
+      --bg-sidebar:    #FFFFFF;
+      --bg-card:       #FFFFFF;
 
-      --border:         #E5E7EB;
-      --border-card:    #E8EAED;
+      /* Text */
+      --text-h1:       #111827;
+      --text-primary:  #1F2937;
+      --text-secondary:#6B7280;
+      --text-muted:    #9CA3AF;
 
-      --orange-nav:     #E84A2F;
-      --orange-icon-bg: #FDECEA;
+      /* Borders */
+      --border:        #E5E7EB;
+      --border-card:   #E8EAED;
 
-      --radius-card:    10px;
-      --shadow-card:    0 1px 4px rgba(0,0,0,0.07), 0 2px 10px rgba(0,0,0,0.04);
-      --shadow-sm:      0 1px 3px rgba(0,0,0,0.06);
+      /* Radius / Shadow */
+      --r-card:        12px;
+      --shadow-card:   0 1px 3px rgba(0,0,0,0.07), 0 4px 14px rgba(0,0,0,0.05);
     }
 
     html, body {
       height: 100%;
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       -webkit-font-smoothing: antialiased;
       background: var(--bg-page);
       color: var(--text-primary);
       overflow: hidden;
     }
 
-    /* ────────────────────────────────────────────────────
-       APP LAYOUT
-    ──────────────────────────────────────────────────── */
+    /* ═══════════════════════════════════════════════
+       APP SHELL
+    ═══════════════════════════════════════════════ */
     .app { display: flex; height: 100vh; }
 
-    /* ────────────────────────────────────────────────────
-       SIDEBAR  ← CHANGE 1: icon on top, label below
-    ──────────────────────────────────────────────────── */
+    /* ═══════════════════════════════════════════════
+       SIDEBAR
+    ═══════════════════════════════════════════════ */
     .sidebar {
-      width: 96px;
+      width: 82px;
       flex-shrink: 0;
-      background: var(--bg-sidebar);
-      border-right: 1px solid var(--border);
+      background: #FFFFFF;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 16px 0 12px 0;
-      z-index: 10;
+      padding: 20px 0 16px 0;
+      z-index: 20;
+      border-right: 1px solid rgba(229,231,235,0.6);
     }
 
+    /* Brand */
     .brand {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 5px;
-      padding: 0 0 22px 0;
-      cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; gap: 5px;
+      margin-bottom: 28px; cursor: pointer;
     }
     .brand-icon {
-      width: 36px; height: 36px;
-      border-radius: 10px;
-      background: #1F2937;
+      width: 34px; height: 34px; border-radius: 9px; background: #1F2937;
       display: flex; align-items: center; justify-content: center;
     }
-    .brand-icon svg { width: 20px; height: 20px; fill: #ffffff; }
+    .brand-icon svg { width: 18px; height: 18px; fill: #fff; }
     .brand-name {
-      font-size: 0.65rem;
-      font-weight: 700;
-      color: var(--text-primary);
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
+      font-size: 0.58rem; font-weight: 800; letter-spacing: 0.08em;
+      text-transform: uppercase; color: #1F2937;
     }
 
-    /* Nav — icon stacked above label */
-    .nav {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      width: 100%;
-      padding: 0 8px;
-    }
+    /* Nav */
+    .nav { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%; padding: 0 8px; }
 
     .nav-item {
-      display: flex;
-      flex-direction: column;        /* ← icon on top, text below */
-      align-items: center;
-      justify-content: center;
-      gap: 5px;
-      width: 100%;
-      padding: 10px 6px;
-      border-radius: 10px;
-      cursor: pointer;
-      position: relative;
-      transition: background 0.15s, color 0.15s;
-      user-select: none;
+      width: 100%; display: flex; flex-direction: column; align-items: center;
+      gap: 4px; padding: 10px 4px 9px 4px; border-radius: 10px;
+      cursor: pointer; position: relative; transition: background 0.15s; user-select: none;
     }
     .nav-item:hover { background: #F9FAFB; }
-    .nav-item.active { background: #FFF1EE; }
-
-    /* Left accent bar */
+    .nav-item.active { background: var(--blue-nav-bg); }
     .nav-item.active::before {
-      content: '';
-      position: absolute;
-      left: -8px; top: 8px; bottom: 8px;
-      width: 3px;
-      border-radius: 0 3px 3px 0;
-      background: var(--orange-nav);
+      content: ''; position: absolute; left: -8px; top: 8px; bottom: 8px;
+      width: 3px; border-radius: 0 3px 3px 0; background: var(--blue);
     }
 
-    /* Icon — LARGER */
-    .nav-icon {
-      width: 32px; height: 32px;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .nav-icon svg { width: 28px; height: 28px; fill: var(--text-muted); }
-    .nav-item.active .nav-icon svg { fill: var(--orange-nav); }
+    .nav-icon { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; }
+    .nav-icon svg { width: 26px; height: 26px; fill: var(--text-muted); }
+    .nav-item.active .nav-icon svg { fill: var(--blue); }
 
-    /* Label below icon */
     .nav-label {
-      font-size: 0.65rem;
-      font-weight: 700;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      color: var(--text-muted);
+      font-size: 0.64rem; font-weight: 800; letter-spacing: 0.06em;
+      color: var(--text-muted); text-transform: uppercase;
     }
-    .nav-item.active .nav-label { color: var(--orange-nav); }
+    .nav-item.active .nav-label { color: var(--blue); }
 
-    /* Settings at bottom */
-    .sidebar-bottom {
-      width: 100%;
-      padding: 0 8px 4px 8px;
-    }
+    .sidebar-bottom { width: 100%; padding: 0 8px 4px 8px; }
 
-    /* ────────────────────────────────────────────────────
+    /* ═══════════════════════════════════════════════
        MAIN
-    ──────────────────────────────────────────────────── */
+    ═══════════════════════════════════════════════ */
     .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
 
     /* TOP BAR */
     .topbar {
-      height: 52px;
-      background: var(--bg-sidebar);
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      padding: 0 28px;
-      gap: 14px;
-      flex-shrink: 0;
+      height: 52px; background: transparent;
+      display: flex; align-items: center; justify-content: flex-end;
+      padding: 0 28px; gap: 14px; flex-shrink: 0;
     }
-
     .notif-btn {
-      position: relative; width: 34px; height: 34px;
+      position: relative; width: 34px; height: 34px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      cursor: pointer; border-radius: 50%; transition: background 0.15s;
+      cursor: pointer; transition: background 0.15s;
     }
-    .notif-btn:hover { background: #F3F4F6; }
-    .notif-btn svg { width: 20px; height: 20px; fill: #4B5563; }
+    .notif-btn:hover { background: rgba(255,255,255,0.7); }
+    .notif-btn svg { width: 20px; height: 20px; fill: #374151; }
     .notif-dot {
-      position: absolute; top: 8px; right: 7px;
-      width: 8px; height: 8px;
-      background: #EF4444; border-radius: 50%; border: 2px solid white;
+      position: absolute; top: 7px; right: 6px;
+      width: 9px; height: 9px; background: #EF4444; border-radius: 50%; border: 2px solid var(--bg-page);
     }
-
     .user-avatar {
-      width: 32px; height: 32px; border-radius: 50%;
-      background: #374151; color: #fff;
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 700; font-size: 0.82rem; cursor: pointer;
+      width: 34px; height: 34px; border-radius: 50%; background: #1F2937;
+      color: #fff; display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 0.84rem; cursor: pointer;
     }
 
-    /* CONTENT */
-    .content { flex: 1; overflow-y: auto; padding: 28px 32px 32px 32px; }
+    /* CONTENT SCROLL */
+    .content { flex: 1; overflow-y: auto; padding: 4px 28px 28px 28px; }
     .content::-webkit-scrollbar { width: 0; }
 
     /* Views */
@@ -197,106 +155,165 @@
     .view.active { display: block; animation: fadeIn 0.18s ease; }
     @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
 
-    /* ════════════════════════════════════════════════════
+    /* ═══════════════════════════════════════════════
        HOME VIEW
-    ════════════════════════════════════════════════════ */
+    ═══════════════════════════════════════════════ */
 
-    /* Greeting */
-    .greeting-row {
-      display: flex; align-items: flex-end; justify-content: space-between;
+    /* ── HERO SECTION ────────────────────────────── */
+    .hero {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
       margin-bottom: 22px;
-    }
-    .greeting-left h1 {
-      font-size: 1.65rem; font-weight: 800;
-      color: var(--text-primary); letter-spacing: -0.03em; line-height: 1.2;
-    }
-    .greeting-left .user-code {
-      font-size: 0.84rem; font-weight: 500;
-      color: var(--text-secondary); margin-top: 4px;
-    }
-    .greeting-tagline {
-      font-size: 0.84rem; color: var(--text-muted);
-      font-weight: 500; padding-bottom: 4px;
+      min-height: 110px;
+      position: relative;
     }
 
-    /* ── CHANGE 2: Action Cards — slightly taller, slightly narrower ── */
+    .hero-left { padding-top: 4px; }
+
+    .hero-greet {
+      font-size: 0.9rem; font-weight: 500; color: var(--text-secondary);
+      margin-bottom: 4px; font-style: italic;
+    }
+    .hero-name {
+      font-size: 2.2rem; font-weight: 900; color: var(--text-h1);
+      letter-spacing: -0.04em; line-height: 1.1;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .hero-name .wave { font-style: normal; }
+    .hero-code {
+      font-size: 0.84rem; font-weight: 500; color: var(--text-secondary);
+      margin-top: 6px;
+    }
+
+    /* Decorative right illustration */
+    .hero-art {
+      position: relative;
+      width: 360px; height: 110px;
+      flex-shrink: 0;
+      overflow: visible;
+    }
+
+    /* White blob shapes behind illustration */
+    .blob-art {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.82);
+    }
+    .blob-art-1 { width: 200px; height: 150px; top: -30px; right: -10px; border-radius: 60% 40% 55% 45% / 50% 60% 40% 50%; }
+    .blob-art-2 { width: 130px; height: 100px; top: -10px; right: 140px; border-radius: 50% 60% 40% 55% / 60% 45% 55% 40%; }
+
+    /* Handwritten text */
+    .hero-handwrite {
+      position: absolute;
+      top: 8px; right: 188px;
+      font-family: 'Caveat', cursive;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #2D2D2D;
+      line-height: 1.35;
+      text-align: center;
+      z-index: 2;
+      transform: rotate(-3deg);
+    }
+
+    /* Laptop SVG */
+    .laptop-art {
+      position: absolute;
+      bottom: -12px; right: 50px;
+      z-index: 2;
+    }
+
+    /* Plant SVG */
+    .plant-art {
+      position: absolute;
+      bottom: -14px; right: 0px;
+      z-index: 2;
+    }
+
+    /* Mug SVG */
+    .mug-art {
+      position: absolute;
+      bottom: -12px; right: 152px;
+      z-index: 2;
+    }
+
+    /* ── ACTION CARDS ─────────────────────────────── */
     .action-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 14px;
+      gap: 16px;
       margin-bottom: 20px;
-      max-width: 94%;         /* slightly narrower */
     }
 
     .action-card {
       background: var(--bg-card);
-      border: 1px solid var(--border-card);
-      border-radius: var(--radius-card);
-      padding: 22px 20px;     /* increased vertical padding for taller height */
-      display: flex;
-      align-items: center;
-      gap: 14px;
+      border-radius: var(--r-card);
+      padding: 24px 22px;
+      min-height: 105px;
+      display: flex; align-items: center; gap: 14px;
       box-shadow: var(--shadow-card);
+      border: 1px solid rgba(229,231,235,0.5);
     }
 
     .card-icon {
-      width: 44px; height: 44px; border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
+      width: 42px; height: 42px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
     }
-    .card-icon-orange { background: var(--orange-icon-bg); }
-    .card-icon-orange svg { width: 22px; height: 22px; fill: var(--red); }
-    .card-icon-gray   { background: #F3F4F6; }
-    .card-icon-gray svg { width: 22px; height: 22px; fill: #6B7280; }
+    .card-icon-red    { background: var(--red-icon-bg); }
+    .card-icon-red svg { width: 20px; height: 20px; fill: var(--red); }
+    .card-icon-blue   { background: var(--blue-icon-bg); }
+    .card-icon-blue svg { width: 20px; height: 20px; fill: var(--blue); }
 
     .card-info { flex: 1; min-width: 0; }
-    .card-info-title { font-size: 0.93rem; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
-    .card-info-sub   { font-size: 0.78rem; color: var(--text-secondary); line-height: 1.45; }
+    .card-info-title { font-size: 0.92rem; font-weight: 700; color: var(--text-primary); margin-bottom: 3px; }
+    .card-info-sub   { font-size: 0.77rem; color: var(--text-secondary); line-height: 1.4; }
 
-    .btn-red {
+    /* Red "+ New Meeting" pill button */
+    .btn-red-pill {
       display: inline-flex; align-items: center; gap: 6px;
       background: var(--red); color: #fff; border: none;
-      height: 38px; padding: 0 18px; border-radius: 22px;
-      font-size: 0.85rem; font-weight: 700; cursor: pointer; font-family: inherit;
-      white-space: nowrap;
-      box-shadow: 0 3px 12px rgba(220,53,69,0.32);
-      transition: all 0.16s ease; flex-shrink: 0;
+      height: 36px; padding: 0 18px; border-radius: 20px;
+      font-size: 0.84rem; font-weight: 700; cursor: pointer; font-family: inherit;
+      white-space: nowrap; flex-shrink: 0;
+      box-shadow: 0 3px 10px rgba(229,57,53,0.35);
+      transition: all 0.15s ease;
     }
-    .btn-red:hover { background: var(--red-dark); transform: translateY(-1px); }
-    .btn-red:active { transform: translateY(0); }
+    .btn-red-pill:hover { background: var(--red-dark); transform: translateY(-1px); }
+    .btn-red-pill:active { transform: translateY(0); }
 
+    /* Join input + blue button */
     .join-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
     .join-input {
-      height: 36px; border: 1px solid var(--border); border-radius: 6px;
-      padding: 0 12px; font-size: 0.82rem; color: var(--text-primary);
-      background: #FAFAFA; outline: none; font-family: inherit; width: 180px;
-      transition: border 0.15s, box-shadow 0.15s;
+      height: 34px; border: 1px solid var(--border); border-radius: 6px;
+      padding: 0 11px; font-size: 0.8rem; color: var(--text-primary);
+      background: #F9FAFB; outline: none; font-family: inherit; width: 185px;
+      transition: border 0.15s;
     }
     .join-input::placeholder { color: var(--text-muted); }
-    .join-input:focus { border-color: var(--red); box-shadow: 0 0 0 3px rgba(220,53,69,0.12); background:#fff; }
-    .btn-join-sm {
+    .join-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); background: #fff; }
+    .btn-blue {
       display: inline-flex; align-items: center;
-      background: var(--red); color: #fff; border: none;
-      height: 36px; padding: 0 18px; border-radius: 6px;
-      font-size: 0.85rem; font-weight: 700; cursor: pointer; font-family: inherit;
-      box-shadow: 0 2px 8px rgba(220,53,69,0.28); transition: all 0.16s ease; flex-shrink: 0;
+      background: var(--blue); color: #fff; border: none;
+      height: 34px; padding: 0 18px; border-radius: 6px;
+      font-size: 0.84rem; font-weight: 700; cursor: pointer; font-family: inherit;
+      box-shadow: 0 2px 8px rgba(37,99,235,0.32); transition: all 0.15s ease; flex-shrink: 0;
     }
-    .btn-join-sm:hover { background: var(--red-dark); }
+    .btn-blue:hover { background: var(--blue-dark); }
 
-    /* ── CHANGE 3 & 4: Bottom layout — upcoming bigger, notes narrower tall ── */
+    /* ── BOTTOM SPLIT ─────────────────────────────── */
     .bottom-row {
       display: grid;
-      grid-template-columns: 2fr 0.72fr;   /* upcoming wider, notes narrower */
+      grid-template-columns: 1.8fr 0.82fr;
       gap: 16px;
-      max-width: 94%;
-      align-items: start;
+      align-items: stretch;
     }
 
-    /* Panel (white card wrapper) */
+    /* White panel card */
     .panel {
       background: var(--bg-card);
-      border: 1px solid var(--border-card);
-      border-radius: var(--radius-card);
+      border-radius: var(--r-card);
+      border: 1px solid rgba(229,231,235,0.5);
       box-shadow: var(--shadow-card);
       overflow: hidden;
     }
@@ -307,199 +324,149 @@
       border-bottom: 1px solid #F3F4F6;
     }
     .panel-title-group { display: flex; align-items: center; gap: 8px; }
-    .panel-title { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); }
-    .panel-title-icon svg { width: 17px; height: 17px; fill: #6B7280; }
+    .panel-title-icon svg { width: 17px; height: 17px; fill: #6B7280; display: block; }
+    .panel-title { font-size: 0.88rem; font-weight: 700; color: var(--text-primary); }
 
     .view-all-link {
-      display: inline-flex; align-items: center; gap: 4px;
-      font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);
+      display: inline-flex; align-items: center; gap: 3px;
+      font-size: 0.78rem; font-weight: 600; color: var(--text-secondary);
       cursor: pointer; transition: color 0.15s;
     }
-    .view-all-link:hover { color: var(--text-primary); }
+    .view-all-link:hover { color: var(--blue); }
     .view-all-link svg { width: 14px; height: 14px; fill: currentColor; }
 
-    /* ──────────────────────────────────────────────────
-       CHANGE 3: CALENDAR (horizontal week strip)
-    ────────────────────────────────────────────────── */
+    /* ── CALENDAR STRIP ───────────────────────────── */
     .cal-wrap {
-      padding: 14px 18px 12px 18px;
+      padding: 12px 16px 10px 16px;
       border-bottom: 1px solid #F3F4F6;
     }
 
-    /* Top row: "Mon 14 Sept 📅" */
-    .cal-date-label {
-      display: flex; align-items: center; gap: 8px;
-      margin-bottom: 12px;
-    }
-    .cal-date-label span {
-      font-size: 0.9rem; font-weight: 700; color: var(--text-primary);
-    }
-    .cal-date-label svg { width: 16px; height: 16px; fill: #6B7280; cursor: pointer; }
+    .cal-week { display: flex; align-items: center; gap: 2px; }
 
-    /* Week strip */
-    .cal-week {
-      display: flex;
-      align-items: center;
-      gap: 0;
-    }
-    .cal-nav-btn {
-      width: 28px; height: 28px; border-radius: 50%;
+    .cal-nav {
+      width: 26px; height: 26px; border-radius: 50%;
       background: none; border: none; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       color: #6B7280; flex-shrink: 0; transition: background 0.15s;
     }
-    .cal-nav-btn:hover { background: #F3F4F6; }
-    .cal-nav-btn svg { width: 16px; height: 16px; fill: #6B7280; }
+    .cal-nav:hover { background: #F3F4F6; }
+    .cal-nav svg { width: 16px; height: 16px; fill: #6B7280; }
 
-    .cal-days {
-      display: flex; flex: 1; justify-content: space-around; gap: 2px;
-    }
+    .cal-days { display: flex; flex: 1; justify-content: space-around; }
 
     .cal-day {
-      display: flex; flex-direction: column; align-items: center;
-      gap: 4px; padding: 6px 8px; border-radius: 10px;
-      cursor: pointer; transition: background 0.15s;
-      min-width: 48px;
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      padding: 5px 4px; border-radius: 10px; cursor: pointer;
+      transition: background 0.15s; min-width: 44px;
     }
-    .cal-day:hover { background: #F9FAFB; }
+    .cal-day:hover:not(.today) { background: #F9FAFB; }
 
     .cal-day-name {
-      font-size: 0.68rem; font-weight: 700;
-      letter-spacing: 0.04em; text-transform: uppercase;
-      color: var(--text-muted);
+      font-size: 0.65rem; font-weight: 700; letter-spacing: 0.04em;
+      text-transform: uppercase; color: var(--text-muted);
     }
+    .cal-day.today .cal-day-name { color: var(--blue); }
 
     .cal-day-num {
-      width: 32px; height: 32px; border-radius: 50%;
+      width: 30px; height: 30px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      font-size: 0.9rem; font-weight: 700; color: var(--text-primary);
-      transition: background 0.15s;
+      font-size: 0.88rem; font-weight: 700; color: var(--text-primary);
     }
+    .cal-day.today .cal-day-num { background: var(--blue-cal); color: #fff; }
+    .cal-day.selected:not(.today) .cal-day-num { background: var(--blue-cal-bg); color: var(--blue); }
 
-    /* Today's date — filled blue circle */
-    .cal-day.today .cal-day-name { color: var(--blue-cal); }
-    .cal-day.today .cal-day-num {
-      background: var(--blue-cal);
-      color: #ffffff;
-    }
+    .cal-dot-row { height: 7px; display: flex; align-items: center; justify-content: center; }
+    .cal-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--red-dot); }
 
-    /* Selected day */
-    .cal-day.selected .cal-day-num {
-      background: var(--blue-cal-light);
-      color: var(--blue-cal);
-    }
+    /* Upcoming meetings list / empty state */
+    .upcoming-list { padding: 12px 18px 18px 18px; }
 
-    /* Dot indicator for days with meetings */
-    .cal-dot {
-      width: 5px; height: 5px; border-radius: 50%;
-      background: var(--red); flex-shrink: 0;
-    }
-
-    /* Upcoming meetings list inside panel */
-    .upcoming-list {
-      padding: 14px 18px 20px 18px;
-    }
     .upcoming-empty {
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      padding: 24px 20px; text-align: center;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; padding: 22px 16px 8px 16px; text-align: center;
     }
-    .upcoming-empty svg { width: 36px; height: 36px; fill: #D1D5DB; margin-bottom: 10px; }
-    .upcoming-empty-title { font-size: 0.88rem; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
-    .upcoming-empty-sub { font-size: 0.78rem; color: var(--text-secondary); line-height: 1.45; }
+    .upcoming-empty-icon {
+      width: 44px; height: 44px; border-radius: 10px;
+      background: #F3F4F6;
+      display: flex; align-items: center; justify-content: center; margin-bottom: 12px;
+    }
+    .upcoming-empty-icon svg { width: 22px; height: 22px; fill: #9CA3AF; }
+    .upcoming-empty-title { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+    .upcoming-empty-sub   { font-size: 0.78rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 14px; }
+
+    .btn-outline-blue {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: transparent; color: var(--blue);
+      border: 1.5px solid var(--blue); height: 34px; padding: 0 16px;
+      border-radius: 8px; font-size: 0.82rem; font-weight: 700;
+      cursor: pointer; font-family: inherit; transition: all 0.15s ease;
+    }
+    .btn-outline-blue:hover { background: var(--blue-light-bg); }
+    .btn-outline-blue svg { width: 13px; height: 13px; fill: var(--blue); }
 
     /* Meeting item row */
     .meeting-item {
       display: flex; align-items: center; gap: 12px;
-      padding: 10px 0; border-bottom: 1px solid #F9FAFB;
+      padding: 9px 0; border-bottom: 1px solid #F9FAFB;
     }
     .meeting-item:last-child { border-bottom: none; }
-    .meeting-time {
-      font-size: 0.75rem; font-weight: 700; color: var(--text-secondary);
-      width: 44px; flex-shrink: 0; text-align: right;
-    }
-    .meeting-dot-line {
-      display: flex; flex-direction: column; align-items: center; gap: 0;
-      flex-shrink: 0;
-    }
-    .meeting-dot {
-      width: 8px; height: 8px; border-radius: 50%; background: var(--red);
-    }
+    .meeting-time { font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); width: 50px; flex-shrink: 0; }
+    .meeting-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--blue); flex-shrink: 0; }
     .meeting-info { flex: 1; }
-    .meeting-title { font-size: 0.85rem; font-weight: 700; color: var(--text-primary); }
-    .meeting-sub   { font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px; }
-    .btn-join-meeting {
-      font-size: 0.75rem; font-weight: 700; color: var(--red);
-      background: none; border: 1px solid var(--red); border-radius: 6px;
-      padding: 4px 12px; cursor: pointer; font-family: inherit;
+    .meeting-title { font-size: 0.84rem; font-weight: 700; color: var(--text-primary); }
+    .meeting-sub   { font-size: 0.73rem; color: var(--text-secondary); margin-top: 1px; }
+    .btn-join-sm {
+      font-size: 0.74rem; font-weight: 700; color: var(--blue);
+      background: var(--blue-light-bg); border: none; border-radius: 6px;
+      padding: 5px 12px; cursor: pointer; font-family: inherit;
       transition: all 0.15s; flex-shrink: 0;
     }
-    .btn-join-meeting:hover { background: #FFF5F5; }
+    .btn-join-sm:hover { background: var(--blue-icon-bg); }
 
-    /* Btn outline (for empty state) */
-    .btn-outline {
-      display: inline-flex; align-items: center; gap: 6px;
-      background: transparent; color: var(--text-primary);
-      border: 1.5px solid var(--border-card);
-      height: 34px; padding: 0 16px; border-radius: 8px;
-      font-size: 0.82rem; font-weight: 600;
-      cursor: pointer; font-family: inherit; transition: all 0.15s ease;
-      margin-top: 12px;
-    }
-    .btn-outline:hover { border-color: var(--red); color: var(--red); background: #FFF5F5; }
-
-    /* ── CHANGE 4: Notes — standing tall rectangle ── */
+    /* ── NOTES PANEL ──────────────────────────────── */
     .notes-panel {
       background: var(--bg-card);
-      border: 1px solid var(--border-card);
-      border-radius: var(--radius-card);
+      border-radius: var(--r-card);
+      border: 1px solid rgba(229,231,235,0.5);
       box-shadow: var(--shadow-card);
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
+      display: flex; flex-direction: column;
+      height: 100%;
     }
 
-    .notes-body {
-      padding: 12px 14px 14px 14px;
-      flex: 1;
-      display: flex; flex-direction: column;
-    }
+    .notes-body { padding: 12px 16px 10px 16px; flex: 1; display: flex; flex-direction: column; }
+
     .notes-textarea {
-      width: 100%;
-      flex: 1;
-      min-height: 280px;       /* tall — standing rectangle */
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px 12px;
-      font-size: 0.84rem;
-      font-family: inherit;
-      color: var(--text-primary);
-      outline: none;
-      resize: none;
-      line-height: 1.6;
-      background: #FAFAFA;
-      transition: border 0.15s;
+      width: 100%; flex: 1; min-height: 250px;
+      border: 1px solid #E5E7EB; border-radius: 8px;
+      padding: 12px 12px; font-size: 0.84rem; font-family: inherit;
+      color: var(--text-primary); outline: none; resize: none;
+      line-height: 1.6; background: #FAFAFA; transition: border 0.15s;
     }
     .notes-textarea::placeholder { color: var(--text-muted); }
     .notes-textarea:focus { border-color: #D1D5DB; background: #fff; }
 
-    /* ════════════════════════════════════════════════════
+    .notes-footer {
+      text-align: right; padding: 4px 16px 10px 16px;
+      font-size: 0.72rem; color: var(--text-muted); font-weight: 500;
+    }
+
+    /* ═══════════════════════════════════════════════
        VAULT VIEW
-    ════════════════════════════════════════════════════ */
+    ═══════════════════════════════════════════════ */
     .vault-search-bar { display: flex; gap: 12px; margin-bottom: 20px; }
     .vault-input {
       flex: 1; height: 44px; border: 1px solid var(--border); border-radius: 8px;
       padding: 0 16px; font-size: 0.9rem; outline: none; font-family: inherit; background: #fff;
       transition: border 0.15s;
     }
-    .vault-input:focus { border-color: var(--red); }
+    .vault-input:focus { border-color: var(--blue); }
 
-    /* ════════════════════════════════════════════════════
+    /* ═══════════════════════════════════════════════
        SETTINGS VIEW
-    ════════════════════════════════════════════════════ */
+    ═══════════════════════════════════════════════ */
     .settings-panel {
       background: var(--bg-card); border: 1px solid var(--border-card);
-      border-radius: var(--radius-card); box-shadow: var(--shadow-card);
+      border-radius: var(--r-card); box-shadow: var(--shadow-card);
       padding: 28px; max-width: 480px;
     }
     .form-group { margin-bottom: 18px; }
@@ -508,62 +475,57 @@
       width: 100%; height: 40px; border: 1px solid var(--border); border-radius: 8px;
       padding: 0 12px; font-size: 0.86rem; outline: none; font-family: inherit; background: #FAFAFA;
     }
-    .form-select:focus { border-color: var(--red); }
 
-    /* ════════════════════════════════════════════════════
+    /* ═══════════════════════════════════════════════
        ROOM VIEW
-    ════════════════════════════════════════════════════ */
+    ═══════════════════════════════════════════════ */
     .room-wrap {
-      height: calc(100vh - 120px); background: #0D1117;
+      height: calc(100vh - 100px); background: #0D1117;
       border-radius: 12px; overflow: hidden; display: flex; flex-direction: column;
     }
     .room-video { flex: 1; position: relative; }
     #webcam-video { width:100%; height:100%; object-fit:cover; display:block; }
-    #cam-ph {
-      display:none; width:100%; height:100%;
-      align-items:center; justify-content:center; flex-direction:column; gap:12px; background:#0d1117;
-    }
-    .room-controls-bar {
-      height: 68px; background: rgba(15,23,42,0.95);
+    #cam-ph { display:none; width:100%; height:100%; background:#0d1117; align-items:center; justify-content:center; flex-direction:column; gap:12px; }
+    .room-bar {
+      height: 66px; background: rgba(15,23,42,0.95);
       display: flex; align-items: center; justify-content: space-between;
       padding: 0 28px; border-top: 1px solid rgba(255,255,255,0.07);
     }
-    .ctrl { width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,0.12); border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.15s; }
+    .ctrl { width:42px; height:42px; border-radius:50%; background:rgba(255,255,255,0.12); border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.15s; }
     .ctrl:hover { background:rgba(255,255,255,0.22); }
     .ctrl.off { background:#EF4444; }
     .ctrl svg { width:20px; height:20px; fill:#fff; }
-    .ctrl-group { display:flex; gap:12px; }
-    .btn-end-call { display:flex; align-items:center; gap:8px; background:#EF4444; color:#fff; border:none; height:40px; padding:0 20px; border-radius:999px; font-weight:700; cursor:pointer; font-family:inherit; }
-    .btn-end-call svg { width:18px; height:18px; fill:#fff; }
-    .room-label { color:rgba(255,255,255,0.65); font-size:0.85rem; font-weight:600; }
+    .ctrl-group { display:flex; gap:10px; }
+    .btn-end { display:flex; align-items:center; gap:8px; background:#EF4444; color:#fff; border:none; height:38px; padding:0 20px; border-radius:999px; font-weight:700; cursor:pointer; font-family:inherit; }
+    .btn-end svg { width:18px; height:18px; fill:#fff; }
+    .room-lbl { color:rgba(255,255,255,0.65); font-size:0.84rem; font-weight:600; }
 
     /* DRAWER */
-    .overlay { position:fixed; inset:0; background:rgba(0,0,0,0.3); backdrop-filter:blur(3px); z-index:200; display:none; justify-content:flex-end; }
+    .overlay { position:fixed; inset:0; background:rgba(0,0,0,0.28); backdrop-filter:blur(3px); z-index:200; display:none; justify-content:flex-end; }
     .overlay.open { display:flex; }
-    .drawer { width:380px; height:100%; background:#fff; box-shadow:-8px 0 32px rgba(0,0,0,0.1); padding:28px 24px; display:flex; flex-direction:column; animation:slideIn 0.24s cubic-bezier(0.16,1,0.3,1); }
+    .drawer { width:370px; height:100%; background:#fff; box-shadow:-6px 0 30px rgba(0,0,0,0.1); padding:26px 22px; display:flex; flex-direction:column; animation:slideIn 0.22s cubic-bezier(0.16,1,0.3,1); }
     @keyframes slideIn { from{transform:translateX(100%);} to{transform:translateX(0);} }
-    .drawer-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:22px; }
-    .drawer-head h2 { font-size:1.1rem; font-weight:800; }
-    .drawer-close { width:30px; height:30px; border-radius:50%; background:#F3F4F6; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; }
-    .drawer-close svg { width:16px; height:16px; fill:#6B7280; }
-    .drawer-opt { display:flex; align-items:center; gap:14px; border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:12px; cursor:pointer; transition:all 0.15s; }
-    .drawer-opt:hover { border-color:var(--red); background:#FFF5F5; }
-    .dopt-icon { width:42px; height:42px; border-radius:10px; background:var(--red); display:flex; align-items:center; justify-content:center; }
-    .dopt-icon svg { width:20px; height:20px; fill:#fff; }
+    .drawer-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+    .drawer-head h2 { font-size:1.05rem; font-weight:800; }
+    .drawer-close { width:28px; height:28px; border-radius:50%; background:#F3F4F6; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+    .drawer-close svg { width:14px; height:14px; fill:#6B7280; }
+    .drawer-opt { display:flex; align-items:center; gap:14px; border:1px solid var(--border); border-radius:10px; padding:13px 14px; margin-bottom:10px; cursor:pointer; transition:all 0.14s; }
+    .drawer-opt:hover { border-color:var(--blue); background:var(--blue-light-bg); }
+    .dopt-icon { width:40px; height:40px; border-radius:10px; background:var(--red); display:flex; align-items:center; justify-content:center; }
+    .dopt-icon svg { width:19px; height:19px; fill:#fff; }
     .dopt-icon.green { background:#22C55E; }
-    .dopt-icon.blue  { background:#3B82F6; }
-    .dopt-title { font-size:0.9rem; font-weight:700; }
-    .dopt-sub   { font-size:0.77rem; color:var(--text-secondary); margin-top:2px; }
+    .dopt-icon.blue  { background:var(--blue); }
+    .dopt-title { font-size:0.88rem; font-weight:700; }
+    .dopt-sub   { font-size:0.75rem; color:var(--text-secondary); margin-top:2px; }
   </style>
 </head>
 <body>
 <div class="app">
 
-  <!-- ══════════════════════════════════
-       SIDEBAR  — icons big, stacked above labels
-  ══════════════════════════════════ -->
+  <!-- ════════════════════════════════
+       SIDEBAR
+  ════════════════════════════════ -->
   <aside class="sidebar">
-
     <div class="brand" onclick="switchView('home')">
       <div class="brand-icon">
         <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
@@ -572,37 +534,33 @@
     </div>
 
     <nav class="nav">
-      <!-- HOME -->
       <div class="nav-item active" id="nav-home" onclick="switchView('home')">
         <div class="nav-icon">
           <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
         </div>
-        <span class="nav-label">Home</span>
+        <span class="nav-label">HOME</span>
       </div>
-      <!-- VAULT -->
       <div class="nav-item" id="nav-vault" onclick="switchView('vault')">
         <div class="nav-icon">
-          <svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
         </div>
-        <span class="nav-label">Vault</span>
+        <span class="nav-label">VAULT</span>
       </div>
     </nav>
 
-    <!-- SETTINGS bottom -->
     <div class="sidebar-bottom">
       <div class="nav-item" id="nav-settings" onclick="switchView('settings')">
         <div class="nav-icon">
           <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
         </div>
-        <span class="nav-label">Settings</span>
+        <span class="nav-label">SETTINGS</span>
       </div>
     </div>
-
   </aside>
 
-  <!-- ══════════════════════════════════
-       MAIN
-  ══════════════════════════════════ -->
+  <!-- ════════════════════════════════
+       MAIN CONTENT
+  ════════════════════════════════ -->
   <div class="main">
 
     <!-- TOP BAR -->
@@ -616,39 +574,96 @@
 
     <div class="content">
 
-      <!-- ══════════════════════════════
+      <!-- ════════════════════════════
            HOME VIEW
-      ══════════════════════════════ -->
+      ════════════════════════════ -->
       <div class="view active" id="view-home">
 
-        <!-- Greeting -->
-        <div class="greeting-row">
-          <div class="greeting-left">
-            <h1>Good to see you, Arfaaz Khan</h1>
-            <div class="user-code">MTG-DA22D7</div>
+        <!-- HERO SECTION -->
+        <div class="hero">
+          <div class="hero-left">
+            <div class="hero-greet">Good to see you,</div>
+            <div class="hero-name">
+              Arfaaz Khan <span class="wave">👋</span>
+            </div>
+            <div class="hero-code">MTG-DA22D7</div>
           </div>
-          <div class="greeting-tagline">Make meetings more productive.</div>
+
+          <!-- Decorative illustration (right side) -->
+          <div class="hero-art">
+            <!-- Blob backgrounds -->
+            <div class="blob-art blob-art-1"></div>
+            <div class="blob-art blob-art-2"></div>
+
+            <!-- Handwritten text -->
+            <div class="hero-handwrite">Brighter<br>Meetings<br>Better Ideas</div>
+
+            <!-- Mug SVG -->
+            <div class="mug-art">
+              <svg width="42" height="46" viewBox="0 0 42 46" fill="none">
+                <rect x="3" y="10" width="28" height="30" rx="4" fill="#BFDBFE"/>
+                <rect x="3" y="10" width="28" height="6" rx="4" fill="#93C5FD"/>
+                <path d="M31 16 Q40 16 40 24 Q40 32 31 32" stroke="#93C5FD" stroke-width="3" fill="none" stroke-linecap="round"/>
+                <rect x="8" y="40" width="18" height="3" rx="1.5" fill="#93C5FD"/>
+              </svg>
+            </div>
+
+            <!-- Laptop SVG -->
+            <div class="laptop-art">
+              <svg width="100" height="80" viewBox="0 0 100 80" fill="none">
+                <!-- Screen -->
+                <rect x="10" y="4" width="80" height="54" rx="6" fill="#E2E8F0"/>
+                <rect x="14" y="8" width="72" height="46" rx="4" fill="#FFFFFF"/>
+                <!-- Camera icon on screen -->
+                <rect x="32" y="18" width="36" height="28" rx="3" fill="#BFDBFE" opacity="0.6"/>
+                <circle cx="50" cy="32" r="9" fill="#93C5FD"/>
+                <path d="M46 30 L54 30 L57 27 L57 37 L54 34 L46 34 Z" fill="#2563EB"/>
+                <!-- Base/keyboard -->
+                <rect x="4" y="58" width="92" height="6" rx="3" fill="#CBD5E1"/>
+                <rect x="28" y="62" width="44" height="3" rx="1.5" fill="#94A3B8"/>
+              </svg>
+            </div>
+
+            <!-- Plant SVG -->
+            <div class="plant-art">
+              <svg width="44" height="58" viewBox="0 0 44 58" fill="none">
+                <!-- Pot -->
+                <path d="M10 38 L8 54 Q8 56 10 56 L34 56 Q36 56 36 54 L34 38Z" fill="#D97706"/>
+                <rect x="8" y="35" width="28" height="5" rx="2.5" fill="#F59E0B"/>
+                <!-- Soil -->
+                <ellipse cx="22" cy="40" rx="13" ry="3" fill="#92400E" opacity="0.5"/>
+                <!-- Leaves -->
+                <path d="M22 38 Q14 26 10 18 Q18 22 22 32" fill="#4ADE80"/>
+                <path d="M22 38 Q30 26 34 18 Q26 22 22 32" fill="#22C55E"/>
+                <path d="M22 38 Q10 32 4 28 Q12 30 20 36" fill="#4ADE80" opacity="0.8"/>
+                <path d="M22 38 Q34 32 40 28 Q32 30 24 36" fill="#16A34A" opacity="0.8"/>
+                <path d="M22 38 Q20 24 22 14 Q24 24 22 38" fill="#22C55E" opacity="0.9"/>
+              </svg>
+            </div>
+          </div>
         </div>
 
-        <!-- Action Cards — slightly taller, slightly less wide -->
+        <!-- ACTION CARDS -->
         <div class="action-row">
 
+          <!-- Create a Meeting -->
           <div class="action-card">
-            <div class="card-icon card-icon-orange">
+            <div class="card-icon card-icon-red">
               <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
             </div>
             <div class="card-info">
               <div class="card-info-title">Create a Meeting</div>
               <div class="card-info-sub">Start an instant meeting and invite others.</div>
             </div>
-            <button class="btn-red" onclick="openDrawer()">
+            <button class="btn-red-pill" onclick="openDrawer()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="white"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
               New Meeting
             </button>
           </div>
 
+          <!-- Join a Meeting -->
           <div class="action-card">
-            <div class="card-icon card-icon-gray">
+            <div class="card-icon card-icon-blue">
               <svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>
             </div>
             <div class="card-info">
@@ -656,19 +671,20 @@
               <div class="card-info-sub">Enter a meeting code to join.</div>
             </div>
             <div class="join-right">
-              <input type="text" class="join-input" id="join-code" placeholder="Enter meeting code (e.g. MTG-XXX-XX)" onkeydown="if(event.key==='Enter') doJoin()">
-              <button class="btn-join-sm" onclick="doJoin()">Join</button>
+              <input class="join-input" type="text" id="join-code"
+                placeholder="Enter meeting code (e.g. ABC-1231)"
+                onkeydown="if(event.key==='Enter') doJoin()">
+              <button class="btn-blue" onclick="doJoin()">Join</button>
             </div>
           </div>
 
         </div><!-- /action-row -->
 
-        <!-- Bottom: Upcoming Meetings (big) + Notes (narrow tall) -->
+        <!-- BOTTOM: Upcoming Meetings + Notes -->
         <div class="bottom-row">
 
-          <!-- ── UPCOMING MEETINGS with Calendar ── -->
+          <!-- Upcoming Meetings panel with calendar -->
           <div class="panel">
-            <!-- Panel header -->
             <div class="panel-head">
               <div class="panel-title-group">
                 <div class="panel-title-icon">
@@ -684,32 +700,22 @@
 
             <!-- Calendar week strip -->
             <div class="cal-wrap">
-              <!-- Date label row -->
-              <div class="cal-date-label">
-                <span id="cal-month-label">Mon 14 Sept</span>
-                <svg viewBox="0 0 24 24" onclick="alert('Open full calendar')">
-                  <path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-2 .9-2 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/>
-                </svg>
-              </div>
-              <!-- Week navigation + days -->
               <div class="cal-week">
-                <button class="cal-nav-btn" onclick="shiftWeek(-1)">
+                <button class="cal-nav" onclick="shiftWeek(-1)">
                   <svg viewBox="0 0 24 24"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6z"/></svg>
                 </button>
                 <div class="cal-days" id="cal-days-row"></div>
-                <button class="cal-nav-btn" onclick="shiftWeek(1)">
+                <button class="cal-nav" onclick="shiftWeek(1)">
                   <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg>
                 </button>
               </div>
             </div>
 
-            <!-- Upcoming meetings list -->
-            <div class="upcoming-list" id="upcoming-list">
-              <!-- Populated by JS based on selected day -->
-            </div>
-          </div><!-- /upcoming panel -->
+            <!-- Meeting list for selected day -->
+            <div class="upcoming-list" id="upcoming-list"></div>
+          </div>
 
-          <!-- ── NOTES — narrow tall rectangle ── -->
+          <!-- Notes panel -->
           <div class="notes-panel">
             <div class="panel-head">
               <div class="panel-title-group">
@@ -725,43 +731,44 @@
             </div>
             <div class="notes-body">
               <textarea class="notes-textarea" id="notes-field"
-                placeholder="Write a quick note..." oninput="saveNote(this.value)"></textarea>
+                placeholder="Write a quick note..."
+                maxlength="500"
+                oninput="updateNoteCount(this)"></textarea>
             </div>
+            <div class="notes-footer" id="notes-count">0/500</div>
           </div>
 
         </div><!-- /bottom-row -->
 
       </div><!-- /view-home -->
 
-      <!-- ══════════════════════════════
+      <!-- ════════════════════════════
            VAULT VIEW
-      ══════════════════════════════ -->
+      ════════════════════════════ -->
       <div class="view" id="view-vault">
         <h2 style="font-size:1.4rem;font-weight:800;margin-bottom:4px;">Knowledge Vault</h2>
-        <p style="color:var(--text-secondary);font-size:0.86rem;margin-bottom:24px;">Semantic search across meetings, transcripts and AI summaries.</p>
+        <p style="color:var(--text-secondary);font-size:0.86rem;margin-bottom:24px;">Semantic search across meetings, transcripts and summaries.</p>
         <div class="vault-search-bar">
-          <input type="text" class="vault-input" id="vault-q"
-            placeholder="Ask AI about past meetings…"
-            onkeydown="if(event.key==='Enter') vaultSearch()">
-          <button class="btn-red" onclick="vaultSearch()">Search Vault</button>
+          <input class="vault-input" type="text" id="vault-q" placeholder="Ask AI about past meetings…" onkeydown="if(event.key==='Enter') vaultSearch()">
+          <button class="btn-blue" onclick="vaultSearch()">Search Vault</button>
         </div>
-        <div id="vault-result" style="display:none;background:#fff;border:1px solid var(--border-card);border-radius:10px;padding:18px;font-size:0.9rem;line-height:1.6;box-shadow:var(--shadow-sm);"></div>
+        <div id="vault-result" style="display:none;background:#fff;border:1px solid var(--border-card);border-radius:10px;padding:18px;font-size:0.9rem;line-height:1.6;"></div>
       </div>
 
-      <!-- ══════════════════════════════
+      <!-- ════════════════════════════
            ROOM VIEW
-      ══════════════════════════════ -->
+      ════════════════════════════ -->
       <div class="view" id="view-room">
         <div class="room-wrap">
           <div class="room-video">
             <video id="webcam-video" autoplay playsinline muted></video>
             <div id="cam-ph">
-              <div style="width:72px;height:72px;border-radius:50%;background:#374151;color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.8rem;font-weight:700;">A</div>
+              <div style="width:68px;height:68px;border-radius:50%;background:#374151;color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.7rem;font-weight:700;">A</div>
               <div style="color:#fff;font-weight:600;">Camera Off</div>
             </div>
           </div>
-          <div class="room-controls-bar">
-            <span class="room-label" id="room-label">meetvault.live/instant</span>
+          <div class="room-bar">
+            <span class="room-lbl" id="room-lbl">meetvault.live/instant</span>
             <div class="ctrl-group">
               <button class="ctrl" id="btn-mic" onclick="toggleMic()">
                 <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z"/></svg>
@@ -773,7 +780,7 @@
                 <svg viewBox="0 0 24 24"><path d="M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>
               </button>
             </div>
-            <button class="btn-end-call" onclick="endCall()">
+            <button class="btn-end" onclick="endCall()">
               <svg viewBox="0 0 24 24"><path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56-.35-.12-.74-.03-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/></svg>
               End Call
             </button>
@@ -781,29 +788,23 @@
         </div>
       </div>
 
-      <!-- ══════════════════════════════
+      <!-- ════════════════════════════
            SETTINGS VIEW
-      ══════════════════════════════ -->
+      ════════════════════════════ -->
       <div class="view" id="view-settings">
         <h2 style="font-size:1.4rem;font-weight:800;margin-bottom:4px;">Settings</h2>
-        <p style="color:var(--text-secondary);font-size:0.86rem;margin-bottom:24px;">Manage account, devices and preferences.</p>
+        <p style="color:var(--text-secondary);font-size:0.86rem;margin-bottom:24px;">Manage your account and preferences.</p>
         <div class="settings-panel">
-          <div style="display:flex;align-items:center;gap:14px;margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid var(--border);">
-            <div style="width:48px;height:48px;border-radius:50%;background:#374151;color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:700;">A</div>
+          <div style="display:flex;align-items:center;gap:14px;margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid var(--border);">
+            <div style="width:48px;height:48px;border-radius:50%;background:#1F2937;color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.15rem;font-weight:700;">A</div>
             <div>
-              <div style="font-size:1rem;font-weight:700;">Arfaaz Khan</div>
+              <div style="font-size:0.96rem;font-weight:700;">Arfaaz Khan</div>
               <div style="font-size:0.78rem;color:var(--text-secondary);">MTG-DA22D7 · Personal</div>
             </div>
           </div>
-          <div class="form-group">
-            <label>Camera</label>
-            <select class="form-select"><option>HD Web Camera (Integrated)</option></select>
-          </div>
-          <div class="form-group">
-            <label>Microphone</label>
-            <select class="form-select"><option>Default Microphone Array</option></select>
-          </div>
-          <button class="btn-red" style="width:100%;justify-content:center;border-radius:8px;" onclick="alert('Settings saved!')">Save Settings</button>
+          <div class="form-group"><label>Camera</label><select class="form-select"><option>HD Web Camera (Integrated)</option></select></div>
+          <div class="form-group"><label>Microphone</label><select class="form-select"><option>Default Microphone Array</option></select></div>
+          <button class="btn-blue" style="width:100%;justify-content:center;border-radius:8px;height:42px;" onclick="alert('Settings saved!')">Save Settings</button>
         </div>
       </div>
 
@@ -811,7 +812,7 @@
   </div><!-- /main -->
 </div><!-- /app -->
 
-<!-- DRAWER -->
+<!-- DRAWER MODAL -->
 <div class="overlay" id="drawer-overlay" onclick="closeDrawer(event)">
   <div class="drawer" onclick="event.stopPropagation()">
     <div class="drawer-head">
@@ -822,187 +823,177 @@
     </div>
     <div class="drawer-opt" onclick="startCall()">
       <div class="dopt-icon"><svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg></div>
-      <div><div class="dopt-title">Instant Meeting</div><div class="dopt-sub">Join immediately with camera & mic</div></div>
+      <div><div class="dopt-title">Instant Meeting</div><div class="dopt-sub">Start immediately with camera & mic</div></div>
     </div>
     <div class="drawer-opt" onclick="copyLink()">
       <div class="dopt-icon green"><svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg></div>
-      <div><div class="dopt-title">Create Meeting Link</div><div class="dopt-sub">Generate & copy a shareable room code</div></div>
+      <div><div class="dopt-title">Create Meeting Link</div><div class="dopt-sub">Generate & share a room code</div></div>
     </div>
     <div class="drawer-opt" onclick="alert('Schedule coming soon!')">
       <div class="dopt-icon blue"><svg viewBox="0 0 24 24"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-2 .9-2 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg></div>
-      <div><div class="dopt-title">Schedule Meeting</div><div class="dopt-sub">Pick time, topic and invite attendees</div></div>
+      <div><div class="dopt-title">Schedule Meeting</div><div class="dopt-sub">Pick a time and invite attendees</div></div>
     </div>
   </div>
 </div>
 
 <script>
-  /* ── Notes persistence ─────────────────────────────── */
-  (function(){
-    const n = localStorage.getItem('mv_notes_v3');
-    if(n){ const el=document.getElementById('notes-field'); if(el) el.value=n; }
-  })();
-  function saveNote(v){ localStorage.setItem('mv_notes_v3', v); }
+/* ── Notes ─────────────────────────────────────────────── */
+(function(){
+  const n = localStorage.getItem('mv_notes_v4');
+  if(n){ const el=document.getElementById('notes-field'); if(el){ el.value=n; updateNoteCount(el); } }
+})();
+function updateNoteCount(el){
+  localStorage.setItem('mv_notes_v4', el.value);
+  document.getElementById('notes-count').textContent = el.value.length + '/500';
+}
 
-  /* ── View switching ────────────────────────────────── */
-  function switchView(name){
-    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-    const nav = document.getElementById('nav-' + name);
-    if(nav) nav.classList.add('active');
-    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-    const t = document.getElementById('view-' + name);
-    if(t) t.classList.add('active');
-    if(name !== 'room') stopStream();
+/* ── View switching ─────────────────────────────────────── */
+function switchView(name){
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  const nav = document.getElementById('nav-' + name);
+  if(nav) nav.classList.add('active');
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  const t = document.getElementById('view-' + name);
+  if(t) t.classList.add('active');
+  if(name !== 'room') stopStream();
+}
+
+/* ── Drawer ─────────────────────────────────────────────── */
+function openDrawer(){ document.getElementById('drawer-overlay').classList.add('open'); }
+function closeDrawer(e){
+  if(!e || e.target===document.getElementById('drawer-overlay'))
+    document.getElementById('drawer-overlay').classList.remove('open');
+}
+
+/* ── Media ──────────────────────────────────────────────── */
+let stream=null, micOn=true, camOn=true;
+async function startCall(){
+  closeDrawer(); switchView('room');
+  const vid=document.getElementById('webcam-video');
+  const ph=document.getElementById('cam-ph');
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+    vid.srcObject=stream; vid.style.display='block'; ph.style.display='none';
+  } catch(e){ vid.style.display='none'; ph.style.display='flex'; }
+}
+function stopStream(){ if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } }
+function toggleMic(){ micOn=!micOn; if(stream) stream.getAudioTracks().forEach(t=>t.enabled=micOn); document.getElementById('btn-mic').classList.toggle('off',!micOn); }
+function toggleCam(){
+  camOn=!camOn;
+  const vid=document.getElementById('webcam-video'); const ph=document.getElementById('cam-ph');
+  if(stream) stream.getVideoTracks().forEach(t=>t.enabled=camOn);
+  document.getElementById('btn-cam').classList.toggle('off',!camOn);
+  vid.style.display=camOn?'block':'none'; ph.style.display=camOn?'none':'flex';
+}
+function shareScreen(){ navigator.mediaDevices.getDisplayMedia({video:true}).then(s=>{ document.getElementById('webcam-video').srcObject=s; }).catch(()=>{}); }
+function endCall(){ stopStream(); switchView('home'); }
+
+function doJoin(){
+  const code=document.getElementById('join-code').value.trim();
+  if(!code){ document.getElementById('join-code').focus(); return; }
+  document.getElementById('room-lbl').textContent='meetvault.live/'+code;
+  startCall();
+}
+function copyLink(){
+  const code='MTG-'+Math.random().toString(36).substring(2,7).toUpperCase();
+  navigator.clipboard.writeText('https://meetvault.live/'+code).catch(()=>{});
+  closeDrawer(); alert('Meeting link copied!\n\nhttps://meetvault.live/'+code);
+}
+function vaultSearch(){
+  const q=document.getElementById('vault-q').value.trim();
+  const res=document.getElementById('vault-result');
+  if(!q) return;
+  res.style.display='block';
+  res.innerHTML='<em style="color:#9CA3AF;">Searching for "'+q+'"…</em>';
+  setTimeout(()=>{ res.innerHTML='<strong>Result:</strong> Based on 3 recent meetings: team chose Faster-Whisper for transcription and PostgreSQL queue for async AI processing.'; }, 600);
+}
+
+/* ════════════════════════════════════════════════════════
+   CALENDAR — horizontal week strip
+   Matches image: SUN 13 | MON 14(blue) | TUE 15 | WED 16 | THU 17 | FRI 18 | SAT 19
+   Red dots on TUE 15, THU 17, SAT 19 (sample meetings)
+   Blue dot on MON 14 (today)
+════════════════════════════════════════════════════════ */
+const DAY_SHORT = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+
+// Days with sample meetings (offset from today)
+const MEETINGS_DB = {
+  1:  [{ time:'10:00 AM', title:'Product Standup', sub:'Team · 30 min' },
+       { time:'3:00 PM',  title:'Design Review',   sub:'Arfaaz, Gokul · 1 hr' }],
+  3:  [{ time:'11:00 AM', title:'Sprint Planning',  sub:'Engineering · 2 hr' }],
+  5:  [{ time:'2:00 PM',  title:'Client Demo',      sub:'External · 45 min' }],
+};
+
+let weekOffset    = 0;
+let selectedOffset = 0;  // offset from today
+
+function buildCalendar(){
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  // Week starts on Sunday of the displayed week
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - today.getDay() + weekOffset * 7);
+
+  const container = document.getElementById('cal-days-row');
+  container.innerHTML = '';
+
+  for(let i = 0; i < 7; i++){
+    const d = new Date(weekStart);
+    d.setDate(weekStart.getDate() + i);
+
+    const diff = Math.round((d - today) / 86400000);
+    const isToday    = d.toDateString() === today.toDateString();
+    const isSelected = diff === selectedOffset;
+    const hasMeeting = !!MEETINGS_DB[diff];
+
+    const col = document.createElement('div');
+    col.className = 'cal-day' + (isToday ? ' today' : '') + (!isToday && isSelected ? ' selected' : '');
+    col.onclick = () => { selectedOffset = diff; buildCalendar(); };
+
+    col.innerHTML =
+      `<span class="cal-day-name">${DAY_SHORT[d.getDay()]}</span>` +
+      `<span class="cal-day-num">${d.getDate()}</span>` +
+      `<div class="cal-dot-row">${hasMeeting ? '<div class="cal-dot"></div>' : ''}</div>`;
+    container.appendChild(col);
   }
+  renderUpcoming();
+}
 
-  /* ── Drawer ────────────────────────────────────────── */
-  function openDrawer(){ document.getElementById('drawer-overlay').classList.add('open'); }
-  function closeDrawer(e){
-    if(!e || e.target===document.getElementById('drawer-overlay'))
-      document.getElementById('drawer-overlay').classList.remove('open');
-  }
+function shiftWeek(dir){ weekOffset += dir; buildCalendar(); }
 
-  /* ── Media controls ────────────────────────────────── */
-  let stream=null, micOn=true, camOn=true;
-  async function startCall(){
-    closeDrawer(); switchView('room');
-    const vid=document.getElementById('webcam-video');
-    const ph=document.getElementById('cam-ph');
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({video:true,audio:true});
-      vid.srcObject=stream; vid.style.display='block'; ph.style.display='none';
-    } catch(e){ vid.style.display='none'; ph.style.display='flex'; }
-  }
-  function stopStream(){ if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } }
-  function toggleMic(){ micOn=!micOn; if(stream) stream.getAudioTracks().forEach(t=>t.enabled=micOn); document.getElementById('btn-mic').classList.toggle('off',!micOn); }
-  function toggleCam(){ camOn=!camOn; const vid=document.getElementById('webcam-video'); const ph=document.getElementById('cam-ph'); if(stream) stream.getVideoTracks().forEach(t=>t.enabled=camOn); document.getElementById('btn-cam').classList.toggle('off',!camOn); vid.style.display=camOn?'block':'none'; ph.style.display=camOn?'none':'flex'; }
-  function shareScreen(){ navigator.mediaDevices.getDisplayMedia({video:true}).then(s=>{ document.getElementById('webcam-video').srcObject=s; }).catch(()=>{}); }
-  function endCall(){ stopStream(); switchView('home'); }
+function renderUpcoming(){
+  const list = document.getElementById('upcoming-list');
+  const meetings = MEETINGS_DB[selectedOffset] || [];
 
-  function doJoin(){
-    const code=document.getElementById('join-code').value.trim();
-    if(!code){ document.getElementById('join-code').focus(); return; }
-    document.getElementById('room-label').textContent='meetvault.live/'+code;
-    startCall();
-  }
-  function copyLink(){
-    const code='MTG-'+Math.random().toString(36).substring(2,7).toUpperCase();
-    navigator.clipboard.writeText('https://meetvault.live/'+code).catch(()=>{});
-    closeDrawer(); alert('Meeting link copied!\n\nhttps://meetvault.live/'+code);
-  }
-
-  /* ── Vault search ──────────────────────────────────── */
-  function vaultSearch(){
-    const q=document.getElementById('vault-q').value.trim();
-    const res=document.getElementById('vault-result');
-    if(!q) return;
-    res.style.display='block';
-    res.innerHTML='<em style="color:#9CA3AF;">Searching vault for "'+q+'"…</em>';
-    setTimeout(()=>{ res.innerHTML='<strong>Result:</strong> Based on 3 recent meetings, the team chose Faster-Whisper for transcription and a PostgreSQL queue for async AI job processing.'; }, 600);
-  }
-
-  /* ════════════════════════════════════════════════════
-     CALENDAR — horizontal week strip
-  ════════════════════════════════════════════════════ */
-  const DAY_NAMES = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
-  const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
-  // Sample upcoming meetings per date offset (0=today)
-  const SAMPLE_MEETINGS = {
-    0: [],  // today — no meetings
-    1: [
-      { time:'10:00 AM', title:'Product Standup', sub:'Team · 30 min' },
-      { time:'3:00 PM',  title:'Design Review',   sub:'Arfaaz, Gokul · 1 hr' },
-    ],
-    3: [
-      { time:'11:00 AM', title:'Sprint Planning',  sub:'Engineering · 2 hr' },
-    ],
-    5: [
-      { time:'2:00 PM',  title:'Client Demo',      sub:'External · 45 min' },
-    ],
-  };
-
-  let weekOffset = 0;   // which week we're showing
-  let selectedDayOffset = 0;  // offset from today
-
-  function buildCalendar(){
-    const today = new Date();
-    // Start day = today - today.getDay() (Sunday of this week) + weekOffset*7
-    const weekStart = new Date(today);
-    weekStart.setDate(today.getDate() - today.getDay() + weekOffset * 7);
-
-    const container = document.getElementById('cal-days-row');
-    container.innerHTML = '';
-
-    for(let i = 0; i < 7; i++){
-      const d = new Date(weekStart);
-      d.setDate(weekStart.getDate() + i);
-
-      const diffDays = Math.round((d - today) / 86400000);
-      const isToday = d.toDateString() === today.toDateString();
-      const isSelected = diffDays === selectedDayOffset;
-      const hasMeeting = SAMPLE_MEETINGS[diffDays] && SAMPLE_MEETINGS[diffDays].length > 0;
-
-      const col = document.createElement('div');
-      col.className = 'cal-day' + (isToday ? ' today' : '') + (isSelected && !isToday ? ' selected' : '') + (isToday && isSelected ? ' today' : '');
-      col.onclick = () => selectDay(diffDays, d);
-      col.innerHTML =
-        `<span class="cal-day-name">${DAY_NAMES[d.getDay()]}</span>` +
-        `<span class="cal-day-num">${d.getDate()}</span>` +
-        (hasMeeting ? `<div class="cal-dot"></div>` : '<div style="height:5px"></div>');
-      container.appendChild(col);
-    }
-
-    // Update month label to show selected/today date
-    const displayDate = new Date(today);
-    displayDate.setDate(today.getDate() + selectedDayOffset);
-    const dayName = DAY_NAMES[displayDate.getDay()];
-    document.getElementById('cal-month-label').textContent =
-      `${dayName.charAt(0)+dayName.slice(1).toLowerCase()} ${displayDate.getDate()} ${MONTH_NAMES[displayDate.getMonth()]}`;
-
-    renderUpcoming();
-  }
-
-  function selectDay(diffDays, d){
-    selectedDayOffset = diffDays;
-    buildCalendar();
-  }
-
-  function shiftWeek(dir){
-    weekOffset += dir;
-    buildCalendar();
-  }
-
-  function renderUpcoming(){
-    const list = document.getElementById('upcoming-list');
-    const meetings = SAMPLE_MEETINGS[selectedDayOffset] || [];
-
-    if(meetings.length === 0){
-      list.innerHTML = `
-        <div class="upcoming-empty">
+  if(meetings.length === 0){
+    list.innerHTML = `
+      <div class="upcoming-empty">
+        <div class="upcoming-empty-icon">
           <svg viewBox="0 0 24 24"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-2 .9-2 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg>
-          <div class="upcoming-empty-title">No upcoming meetings</div>
-          <div class="upcoming-empty-sub">No meetings scheduled for this day. Create one!</div>
-          <button class="btn-outline" onclick="openDrawer()">
-            <svg viewBox="0 0 24 24" style="width:13px;height:13px;" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-            New Meeting
-          </button>
-        </div>`;
-    } else {
-      list.innerHTML = meetings.map(m => `
-        <div class="meeting-item">
-          <span class="meeting-time">${m.time}</span>
-          <div class="meeting-dot-line"><div class="meeting-dot"></div></div>
-          <div class="meeting-info">
-            <div class="meeting-title">${m.title}</div>
-            <div class="meeting-sub">${m.sub}</div>
-          </div>
-          <button class="btn-join-meeting" onclick="startCall()">Join</button>
-        </div>`).join('');
-    }
+        </div>
+        <div class="upcoming-empty-title">No upcoming meetings</div>
+        <div class="upcoming-empty-sub">No meetings scheduled for this day. Create one!</div>
+        <button class="btn-outline-blue" onclick="openDrawer()">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+          New Meeting
+        </button>
+      </div>`;
+  } else {
+    list.innerHTML = meetings.map(m => `
+      <div class="meeting-item">
+        <span class="meeting-time">${m.time}</span>
+        <div class="meeting-dot"></div>
+        <div class="meeting-info">
+          <div class="meeting-title">${m.title}</div>
+          <div class="meeting-sub">${m.sub}</div>
+        </div>
+        <button class="btn-join-sm" onclick="startCall()">Join</button>
+      </div>`).join('');
   }
+}
 
-  // Init calendar on page load
-  buildCalendar();
+// Initialize
+buildCalendar();
 </script>
 </body>
 </html>
