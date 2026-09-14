@@ -102,8 +102,8 @@
 
     /* TOP BAR RIGHT CONTROLS (FLOATING IN TOP RIGHT CORNER) */
     .top-controls {
-      position: absolute; top: 16px; right: 36px;
-      display: flex; align-items: center; gap: 14px; z-index: 30;
+      position: absolute; top: 12px; right: 20px;
+      display: flex; align-items: center; gap: 12px; z-index: 30;
     }
     .notif-btn {
       position: relative; width: 36px; height: 36px; border-radius: 50%;
@@ -122,12 +122,12 @@
       font-weight: 700; font-size: 0.85rem; cursor: pointer;
     }
 
-    /* CONTENT WRAPPER */
-    .content { flex: 1; height: 100vh; padding: 18px 36px 20px 36px; overflow: hidden; display: flex; flex-direction: column; }
+    /* CONTENT WRAPPER FLUSH TO EDGES */
+    .content { flex: 1; height: 100vh; padding: 12px 20px 16px 20px; overflow: hidden; display: flex; flex-direction: column; }
 
     .page-container {
-      max-width: 1080px; width: 100%; height: 100%;
-      margin: 0 auto; display: flex; flex-direction: column; overflow: hidden;
+      width: 100%; max-width: 100%; height: 100%;
+      margin: 0; display: flex; flex-direction: column; overflow: hidden;
     }
 
     /* Views */
@@ -136,18 +136,19 @@
     @keyframes fadeIn { from { opacity:0; transform:translateY(3px); } to { opacity:1; transform:translateY(0); } }
 
     /* ═══════════════════════════════════════════════
-       HERO SECTION (MOVED TO VERY TOP FROM LEFT SLIDE)
+       HERO SECTION (FLUSH ON LEFT AND RIGHT)
     ═══════════════════════════════════════════════ */
     .hero {
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
       flex-shrink: 0;
       position: relative;
+      width: 100%;
     }
 
-    .hero-left { padding-top: 2px; }
+    .hero-left { padding-top: 0; margin-left: 0; }
 
     .hero-greet {
       font-size: 0.95rem; font-weight: 500; color: var(--text-secondary);
@@ -166,9 +167,9 @@
     /* Decorative Illustration Right */
     .hero-art {
       position: relative;
-      width: 320px; height: 95px;
+      width: 320px; height: 90px;
       flex-shrink: 0;
-      margin-right: 90px; /* Space for top-controls avatar/bell */
+      margin-right: 80px; /* Leave space for top right controls */
     }
 
     .hero-handwrite {
@@ -276,7 +277,7 @@
       border-radius: var(--r-card);
       border: 1px solid var(--border);
       box-shadow: var(--shadow-card);
-      padding: 18px 20px;
+      padding: 14px 16px;
       display: flex;
       flex-direction: column;
       height: 100%;
@@ -286,7 +287,7 @@
 
     .panel-head {
       display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 12px; flex-shrink: 0;
+      margin-bottom: 10px; flex-shrink: 0;
     }
     .panel-title-group { display: flex; align-items: center; gap: 8px; }
     .panel-title-icon svg { width: 17px; height: 17px; fill: #475569; display: block; }
