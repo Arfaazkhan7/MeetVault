@@ -4,249 +4,158 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>MeetVault | Create Account</title>
+  <meta name="description" content="Create your MeetVault account — AI-powered smart meeting memory.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --blue: #2563EB;
+      --blue:      #2563EB;
       --blue-dark: #1D4ED8;
-      --blue-light: #EBF3FF;
-      --red: #E53935;
-      --text: #0F172A;
-      --muted: #64748B;
-      --border: #E2E8F0;
-      --bg: #F4F7FC;
+      --blue-glow: rgba(37,99,235,0.18);
+      --red:       #EF4444;
+      --text:      #0F172A;
+      --muted:     #64748B;
+      --border:    #E2E8F0;
+      --bg:        #F0F4FF;
+      --success:   #16a34a;
     }
+    html, body { min-height: 100vh; font-family: 'Inter', -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
     body {
-      min-height: 100vh;
-      background: var(--bg);
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-      -webkit-font-smoothing: antialiased;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(37,99,235,0.12) 0%, transparent 70%),
+        radial-gradient(ellipse 60% 40% at 90% 90%, rgba(139,92,246,0.08) 0%, transparent 70%),
+        #F0F4FF;
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px; position: relative; overflow: hidden;
     }
+    body::before {
+      content: ''; position: fixed; top: -120px; left: -120px;
+      width: 380px; height: 380px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(37,99,235,0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    body::after {
+      content: ''; position: fixed; bottom: -80px; right: -80px;
+      width: 300px; height: 300px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(139,92,246,0.07) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
     .page-wrap {
-      width: 100%;
-      max-width: 440px;
+      width: 100%; max-width: 440px; position: relative; z-index: 1;
+      animation: slideUp 0.4s cubic-bezier(0.16,1,0.3,1) both;
     }
-    .brand-row {
-      text-align: center;
-      margin-bottom: 32px;
-    }
+    @keyframes slideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+
+    .brand-row { text-align: center; margin-bottom: 28px; }
     .brand-icon {
-      width: 52px; height: 52px;
-      background: #0F172A;
-      border-radius: 14px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 10px;
+      width: 56px; height: 56px;
+      background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+      border-radius: 16px; display: inline-flex; align-items: center; justify-content: center;
+      margin-bottom: 12px; box-shadow: 0 8px 24px rgba(15,23,42,0.18);
     }
-    .brand-icon svg { width: 28px; height: 28px; fill: #fff; }
-    .brand-name {
-      font-size: 1.5rem;
-      font-weight: 900;
-      color: #0F172A;
-      letter-spacing: -0.03em;
-    }
-    .brand-sub {
-      font-size: 0.85rem;
-      color: var(--muted);
-      margin-top: 4px;
-    }
+    .brand-icon svg { width: 30px; height: 30px; fill: #fff; }
+    .brand-name { font-size: 1.6rem; font-weight: 900; color: var(--text); letter-spacing: -0.04em; display: block; }
+    .brand-sub { font-size: 0.84rem; color: var(--muted); margin-top: 3px; display: block; }
+
     .card {
-      background: #fff;
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 36px 32px;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+      background: #fff; border: 1px solid rgba(226,232,240,0.8);
+      border-radius: 24px; padding: 36px 32px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.05), 0 20px 40px rgba(0,0,0,0.06);
     }
-    .card-title {
-      font-size: 1.25rem;
-      font-weight: 800;
-      color: var(--text);
-      margin-bottom: 6px;
+    .card-title { font-size: 1.3rem; font-weight: 800; color: var(--text); margin-bottom: 4px; letter-spacing: -0.02em; }
+    .card-sub   { font-size: 0.83rem; color: var(--muted); margin-bottom: 28px; }
+
+    .google-btn {
+      width: 100%; height: 48px; border: 1.5px solid var(--border);
+      border-radius: 12px; background: #FFFFFF; color: var(--text);
+      font-size: 0.92rem; font-weight: 700; cursor: pointer; font-family: inherit;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      transition: all 0.18s ease; margin-bottom: 22px; position: relative;
     }
-    .card-sub {
-      font-size: 0.83rem;
-      color: var(--muted);
-      margin-bottom: 28px;
+    .google-btn:hover { background: #F8FAFC; border-color: #94A3B8; box-shadow: 0 4px 12px rgba(0,0,0,0.08); transform: translateY(-1px); }
+    .google-btn:active { transform: translateY(0); }
+    .google-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    .divider {
+      display: flex; align-items: center; gap: 12px; margin: 0 0 22px 0;
+      color: var(--muted); font-size: 0.76rem; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.06em;
     }
-    .form-group { margin-bottom: 18px; }
-    .form-label {
-      display: block;
-      font-size: 0.8rem;
-      font-weight: 700;
-      color: var(--text);
-      margin-bottom: 7px;
-      letter-spacing: 0.01em;
-    }
+    .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    .form-group { margin-bottom: 15px; }
+    .form-label { display: block; font-size: 0.79rem; font-weight: 700; color: var(--text); margin-bottom: 6px; }
     .form-input {
-      width: 100%;
-      height: 46px;
-      border: 1.5px solid var(--border);
-      border-radius: 10px;
-      padding: 0 14px;
-      font-size: 0.9rem;
-      font-family: inherit;
-      color: var(--text);
-      background: #FAFBFC;
-      outline: none;
-      transition: border-color 0.15s, box-shadow 0.15s;
+      width: 100%; height: 46px; border: 1.5px solid var(--border);
+      border-radius: 11px; padding: 0 14px; font-size: 0.9rem; font-family: inherit;
+      color: var(--text); background: #FAFBFC; outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
     }
-    .form-input:focus {
-      border-color: var(--blue);
-      box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
-      background: #fff;
-    }
+    .form-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-glow); background: #fff; }
+    .form-input::placeholder { color: #CBD5E1; }
+
     .pw-wrap { position: relative; }
     .pw-wrap .form-input { padding-right: 46px; }
     .pw-toggle {
-      position: absolute;
-      right: 12px;
-      top: 50%;
-      transform: translateY(-50%);
-      background: none;
-      border: none;
-      cursor: pointer;
-      font-size: 18px;
-      color: var(--muted);
-      padding: 0;
-      line-height: 1;
+      position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; cursor: pointer; font-size: 16px; color: var(--muted);
+      padding: 4px; display: flex; align-items: center; justify-content: center;
     }
+    .pw-toggle:hover { color: var(--blue); }
+
+    .strength-wrap { margin-top: 6px; display: flex; gap: 4px; }
+    .strength-seg {
+      flex: 1; height: 4px; border-radius: 2px; background: #E2E8F0;
+      transition: background 0.2s;
+    }
+
     .submit-btn {
-      width: 100%;
-      height: 48px;
-      border: none;
-      border-radius: 10px;
-      background: var(--blue);
-      color: #fff;
-      font-size: 0.95rem;
-      font-weight: 800;
-      cursor: pointer;
-      font-family: inherit;
-      transition: background 0.15s, transform 0.1s;
-      margin-top: 4px;
+      width: 100%; height: 48px; border: none; border-radius: 12px;
+      background: linear-gradient(135deg, var(--blue) 0%, #1D4ED8 100%);
+      color: #fff; font-size: 0.95rem; font-weight: 800;
+      cursor: pointer; font-family: inherit; transition: all 0.18s ease; margin-top: 6px;
+      box-shadow: 0 4px 14px rgba(37,99,235,0.28);
     }
-    .submit-btn:hover { background: var(--blue-dark); }
-    .submit-btn:active { transform: scale(0.98); }
-    .submit-btn:disabled { opacity: 0.7; cursor: not-allowed; }
-    .msg {
-      min-height: 22px;
-      font-size: 0.8rem;
-      font-weight: 600;
-      margin-top: 14px;
-      text-align: center;
-      border-radius: 8px;
-      transition: all 0.15s;
-    }
-    .msg.error { color: var(--red); }
-    .msg.success { color: #16a34a; }
-    .password-strength {
-      height: 4px;
-      border-radius: 4px;
-      background: var(--border);
-      margin-top: 8px;
-      overflow: hidden;
-    }
-    .strength-bar {
-      height: 100%;
-      border-radius: 4px;
-      transition: width 0.3s, background 0.3s;
-      width: 0%;
-    }
-    .footer-link {
-      text-align: center;
-      margin-top: 22px;
-      font-size: 0.82rem;
-      color: var(--muted);
-    }
-    .footer-link a {
-      color: var(--blue);
-      font-weight: 700;
-      text-decoration: none;
-    }
-    .footer-link a:hover { text-decoration: underline; }
-    .back-link {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      font-size: 0.82rem;
-      color: var(--muted);
-      text-decoration: none;
-      margin-bottom: 20px;
-      font-weight: 600;
-      transition: color 0.15s;
-    }
-    .back-link:hover { color: var(--blue); }
-    .terms {
-      font-size: 0.75rem;
-      color: var(--muted);
-      text-align: center;
-      margin-top: 16px;
-      line-height: 1.5;
-    }
-  
-    .google-btn {
-      width: 100%;
-      height: 46px;
-      border: 1.5px solid var(--border);
-      border-radius: 10px;
-      background: #FFFFFF;
-      color: var(--text);
-      font-size: 0.88rem;
-      font-weight: 700;
-      cursor: pointer;
-      font-family: inherit;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      transition: all 0.15s ease;
-      margin-bottom: 18px;
-    }
-    .google-btn:hover {
-      background: #F8FAFC;
-      border-color: #CBD5E1;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    }
+    .submit-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(37,99,235,0.35); }
+    .submit-btn:active { transform: translateY(0); }
+    .submit-btn:disabled { opacity: 0.65; cursor: not-allowed; transform: none; box-shadow: none; }
 
-  
-    
-    
-    
-    .google-account-item:hover { background: #F8FAFC; border-color: #CBD5E1; }
-    
+    .msg { min-height: 20px; font-size: 0.8rem; font-weight: 600; margin-top: 14px; text-align: center; border-radius: 8px; }
+    .msg.error   { color: var(--red);    background: #FFF1F1; border: 1px solid #FEE2E2; padding: 10px 14px; }
+    .msg.success { color: var(--success); background: #F0FDF4; border: 1px solid #BBF7D0; padding: 10px 14px; }
 
-</style>
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    .footer-link { text-align: center; margin-top: 22px; font-size: 0.82rem; color: var(--muted); }
+    .footer-link a { color: var(--blue); font-weight: 700; text-decoration: none; }
+    .footer-link a:hover { color: var(--blue-dark); text-decoration: underline; }
+
+    .spinner {
+      display: inline-block; width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
+      border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
 </head>
 <body>
   <div class="page-wrap">
-    <a href="index.html" class="back-link">
-      ← Back to MeetVault
-    </a>
-
     <div class="brand-row">
       <div class="brand-icon">
         <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
       </div>
-      <div class="brand-name">MeetVault</div>
-      <div class="brand-sub">Smart meeting memory & collaboration</div>
+      <span class="brand-name">MeetVault</span>
+      <span class="brand-sub">Smart meeting memory &amp; collaboration</span>
     </div>
 
     <div class="card">
       <div class="card-title">Create your account 🚀</div>
-      <div class="card-sub">Join MeetVault and never miss a meeting detail again</div>
+      <div class="card-sub">Join MeetVault and start collaborating</div>
 
-
-      <button type="button" class="google-btn" onclick="loginWithGoogle()">
-        <svg width="18" height="18" viewBox="0 0 18 18">
+      <button type="button" class="google-btn" id="google-btn" onclick="loginWithGoogle()">
+        <svg width="20" height="20" viewBox="0 0 18 18">
           <path fill="#4285F4" d="M17.64 9.2c0-.74-.06-1.28-.19-1.84H9v3.34h4.96c-.1.83-.64 2.08-1.84 2.92l2.84 2.2c1.7-1.57 2.68-3.88 2.68-6.62z"/>
           <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.84-2.2c-.76.53-1.78.9-3.12.9-2.38 0-4.41-1.57-5.13-3.74L.97 13.04C2.45 15.98 5.48 18 9 18z"/>
           <path fill="#FBBC05" d="M3.87 10.78c-.19-.58-.3-1.2-.3-1.78s.11-1.2.3-1.78L.97 4.96C.35 6.18 0 7.55 0 9s.35 2.82.97 4.04l2.9-2.26z"/>
@@ -255,44 +164,48 @@
         <span>Continue with Google</span>
       </button>
 
-      <div class="divider">or sign in with email</div>
+      <div class="divider">or sign up with email</div>
 
-
-      <form id="signupForm" autocomplete="on">
+      <form id="signupForm" autocomplete="on" onsubmit="handleSubmit(event)">
         <div class="form-group">
           <label class="form-label" for="name">Full Name</label>
-          <input class="form-input" id="name" type="text" placeholder="Arfaaz Khan" required autocomplete="name">
+          <input class="form-input" id="name" type="text" placeholder="Your full name" required autocomplete="name">
         </div>
-
         <div class="form-group">
           <label class="form-label" for="email">Email Address</label>
           <input class="form-input" id="email" type="email" placeholder="you@example.com" required autocomplete="email">
         </div>
-
         <div class="form-group">
           <label class="form-label" for="password">Password</label>
           <div class="pw-wrap">
-            <input class="form-input" id="password" type="password" placeholder="Min 6 characters" required autocomplete="new-password" minlength="6" oninput="updateStrength(this.value)">
-            <button type="button" class="pw-toggle" id="pw-eye" aria-label="Show password">👁️</button>
+            <input class="form-input" id="password" type="password" placeholder="Min 6 characters"
+              required autocomplete="new-password" minlength="6" oninput="updateStrength(this.value)">
+            <button type="button" class="pw-toggle" id="pw-eye" aria-label="Show password">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#94A3B8"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+            </button>
           </div>
-          <div class="password-strength">
-            <div class="strength-bar" id="strength-bar"></div>
+          <div class="strength-wrap">
+            <div class="strength-seg" id="s1"></div>
+            <div class="strength-seg" id="s2"></div>
+            <div class="strength-seg" id="s3"></div>
+            <div class="strength-seg" id="s4"></div>
+            <div class="strength-seg" id="s5"></div>
           </div>
         </div>
-
         <div class="form-group">
           <label class="form-label" for="confirm">Confirm Password</label>
           <div class="pw-wrap">
-            <input class="form-input" id="confirm" type="password" placeholder="Repeat your password" required autocomplete="new-password">
-            <button type="button" class="pw-toggle" id="confirm-eye" aria-label="Show password">👁️</button>
+            <input class="form-input" id="confirm" type="password" placeholder="Repeat your password"
+              required autocomplete="new-password">
+            <button type="button" class="pw-toggle" id="confirm-eye" aria-label="Show password">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#94A3B8"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+            </button>
           </div>
         </div>
 
         <button class="submit-btn" type="submit" id="submit-btn">Create Account</button>
         <div class="msg" id="msg"></div>
       </form>
-
-      <p class="terms">By creating an account, you agree to our Terms of Service and Privacy Policy.</p>
 
       <div class="footer-link">
         Already have an account? <a href="login.html">Sign in</a>
@@ -301,255 +214,148 @@
   </div>
 
   <script>
-
-// ── Firebase & Google OAuth Initialization ──────────────────
-const firebaseConfig = {
-  authDomain: "ai-meet-f8fd0.firebaseapp.com",
-  projectId: "ai-meet-f8fd0",
-  storageBucket: "ai-meet-f8fd0.firebasestorage.app",
-  messagingSenderId: "661020533786",
-  appId: "1:661020533786:web:ef4fd4bdd3c72a8e6c5da3"
-};
-
-if (typeof firebase !== 'undefined' && !firebase.apps.length) {
-  firebase.initializeApp(firebaseConfig);
-}
-
-async function loginWithGoogle() {
-  if (typeof firebase === 'undefined' || !firebase.auth) {
-    alert("Google Sign-In service is initializing. Please ensure internet connectivity and try again.");
-    return;
-  }
-
-  const provider = new firebase.auth.GoogleAuthProvider();
-  provider.addScope('email');
-  provider.addScope('profile');
-  // FORCE GOOGLE OAUTH ACCOUNT CHOOSER SCREEN EVERY TIME
-  provider.setCustomParameters({ prompt: 'select_account' });
-
-  try {
-    const result = await firebase.auth().signInWithPopup(provider);
-    const user = result.user;
-    const idToken = await user.getIdToken();
-
-    // Verify token with backend if backend running
-    try {
-      const response = await fetch('/api/v1/auth/firebase/google', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id_token: idToken }),
-        signal: AbortSignal.timeout(3000)
-      });
-      const data = await response.json();
-      if (response.ok) {
-        localStorage.setItem('access_token', data.access_token);
-        if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
-      }
-    } catch (_) {}
-
-    const name = user.displayName || user.email.split('@')[0];
-    const code = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
-
-    localStorage.setItem('mv_user', JSON.stringify({
-      email: user.email,
-      name: name,
-      photo: user.photoURL,
-      uid: user.uid,
-      code: code
-    }));
-    localStorage.setItem('access_token', 'google-oauth-' + Date.now());
-
-    const msg = document.getElementById('msg');
-    if (msg) {
-      msg.className = 'msg success';
-      msg.textContent = '✅ Signed in as ' + name + '! Redirecting…';
-    } else if (typeof showToast === 'function') {
-      showToast('✅ Signed in as ' + name);
+    const firebaseConfig = {
+      apiKey: "AIzaSyD_placeholder_key",
+      authDomain: "ai-meet-f8fd0.firebaseapp.com",
+      projectId: "ai-meet-f8fd0",
+      storageBucket: "ai-meet-f8fd0.firebasestorage.app",
+      messagingSenderId: "661020533786",
+      appId: "1:661020533786:web:ef4fd4bdd3c72a8e6c5da3"
+    };
+    if (typeof firebase !== 'undefined' && !firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
     }
 
-    setTimeout(() => { window.location.href = 'index.html'; }, 600);
-  } catch (err) {
-    if (err.code === 'auth/popup-closed-by-user') return;
-    console.warn('Popup sign-in fallback to OAuth redirect:', err);
-    try {
-      const provider = new firebase.auth.GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: 'select_account' });
-      await firebase.auth().signInWithRedirect(provider);
-    } catch (e2) {
-      console.error('Google Sign-In Error:', e2);
-      const msg = document.getElementById('msg');
-      if (msg) {
-        msg.className = 'msg error';
-        msg.textContent = 'Google sign-in error: ' + (e2.message || err.message);
-      }
-    }
-  }
-}
-
-    // Password toggle for main password
-    const pwInput = document.getElementById('password');
-    const pwEye = document.getElementById('pw-eye');
-    pwEye.onclick = () => {
-      const show = pwInput.type === 'text';
-      pwInput.type = show ? 'password' : 'text';
-      pwEye.textContent = show ? '👁️' : '🙈';
-    };
-
-    // Password toggle for confirm
-    const confirmInput = document.getElementById('confirm');
-    const confirmEye = document.getElementById('confirm-eye');
-    confirmEye.onclick = () => {
-      const show = confirmInput.type === 'text';
-      confirmInput.type = show ? 'password' : 'text';
-      confirmEye.textContent = show ? '👁️' : '🙈';
-    };
-
-    // Redirect if already logged in
     if (localStorage.getItem('mv_user')) {
-      window.location.href = 'index.html';
+      window.location.replace('index.html');
     }
 
+    // Password toggle
+    function makeToggle(inputId, btnId) {
+      const inp = document.getElementById(inputId);
+      const btn = document.getElementById(btnId);
+      const openEye = `<svg width="18" height="18" viewBox="0 0 24 24" fill="#94A3B8"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>`;
+      const closeEye = `<svg width="18" height="18" viewBox="0 0 24 24" fill="#94A3B8"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75C21.27 7.11 17 4 12 4c-1.27 0-2.49.2-3.64.57l2.17 2.17C11.21 6.62 11.6 6.5 12 6.5zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zm4.53 5.53l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg>`;
+      btn.onclick = () => {
+        const show = inp.type === 'text';
+        inp.type = show ? 'password' : 'text';
+        btn.innerHTML = show ? openEye : closeEye;
+      };
+    }
+    makeToggle('password', 'pw-eye');
+    makeToggle('confirm', 'confirm-eye');
+
+    // Password strength
     function updateStrength(val) {
-      const bar = document.getElementById('strength-bar');
       let score = 0;
-      if (val.length >= 6) score++;
+      if (val.length >= 6)  score++;
       if (val.length >= 10) score++;
       if (/[A-Z]/.test(val)) score++;
       if (/[0-9]/.test(val)) score++;
       if (/[^A-Za-z0-9]/.test(val)) score++;
-      const pct = (score / 5) * 100;
-      bar.style.width = pct + '%';
-      bar.style.background = score <= 1 ? '#EF4444' : score <= 3 ? '#F59E0B' : '#22C55E';
+      const colors = ['', '#EF4444', '#F97316', '#F59E0B', '#84CC16', '#22C55E'];
+      for (let i = 1; i <= 5; i++) {
+        document.getElementById('s' + i).style.background = i <= score ? colors[score] : '#E2E8F0';
+      }
     }
 
-    const form = document.getElementById('signupForm');
-    const msg = document.getElementById('msg');
-    const btn = document.getElementById('submit-btn');
+    // Google Sign-In
+    async function loginWithGoogle() {
+      if (typeof firebase === 'undefined' || !firebase.auth) {
+        setMsg('error', 'Google Sign-In is loading. Please wait and try again.'); return;
+      }
+      const btn = document.getElementById('google-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> <span>Connecting to Google…</span>';
 
-    form.onsubmit = async (e) => {
+      try {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        provider.addScope('email'); provider.addScope('profile');
+        provider.setCustomParameters({ prompt: 'select_account' });
+        const result = await firebase.auth().signInWithPopup(provider);
+        const user = result.user;
+        const name = user.displayName || user.email.split('@')[0];
+        const code = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+        localStorage.setItem('mv_user', JSON.stringify({ email: user.email, name, photo: user.photoURL, uid: user.uid, code }));
+        localStorage.setItem('access_token', 'google-oauth-' + Date.now());
+        setMsg('success', '✅ Account ready! Redirecting…');
+        setTimeout(() => { window.location.href = 'index.html'; }, 700);
+      } catch (err) {
+        btn.disabled = false;
+        btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.74-.06-1.28-.19-1.84H9v3.34h4.96c-.1.83-.64 2.08-1.84 2.92l2.84 2.2c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.84-2.2c-.76.53-1.78.9-3.12.9-2.38 0-4.41-1.57-5.13-3.74L.97 13.04C2.45 15.98 5.48 18 9 18z"/><path fill="#FBBC05" d="M3.87 10.78c-.19-.58-.3-1.2-.3-1.78s.11-1.2.3-1.78L.97 4.96C.35 6.18 0 7.55 0 9s.35 2.82.97 4.04l2.9-2.26z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.59C13.46.89 11.43 0 9 0 5.48 0 2.45 2.02.97 4.96l2.9 2.26C4.59 5.05 6.62 3.58 9 3.58z"/></svg><span>Continue with Google</span>`;
+        if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') return;
+        if (err.code === 'auth/popup-blocked') {
+          const p2 = new firebase.auth.GoogleAuthProvider();
+          p2.setCustomParameters({ prompt: 'select_account' });
+          await firebase.auth().signInWithRedirect(p2); return;
+        }
+        setMsg('error', 'Google sign-in failed. Please try again.');
+      }
+    }
+
+    // Handle redirect result
+    if (typeof firebase !== 'undefined' && firebase.auth) {
+      firebase.auth().getRedirectResult().then(result => {
+        if (result && result.user) {
+          const user = result.user;
+          const name = user.displayName || user.email.split('@')[0];
+          const code = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+          localStorage.setItem('mv_user', JSON.stringify({ email: user.email, name, photo: user.photoURL, uid: user.uid, code }));
+          localStorage.setItem('access_token', 'google-oauth-' + Date.now());
+          window.location.href = 'index.html';
+        }
+      }).catch(() => {});
+    }
+
+    // Email Sign-Up
+    async function handleSubmit(e) {
       e.preventDefault();
-      msg.className = 'msg';
-      msg.textContent = '';
-
-      const name = document.getElementById('name').value.trim();
-      const email = document.getElementById('email').value.trim();
-      const password = document.getElementById('password').value;
+      const name    = document.getElementById('name').value.trim();
+      const email   = document.getElementById('email').value.trim();
+      const pass    = document.getElementById('password').value;
       const confirm = document.getElementById('confirm').value;
+      const btn     = document.getElementById('submit-btn');
 
-      if (!name || !email || !password || !confirm) {
-        msg.className = 'msg error';
-        msg.textContent = 'Please fill in all fields.';
-        return;
-      }
-      if (password.length < 6) {
-        msg.className = 'msg error';
-        msg.textContent = 'Password must be at least 6 characters.';
-        return;
-      }
-      if (password !== confirm) {
-        msg.className = 'msg error';
-        msg.textContent = 'Passwords do not match.';
-        return;
-      }
+      if (!name || !email || !pass || !confirm) return setMsg('error', 'Please fill in all fields.');
+      if (pass.length < 6)   return setMsg('error', 'Password must be at least 6 characters.');
+      if (pass !== confirm)  return setMsg('error', 'Passwords do not match.');
 
       btn.disabled = true;
-      btn.textContent = 'Creating account…';
+      btn.innerHTML = '<span class="spinner"></span> Creating account…';
 
-      // Try real API first
       try {
         const r = await fetch('/api/v1/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ full_name: name, email, password, account_type: 'personal' }),
+          body: JSON.stringify({ full_name: name, email, password: pass, account_type: 'personal' }),
           signal: AbortSignal.timeout(3000)
         });
-        const d = await r.json();
-        if (r.ok) {
-          // Try auto-login
-          try {
-            const r2 = await fetch('/api/v1/auth/login/personal', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email, password }),
-              signal: AbortSignal.timeout(3000)
-            });
-            const d2 = await r2.json();
-            if (r2.ok) {
-              localStorage.setItem('access_token', d2.access_token);
-              if (d2.refresh_token) localStorage.setItem('refresh_token', d2.refresh_token);
-            }
-          } catch (_) {}
-          saveUser(email, name);
-          return;
-        }
-        // API returned error
-        btn.disabled = false;
-        btn.textContent = 'Create Account';
-        msg.className = 'msg error';
-        const m = Array.isArray(d.detail) ? d.detail.map(x => x.msg || JSON.stringify(x)).join(', ') : d.detail;
-        msg.textContent = m || 'Registration failed. Please try again.';
-        return;
-      } catch (_) {
-        // No backend — use local storage
-      }
+        if (r.ok) { saveUser(email, name); return; }
+      } catch (_) {}
 
-      // Local registration
       const users = JSON.parse(localStorage.getItem('mv_users') || '{}');
       if (users[email]) {
-        btn.disabled = false;
-        btn.textContent = 'Create Account';
-        msg.className = 'msg error';
-        msg.textContent = 'An account with this email already exists. Try signing in.';
-        return;
+        btn.disabled = false; btn.textContent = 'Create Account';
+        return setMsg('error', 'An account with this email already exists. Try signing in.');
       }
-
-      users[email] = password;
+      users[email] = pass;
       localStorage.setItem('mv_users', JSON.stringify(users));
       saveUser(email, name);
-    };
-
-    
-    
-        function closeGooglePicker() {
-      const modal = document.getElementById('google-picker-modal');
-      if(modal) modal.style.display = 'none';
-    }
-          closeGooglePicker();
-      setTimeout(() => { window.location.href = 'index.html'; }, 600);
-    }
-        }
-
-      setTimeout(() => { window.location.href = 'index.html'; }, 600);
     }
 
     function saveUser(email, name) {
-      if (!name) name = email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      if (!name) name = email.split('@')[0].replace(/[._-]/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
       const code = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
       localStorage.setItem('mv_user', JSON.stringify({ email, name, code }));
       localStorage.setItem('access_token', 'mv-local-' + Date.now());
-      msg.className = 'msg success';
-      msg.textContent = '✅ Account created! Welcome to MeetVault!';
-      setTimeout(() => { window.location.href = 'index.html'; }, 900);
+      setMsg('success', '✅ Account created! Redirecting…');
+      setTimeout(() => { window.location.href = 'index.html'; }, 800);
+    }
+
+    function setMsg(type, text) {
+      const el = document.getElementById('msg');
+      el.className = 'msg ' + type; el.textContent = text;
     }
   </script>
-
-  
-        </div>
-
-        <div class="google-account-item" onclick="selectGoogleAccount('user.google@gmail.com', 'Google User')">
-          <div class="google-avatar" style="background:#10B981;">G</div>
-          <div>
-            <div style="font-weight:700;font-size:0.85rem;color:#0F172A;">Google Workspace Account</div>
-            <div style="font-size:0.75rem;color:#64748B;">user.google@gmail.com</div>
-          </div>
-        </div>
-      </div>
-
-      <div style="margin-top:14px;padding-top:12px;border-top:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center;">
-        <a onclick="promptCustomGoogleAccount()" style="font-size:0.8rem;color:#2563EB;font-weight:700;cursor:pointer;text-decoration:none;">+ Use another Google account</a>
-      </div>
-    </div>
-  </div>
-
 </body>
 </html>
