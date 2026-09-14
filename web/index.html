@@ -46,48 +46,47 @@
     }
 
     /* ═══════════════════════════════════════════════
-       APP SHELL
+       APP SHELL (FIXED 100VH NO SCROLL)
     ═══════════════════════════════════════════════ */
-    .app { display: flex; height: 100vh; }
+    .app { display: flex; height: 100vh; width: 100vw; overflow: hidden; }
 
     /* ═══════════════════════════════════════════════
        SIDEBAR
     ═══════════════════════════════════════════════ */
     .sidebar {
       width: 120px;
+      height: 100vh;
       flex-shrink: 0;
       background: #FFFFFF;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 24px 12px 20px 12px;
+      padding: 20px 12px;
       z-index: 20;
       border-right: 1px solid var(--border);
     }
 
-    /* Brand Logo */
     .brand {
       display: flex; flex-direction: column; align-items: center; gap: 6px;
-      margin-bottom: 36px; cursor: pointer;
+      margin-bottom: 28px; cursor: pointer;
     }
     .brand-icon {
-      width: 40px; height: 40px; border-radius: 12px; background: #0F172A;
+      width: 38px; height: 38px; border-radius: 12px; background: #0F172A;
       display: flex; align-items: center; justify-content: center;
     }
-    .brand-icon svg { width: 22px; height: 22px; fill: #fff; }
+    .brand-icon svg { width: 20px; height: 20px; fill: #fff; }
     .brand-name {
-      font-size: 0.62rem; font-weight: 900; letter-spacing: 0.08em;
+      font-size: 0.6rem; font-weight: 900; letter-spacing: 0.08em;
       text-transform: uppercase; color: #0F172A;
     }
 
-    /* Navigation */
     .nav { flex: 1; display: flex; flex-direction: column; gap: 8px; width: 100%; }
 
     .nav-item {
       width: 100%; display: flex; align-items: center; gap: 10px;
-      padding: 10px 14px; border-radius: 12px;
+      padding: 10px 12px; border-radius: 12px;
       cursor: pointer; transition: all 0.15s ease; user-select: none;
-      color: var(--text-secondary); font-weight: 600; font-size: 0.86rem;
+      color: var(--text-secondary); font-weight: 600; font-size: 0.84rem;
     }
     .nav-item:hover { background: #F8FAFC; color: var(--text-primary); }
     .nav-item.active { background: var(--blue-light-bg); color: var(--blue); }
@@ -97,22 +96,21 @@
     .sidebar-bottom { width: 100%; }
 
     /* ═══════════════════════════════════════════════
-       MAIN CONTENT
+       MAIN CONTENT (FITS EXACT 100VH NO SCROLL)
     ═══════════════════════════════════════════════ */
-    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+    .main { flex: 1; display: flex; flex-direction: column; height: 100vh; overflow: hidden; min-width: 0; position: relative; }
 
-    /* TOP BAR */
-    .topbar {
-      height: 60px; background: transparent;
-      display: flex; align-items: center; justify-content: flex-end;
-      padding: 0 40px; gap: 16px; flex-shrink: 0;
+    /* TOP BAR RIGHT CONTROLS (FLOATING IN TOP RIGHT CORNER) */
+    .top-controls {
+      position: absolute; top: 16px; right: 36px;
+      display: flex; align-items: center; gap: 14px; z-index: 30;
     }
     .notif-btn {
       position: relative; width: 36px; height: 36px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      cursor: pointer; transition: background 0.15s;
+      cursor: pointer; transition: background 0.15s; background: rgba(255,255,255,0.6);
     }
-    .notif-btn:hover { background: rgba(255,255,255,0.7); }
+    .notif-btn:hover { background: #FFFFFF; }
     .notif-btn svg { width: 20px; height: 20px; fill: #475569; }
     .notif-dot {
       position: absolute; top: 7px; right: 7px;
@@ -124,87 +122,89 @@
       font-weight: 700; font-size: 0.85rem; cursor: pointer;
     }
 
-    /* CONTENT SCROLL */
-    .content { flex: 1; overflow-y: auto; padding: 4px 40px 40px 40px; }
-    .content::-webkit-scrollbar { width: 0; }
+    /* CONTENT WRAPPER */
+    .content { flex: 1; height: 100vh; padding: 18px 36px 20px 36px; overflow: hidden; display: flex; flex-direction: column; }
 
     .page-container {
-      max-width: 1080px;
-      margin: 0 auto;
+      max-width: 1080px; width: 100%; height: 100%;
+      margin: 0 auto; display: flex; flex-direction: column; overflow: hidden;
     }
 
     /* Views */
-    .view { display: none; }
-    .view.active { display: block; animation: fadeIn 0.18s ease; }
-    @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+    .view { display: none; height: 100%; }
+    .view.active { display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; animation: fadeIn 0.18s ease; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(3px); } to { opacity:1; transform:translateY(0); } }
 
     /* ═══════════════════════════════════════════════
-       HERO SECTION
+       HERO SECTION (MOVED TO VERY TOP FROM LEFT SLIDE)
     ═══════════════════════════════════════════════ */
     .hero {
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
-      margin-bottom: 28px;
-      min-height: 110px;
+      margin-bottom: 14px;
+      flex-shrink: 0;
       position: relative;
     }
+
+    .hero-left { padding-top: 2px; }
 
     .hero-greet {
-      font-size: 1rem; font-weight: 500; color: var(--text-secondary);
-      margin-bottom: 4px;
+      font-size: 0.95rem; font-weight: 500; color: var(--text-secondary);
+      margin-bottom: 2px;
     }
     .hero-name {
-      font-size: 2rem; font-weight: 800; color: var(--text-h1);
+      font-size: 1.95rem; font-weight: 800; color: var(--text-h1);
       letter-spacing: -0.03em; line-height: 1.1;
-      display: flex; align-items: center; gap: 10px;
+      display: flex; align-items: center; gap: 8px;
     }
     .hero-code {
-      font-size: 0.82rem; font-weight: 600; color: var(--text-muted);
-      margin-top: 6px;
+      font-size: 0.8rem; font-weight: 600; color: var(--text-muted);
+      margin-top: 4px;
     }
 
-    /* Decorative Illustration */
+    /* Decorative Illustration Right */
     .hero-art {
       position: relative;
-      width: 360px; height: 110px;
+      width: 320px; height: 95px;
       flex-shrink: 0;
+      margin-right: 90px; /* Space for top-controls avatar/bell */
     }
 
     .hero-handwrite {
       position: absolute;
-      top: 6px; right: 180px;
+      top: 4px; right: 155px;
       font-family: 'Caveat', cursive;
-      font-size: 1.1rem;
+      font-size: 1.05rem;
       font-weight: 700;
       color: #1E293B;
-      line-height: 1.3;
+      line-height: 1.25;
       text-align: center;
       z-index: 2;
       transform: rotate(-5deg);
     }
 
-    .laptop-art { position: absolute; bottom: -10px; right: 50px; z-index: 2; }
-    .plant-art  { position: absolute; bottom: -12px; right: 0px; z-index: 2; }
-    .mug-art    { position: absolute; bottom: -10px; right: 150px; z-index: 2; }
+    .laptop-art { position: absolute; bottom: -6px; right: 40px; z-index: 2; }
+    .plant-art  { position: absolute; bottom: -8px; right: 0px; z-index: 2; }
+    .mug-art    { position: absolute; bottom: -6px; right: 130px; z-index: 2; }
 
     /* ═══════════════════════════════════════════════
-       ACTION CARDS (CENTERED & SMALLER AS IN IMAGE)
+       ACTION CARDS (COMPACT & CENTERED)
     ═══════════════════════════════════════════════ */
     .action-row-wrap {
-      max-width: 720px;
-      margin: 0 auto 32px auto;
+      max-width: 700px; width: 100%;
+      margin: 0 auto 16px auto; flex-shrink: 0;
     }
 
     .action-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 24px;
+      gap: 20px;
     }
 
     .action-card {
       border-radius: var(--r-card);
-      padding: 24px 20px;
+      padding: 18px 18px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -214,55 +214,37 @@
     }
     .action-card:hover { transform: translateY(-2px); }
 
-    .card-create {
-      background: var(--red-card-bg);
-      border: 1px solid #FFE4E4;
-    }
-
-    .card-join {
-      background: #F0F6FF;
-      border: 1px solid #DBEAFE;
-    }
+    .card-create { background: var(--red-card-bg); border: 1px solid #FFE4E4; }
+    .card-join   { background: #F0F6FF; border: 1px solid #DBEAFE; }
 
     .card-circle-icon {
-      width: 44px; height: 44px; border-radius: 50%;
+      width: 40px; height: 40px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      margin-bottom: 12px; flex-shrink: 0;
+      margin-bottom: 10px; flex-shrink: 0;
     }
     .icon-red-bg  { background: var(--red-icon-bg); }
-    .icon-red-bg svg { width: 20px; height: 20px; fill: var(--red); }
+    .icon-red-bg svg { width: 18px; height: 18px; fill: var(--red); }
     
     .icon-blue-bg { background: var(--blue-icon-bg); }
-    .icon-blue-bg svg { width: 20px; height: 20px; fill: var(--blue); }
+    .icon-blue-bg svg { width: 18px; height: 18px; fill: var(--blue); }
 
-    .card-title {
-      font-size: 0.95rem; font-weight: 700; color: var(--text-h1);
-      margin-bottom: 4px;
-    }
-    .card-sub {
-      font-size: 0.78rem; color: var(--text-secondary);
-      margin-bottom: 18px; line-height: 1.4;
-    }
+    .card-title { font-size: 0.92rem; font-weight: 700; color: var(--text-h1); margin-bottom: 3px; }
+    .card-sub   { font-size: 0.76rem; color: var(--text-secondary); margin-bottom: 14px; line-height: 1.35; }
 
-    /* Red + New Meeting Button */
     .btn-red-action {
       display: inline-flex; align-items: center; gap: 6px;
       background: var(--red); color: #FFFFFF; border: none;
-      height: 38px; padding: 0 24px; border-radius: 8px;
-      font-size: 0.84rem; font-weight: 700; cursor: pointer; font-family: inherit;
-      box-shadow: 0 3px 10px rgba(229,57,53,0.25);
-      transition: background 0.15s;
+      height: 36px; padding: 0 22px; border-radius: 8px;
+      font-size: 0.82rem; font-weight: 700; cursor: pointer; font-family: inherit;
+      box-shadow: 0 3px 10px rgba(229,57,53,0.25); transition: background 0.15s;
     }
     .btn-red-action:hover { background: var(--red-dark); }
     .btn-red-action svg { width: 14px; height: 14px; fill: #FFFFFF; }
 
-    /* Join Code Input Form */
-    .join-form {
-      display: flex; align-items: center; width: 100%; max-width: 260px; height: 38px;
-    }
+    .join-form { display: flex; align-items: center; width: 100%; max-width: 250px; height: 36px; }
     .join-input {
       height: 100%; flex: 1; border: 1px solid #CBD5E1; border-right: none;
-      border-radius: 8px 0 0 8px; padding: 0 12px; font-size: 0.78rem;
+      border-radius: 8px 0 0 8px; padding: 0 10px; font-size: 0.76rem;
       color: var(--text-primary); background: #FFFFFF; outline: none; font-family: inherit;
     }
     .join-input::placeholder { color: var(--text-muted); }
@@ -270,20 +252,23 @@
     
     .btn-blue-action {
       height: 100%; background: var(--blue); color: #FFFFFF; border: none;
-      border-radius: 0 8px 8px 0; padding: 0 18px; font-size: 0.84rem;
+      border-radius: 0 8px 8px 0; padding: 0 16px; font-size: 0.82rem;
       font-weight: 700; cursor: pointer; font-family: inherit;
       transition: background 0.15s; flex-shrink: 0;
     }
     .btn-blue-action:hover { background: var(--blue-dark); }
 
     /* ═══════════════════════════════════════════════
-       BOTTOM GRID (UPCOMING & NOTES)
+       BOTTOM GRID (EXPANDS TO FILL REMAINING 100VH)
     ═══════════════════════════════════════════════ */
     .bottom-grid {
+      flex: 1;
+      min-height: 0;
       display: grid;
       grid-template-columns: 1.55fr 1fr;
-      gap: 24px;
+      gap: 20px;
       align-items: stretch;
+      overflow: hidden;
     }
 
     .panel {
@@ -291,135 +276,136 @@
       border-radius: var(--r-card);
       border: 1px solid var(--border);
       box-shadow: var(--shadow-card);
-      padding: 22px;
+      padding: 18px 20px;
       display: flex;
       flex-direction: column;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
     }
 
     .panel-head {
       display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 16px;
+      margin-bottom: 12px; flex-shrink: 0;
     }
     .panel-title-group { display: flex; align-items: center; gap: 8px; }
-    .panel-title-icon svg { width: 18px; height: 18px; fill: #475569; display: block; }
-    .panel-title { font-size: 1rem; font-weight: 700; color: var(--text-h1); }
+    .panel-title-icon svg { width: 17px; height: 17px; fill: #475569; display: block; }
+    .panel-title { font-size: 0.95rem; font-weight: 700; color: var(--text-h1); }
 
     .view-all-link {
       display: inline-flex; align-items: center; gap: 4px;
-      font-size: 0.82rem; font-weight: 600; color: var(--text-secondary);
+      font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);
       cursor: pointer; transition: color 0.15s; text-decoration: none;
     }
     .view-all-link:hover { color: var(--blue); }
-    .view-all-link svg { width: 14px; height: 14px; fill: currentColor; }
+    .view-all-link svg { width: 13px; height: 13px; fill: currentColor; }
 
-    /* Calendar Strip */
-    .cal-wrap { margin-bottom: 20px; }
+    .cal-wrap { margin-bottom: 14px; flex-shrink: 0; }
     .cal-week { display: flex; align-items: center; justify-content: space-between; }
     
     .cal-nav {
-      width: 28px; height: 28px; border-radius: 50%;
+      width: 26px; height: 26px; border-radius: 50%;
       background: none; border: none; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
       color: var(--text-secondary); flex-shrink: 0; transition: background 0.15s;
     }
     .cal-nav:hover { background: #F1F5F9; }
-    .cal-nav svg { width: 16px; height: 16px; fill: currentColor; }
+    .cal-nav svg { width: 15px; height: 15px; fill: currentColor; }
 
-    .cal-days { display: flex; flex: 1; justify-content: space-around; padding: 0 8px; }
+    .cal-days { display: flex; flex: 1; justify-content: space-around; padding: 0 4px; }
 
     .cal-day {
-      display: flex; flex-direction: column; align-items: center; gap: 4px;
-      padding: 4px 6px; border-radius: 10px; cursor: pointer;
-      transition: background 0.15s; min-width: 44px;
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      padding: 3px 4px; border-radius: 10px; cursor: pointer;
+      transition: background 0.15s; min-width: 40px;
     }
 
     .cal-day-name {
-      font-size: 0.65rem; font-weight: 700; letter-spacing: 0.04em;
+      font-size: 0.62rem; font-weight: 700; letter-spacing: 0.04em;
       text-transform: uppercase; color: var(--text-muted);
     }
     .cal-day.today .cal-day-name { color: var(--blue); }
 
     .cal-day-num {
-      width: 32px; height: 32px; border-radius: 50%;
+      width: 30px; height: 30px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      font-size: 0.88rem; font-weight: 700; color: var(--text-primary);
+      font-size: 0.85rem; font-weight: 700; color: var(--text-primary);
     }
     .cal-day.today .cal-day-num { background: var(--blue); color: #FFFFFF; }
     .cal-day.selected:not(.today) .cal-day-num { background: var(--blue-light-bg); color: var(--blue); }
 
-    .cal-dot-row { height: 6px; display: flex; align-items: center; justify-content: center; }
+    .cal-dot-row { height: 5px; display: flex; align-items: center; justify-content: center; }
     .cal-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--red); }
 
-    .cal-divider { border-bottom: 1px solid #F1F5F9; margin-bottom: 20px; }
+    .cal-divider { border-bottom: 1px solid #F1F5F9; margin-bottom: 14px; flex-shrink: 0; }
 
-    /* Upcoming List / Empty State */
-    .upcoming-body { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+    .upcoming-body { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; overflow-y: auto; }
 
     .upcoming-empty {
       display: flex; flex-direction: column; align-items: center;
-      text-align: center; padding: 16px 0;
+      text-align: center; padding: 8px 0;
     }
     .upcoming-empty-icon {
-      width: 48px; height: 48px; border-radius: 12px;
+      width: 44px; height: 44px; border-radius: 12px;
       background: #F0F6FF;
-      display: flex; align-items: center; justify-content: center; margin-bottom: 12px;
+      display: flex; align-items: center; justify-content: center; margin-bottom: 10px;
     }
-    .upcoming-empty-icon svg { width: 22px; height: 22px; fill: var(--blue); }
-    .upcoming-empty-title { font-size: 0.95rem; font-weight: 700; color: var(--text-h1); margin-bottom: 4px; }
-    .upcoming-empty-sub   { font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 16px; }
+    .upcoming-empty-icon svg { width: 20px; height: 20px; fill: var(--blue); }
+    .upcoming-empty-title { font-size: 0.9rem; font-weight: 700; color: var(--text-h1); margin-bottom: 3px; }
+    .upcoming-empty-sub   { font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 14px; }
 
     .btn-light-blue {
       display: inline-flex; align-items: center; gap: 6px;
       background: var(--blue-light-bg); color: var(--blue);
-      border: none; height: 36px; padding: 0 20px;
-      border-radius: 8px; font-size: 0.82rem; font-weight: 700;
+      border: none; height: 34px; padding: 0 18px;
+      border-radius: 8px; font-size: 0.8rem; font-weight: 700;
       cursor: pointer; font-family: inherit; transition: background 0.15s;
     }
     .btn-light-blue:hover { background: #DBEAFE; }
-    .btn-light-blue svg { width: 14px; height: 14px; fill: var(--blue); }
+    .btn-light-blue svg { width: 13px; height: 13px; fill: var(--blue); }
 
     .meeting-item {
       display: flex; align-items: center; gap: 12px;
-      padding: 10px 0; border-bottom: 1px solid #F8FAFC;
+      padding: 8px 0; border-bottom: 1px solid #F8FAFC;
     }
     .meeting-item:last-child { border-bottom: none; }
-    .meeting-time { font-size: 0.76rem; font-weight: 700; color: var(--text-secondary); width: 55px; flex-shrink: 0; }
-    .meeting-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--blue); flex-shrink: 0; }
+    .meeting-time { font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); width: 52px; flex-shrink: 0; }
+    .meeting-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); flex-shrink: 0; }
     .meeting-info { flex: 1; }
-    .meeting-title { font-size: 0.86rem; font-weight: 700; color: var(--text-primary); }
-    .meeting-sub   { font-size: 0.74rem; color: var(--text-secondary); margin-top: 1px; }
+    .meeting-title { font-size: 0.84rem; font-weight: 700; color: var(--text-primary); }
+    .meeting-sub   { font-size: 0.72rem; color: var(--text-secondary); margin-top: 1px; }
     .btn-join-sm {
-      font-size: 0.76rem; font-weight: 700; color: var(--blue);
+      font-size: 0.74rem; font-weight: 700; color: var(--blue);
       background: var(--blue-light-bg); border: none; border-radius: 6px;
-      padding: 5px 14px; cursor: pointer; font-family: inherit; transition: background 0.15s;
+      padding: 4px 12px; cursor: pointer; font-family: inherit; transition: background 0.15s;
     }
     .btn-join-sm:hover { background: #DBEAFE; }
 
-    /* Notes Gray Container Inside Card */
+    /* Notes Gray Container */
     .notes-box {
       background: #F8FAFC;
       border: 1px solid #F1F5F9;
       border-radius: 12px;
-      padding: 16px;
+      padding: 14px;
       flex: 1;
-      min-height: 230px;
+      min-height: 0;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
     }
 
     .notes-textarea {
-      width: 100%; flex: 1;
+      width: 100%; flex: 1; min-height: 0;
       border: none; background: transparent;
-      font-size: 0.85rem; font-family: inherit;
+      font-size: 0.82rem; font-family: inherit;
       color: var(--text-primary); outline: none; resize: none;
-      line-height: 1.6;
+      line-height: 1.5;
     }
     .notes-textarea::placeholder { color: var(--text-muted); }
 
     .notes-count {
-      font-size: 0.72rem; color: var(--text-muted); font-weight: 600;
-      text-align: right; margin-top: 8px;
+      font-size: 0.7rem; color: var(--text-muted); font-weight: 600;
+      text-align: right; margin-top: 6px; flex-shrink: 0;
     }
 
     /* ═══════════════════════════════════════════════
@@ -443,7 +429,7 @@
     }
 
     .room-wrap {
-      height: calc(100vh - 100px); background: #0D1117;
+      height: calc(100vh - 80px); background: #0D1117;
       border-radius: 12px; overflow: hidden; display: flex; flex-direction: column;
     }
     .room-video { flex: 1; position: relative; }
@@ -510,32 +496,33 @@
     <div class="sidebar-bottom">
       <div class="nav-item" id="nav-settings" onclick="switchView('settings')">
         <div class="nav-icon">
-          <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6-3.6z"/></svg>
         </div>
         <span>Settings</span>
       </div>
     </div>
   </aside>
 
-  <!-- MAIN -->
+  <!-- MAIN CONTAINER -->
   <div class="main">
 
-    <!-- TOPBAR -->
-    <header class="topbar">
+    <!-- FLOATING TOP CONTROLS (RIGHT CORNER) -->
+    <div class="top-controls">
       <div class="notif-btn" onclick="alert('No new notifications')">
         <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
         <div class="notif-dot"></div>
       </div>
       <div class="user-avatar" onclick="switchView('settings')">A</div>
-    </header>
+    </div>
 
+    <!-- CONTENT -->
     <div class="content">
       <div class="page-container">
 
         <!-- HOME VIEW -->
         <div class="view active" id="view-home">
 
-          <!-- HERO SECTION -->
+          <!-- HERO SECTION (STARTS AT THE VERY TOP) -->
           <div class="hero">
             <div class="hero-left">
               <div class="hero-greet">Good to see you,</div>
@@ -549,7 +536,7 @@
               <div class="hero-handwrite">Brighter<br>Meetings<br>Better Ideas</div>
 
               <div class="mug-art">
-                <svg width="40" height="44" viewBox="0 0 42 46" fill="none">
+                <svg width="38" height="42" viewBox="0 0 42 46" fill="none">
                   <rect x="3" y="10" width="28" height="30" rx="4" fill="#BFDBFE"/>
                   <rect x="3" y="10" width="28" height="6" rx="4" fill="#93C5FD"/>
                   <path d="M31 16 Q40 16 40 24 Q40 32 31 32" stroke="#93C5FD" stroke-width="3" fill="none" stroke-linecap="round"/>
@@ -557,7 +544,7 @@
               </div>
 
               <div class="laptop-art">
-                <svg width="95" height="75" viewBox="0 0 100 80" fill="none">
+                <svg width="85" height="68" viewBox="0 0 100 80" fill="none">
                   <rect x="10" y="4" width="80" height="54" rx="6" fill="#E2E8F0"/>
                   <rect x="14" y="8" width="72" height="46" rx="4" fill="#FFFFFF"/>
                   <rect x="32" y="18" width="36" height="28" rx="3" fill="#BFDBFE" opacity="0.6"/>
@@ -568,7 +555,7 @@
               </div>
 
               <div class="plant-art">
-                <svg width="42" height="54" viewBox="0 0 44 58" fill="none">
+                <svg width="38" height="48" viewBox="0 0 44 58" fill="none">
                   <path d="M10 38 L8 54 Q8 56 10 56 L34 56 Q36 56 36 54 L34 38Z" fill="#D97706"/>
                   <rect x="8" y="35" width="28" height="5" rx="2.5" fill="#F59E0B"/>
                   <path d="M22 38 Q14 26 10 18 Q18 22 22 32" fill="#4ADE80"/>
@@ -578,7 +565,7 @@
             </div>
           </div>
 
-          <!-- ACTION CARDS (CENTERED & COMPACT AS IN IMAGE) -->
+          <!-- ACTION CARDS -->
           <div class="action-row-wrap">
             <div class="action-row">
 
@@ -613,7 +600,7 @@
             </div>
           </div>
 
-          <!-- BOTTOM GRID (UPCOMING & NOTES) -->
+          <!-- BOTTOM GRID (EXPANDS TO FILL HEIGHT NO SCROLL) -->
           <div class="bottom-grid">
 
             <!-- Upcoming Meetings Panel -->
@@ -631,7 +618,6 @@
                 </a>
               </div>
 
-              <!-- Calendar Bar -->
               <div class="cal-wrap">
                 <div class="cal-week">
                   <button class="cal-nav" onclick="shiftWeek(-1)">
