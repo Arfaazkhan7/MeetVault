@@ -3,1222 +3,945 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MeetVault — AI Smart Meeting Memory</title>
-  <meta name="description" content="MeetVault: Transform meeting conversations into persistent organizational knowledge.">
+  <title>MeetVault — Home</title>
+  <meta name="description" content="MeetVault: AI-based smart meeting memory and management system.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    /* ========================================================================
-       MEETVAULT — PIXEL-PERFECT HOME SCREEN
-       Exact replica of the reference design image
-       ======================================================================== */
+    /* ================================================================
+       MEETVAULT — EXACT PIXEL-PERFECT RECREATION
+       Reference: Clean minimal light UI with sidebar, greeting, 2 action
+       cards, recent meetings empty state, and notes textarea.
+       ================================================================ */
 
-    *, *::before, *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      /* Orange Brand */
-      --orange: #FF5722;
-      --orange-light-bg: #FFF3EE;
-      --orange-border: #FFCFBD;
+      /* Core palette */
+      --red:         #DC3545;
+      --red-dark:    #C82333;
+      --red-pill:    #D63031;
 
-      /* Purple Brand */
-      --purple: #7C5CFA;
-      --purple-light-bg: #F2EFFE;
-      --purple-border: #DDD6FE;
-      --purple-avatar-bg: #EDE9FF;
-      --purple-text: #6B4EE8;
+      --bg-page:     #F3F4F6;
+      --bg-sidebar:  #FFFFFF;
+      --bg-card:     #FFFFFF;
 
-      /* Text */
-      --text-heading: #1A1A2E;
-      --text-body: #3D3D5C;
-      --text-muted: #8888AA;
-      --text-placeholder: #AAAAC0;
+      --text-primary:   #111827;
+      --text-secondary: #6B7280;
+      --text-muted:     #9CA3AF;
 
-      /* Backgrounds */
-      --bg-app: #EEEEF5;
-      --bg-sidebar: rgba(255, 255, 255, 0.92);
-      --bg-card: #FFFFFF;
-      --bg-input: #FFFFFF;
-      --bg-search: rgba(255,255,255,0.85);
+      --border:      #E5E7EB;
+      --border-card: #E8EAED;
 
-      /* Borders */
-      --border-color: rgba(180, 180, 210, 0.25);
-      --border-card: rgba(200, 200, 230, 0.30);
+      --orange-nav:  #E84A2F;
+      --orange-icon-bg: #FDECEA;
 
-      /* Shadows */
-      --shadow-card: 0 2px 16px rgba(100, 80, 200, 0.06);
-      --shadow-sidebar: 2px 0 20px rgba(100, 80, 200, 0.06);
-      --shadow-btn: 0 6px 20px rgba(255, 87, 34, 0.35);
-      --shadow-btn-purple: 0 6px 20px rgba(124, 92, 250, 0.38);
+      --radius-card: 10px;
+      --radius-btn:  8px;
 
-      /* Radius */
-      --r-full: 9999px;
-      --r-xl: 22px;
-      --r-lg: 16px;
-      --r-md: 12px;
-      --r-sm: 8px;
+      --shadow-card: 0 1px 4px rgba(0,0,0,0.07), 0 2px 10px rgba(0,0,0,0.04);
+      --shadow-sm:   0 1px 3px rgba(0,0,0,0.06);
     }
 
     html, body {
       height: 100%;
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-      background: var(--bg-app);
-      color: var(--text-heading);
+      background: var(--bg-page);
+      color: var(--text-primary);
       overflow: hidden;
     }
 
-    /* ─── WINDOW CHROME ─────────────────────────────────────── */
-    .window-chrome {
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      height: 34px;
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      padding: 0 16px;
-      gap: 8px;
-      z-index: 1000;
-      background: transparent;
-      pointer-events: none;
-    }
-    .chrome-btn {
-      width: 14px; height: 14px;
-      border-radius: 50%;
-      pointer-events: all;
-      cursor: pointer;
-      opacity: 0.75;
-      transition: opacity 0.15s;
-    }
-    .chrome-btn:hover { opacity: 1; }
-    .chrome-min { background: #bbb; }
-    .chrome-max { background: #bbb; }
-    .chrome-close { background: #bbb; }
-
-    /* ─── APP SHELL ─────────────────────────────────────────── */
-    .app-shell {
+    /* ── APP LAYOUT ─────────────────────────────────────── */
+    .app {
       display: flex;
       height: 100vh;
-      position: relative;
-      overflow: hidden;
     }
 
-    /* ─── AMBIENT BACKGROUND BLOBS ──────────────────────────── */
-    .blob {
-      position: absolute;
-      border-radius: 50%;
-      pointer-events: none;
-      z-index: 0;
-    }
-    .blob-purple-bl {
-      width: 360px; height: 360px;
-      background: radial-gradient(circle, rgba(138, 100, 245, 0.22) 0%, rgba(138, 100, 245, 0) 70%);
-      bottom: -80px; left: 20px;
-    }
-    .blob-purple-br {
-      width: 220px; height: 220px;
-      background: radial-gradient(circle, rgba(138, 100, 245, 0.14) 0%, rgba(138, 100, 245, 0) 70%);
-      bottom: 60px; left: 120px;
-    }
-    .blob-peach-tr {
-      width: 320px; height: 320px;
-      background: radial-gradient(circle, rgba(255, 180, 140, 0.28) 0%, rgba(255, 200, 160, 0) 70%);
-      top: 10px; right: -60px;
-    }
-    .blob-purple-tr-dot {
-      width: 100px; height: 100px;
-      background: radial-gradient(circle, rgba(160, 130, 250, 0.22) 0%, rgba(160, 130, 250, 0) 70%);
-      top: 80px; right: 180px;
-    }
-    .blob-peach-main {
-      width: 260px; height: 220px;
-      background: radial-gradient(ellipse, rgba(255, 190, 155, 0.22) 0%, rgba(255, 200, 170, 0) 70%);
-      top: 40px; right: 40px;
-    }
-
-    /* ─── SIDEBAR ────────────────────────────────────────────── */
+    /* ── SIDEBAR ────────────────────────────────────────── */
     .sidebar {
-      width: 188px;
+      width: 120px;
       flex-shrink: 0;
       background: var(--bg-sidebar);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      box-shadow: var(--shadow-sidebar);
-      border-right: 1px solid var(--border-color);
+      border-right: 1px solid var(--border);
       display: flex;
       flex-direction: column;
-      padding: 20px 12px 16px 12px;
+      padding: 16px 0;
       z-index: 10;
-      position: relative;
     }
 
-    /* Brand / Logo */
+    /* Brand */
     .brand {
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 2px 6px 24px 6px;
+      gap: 8px;
+      padding: 4px 14px 20px 14px;
       cursor: pointer;
     }
     .brand-icon {
-      width: 38px; height: 38px;
-      border-radius: 11px;
-      overflow: hidden;
-      flex-shrink: 0;
-      background: linear-gradient(135deg, #8B5CF6 0%, #FF5722 100%);
+      width: 28px; height: 28px;
+      border-radius: 7px;
+      background: #1F2937;
       display: flex; align-items: center; justify-content: center;
-      font-size: 1.35rem;
-      box-shadow: 0 3px 10px rgba(124, 92, 250, 0.3);
+      flex-shrink: 0;
     }
+    .brand-icon svg { width: 16px; height: 16px; fill: #ffffff; }
     .brand-name {
-      font-size: 1.15rem;
-      font-weight: 800;
-      color: var(--text-heading);
-      letter-spacing: -0.03em;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+      line-height: 1.2;
     }
 
-    /* Nav items */
-    .nav-list {
+    /* Nav */
+    .nav {
+      flex: 1;
       display: flex;
       flex-direction: column;
-      gap: 4px;
-      flex: 1;
+      gap: 2px;
+      padding: 0 8px;
     }
 
     .nav-item {
       display: flex;
       align-items: center;
-      gap: 11px;
-      padding: 11px 13px;
-      border-radius: var(--r-md);
+      gap: 9px;
+      padding: 9px 10px;
+      border-radius: 8px;
       cursor: pointer;
-      font-size: 0.93rem;
+      font-size: 0.83rem;
       font-weight: 600;
-      color: var(--text-muted);
+      color: var(--text-secondary);
       position: relative;
-      transition: all 0.18s ease;
+      transition: background 0.15s, color 0.15s;
       user-select: none;
     }
-    .nav-item:hover {
-      background: rgba(124, 92, 250, 0.06);
-      color: var(--text-body);
-    }
+    .nav-item:hover { background: #F9FAFB; color: var(--text-primary); }
     .nav-item.active {
-      background: #FFF0EB;
-      color: var(--orange);
-      font-weight: 700;
+      background: #FFF1EE;
+      color: var(--orange-nav);
     }
-    /* Left orange accent bar on active item */
+    /* Left accent bar on active item */
     .nav-item.active::before {
       content: '';
       position: absolute;
-      left: -12px;
-      top: 6px; bottom: 6px;
-      width: 4px;
-      background: var(--orange);
+      left: -8px; top: 5px; bottom: 5px;
+      width: 3px;
       border-radius: 0 3px 3px 0;
+      background: var(--orange-nav);
     }
-    .nav-icon {
-      font-size: 1.2rem;
-      display: flex; align-items: center; justify-content: center;
-      width: 22px; height: 22px;
-    }
-    /* SVG icons */
-    .nav-item.active .nav-icon svg { fill: var(--orange); }
-    .nav-item:not(.active) .nav-icon svg { fill: var(--text-muted); }
-
-    /* Sidebar user footer */
-    .sidebar-user {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 10px;
-      border-radius: var(--r-md);
-      cursor: pointer;
-      transition: background 0.15s;
-      margin-top: 12px;
-    }
-    .sidebar-user:hover { background: rgba(124, 92, 250, 0.06); }
-
-    .avatar-sm {
-      width: 34px; height: 34px;
-      border-radius: 50%;
-      background: var(--purple-avatar-bg);
-      color: var(--purple-text);
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 700; font-size: 0.88rem;
+    .nav-item svg {
+      width: 17px; height: 17px;
       flex-shrink: 0;
+      fill: var(--text-secondary);
     }
-    .sidebar-user-info { flex: 1; overflow: hidden; }
-    .sidebar-user-name {
-      font-size: 0.82rem; font-weight: 700;
-      color: var(--text-heading);
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    .sidebar-user-id {
-      font-size: 0.7rem; font-weight: 500;
-      color: var(--text-muted);
-      margin-top: 1px;
-    }
-    .gear-icon {
-      width: 20px; height: 20px;
-      color: var(--text-muted);
-      flex-shrink: 0;
-      cursor: pointer;
-      transition: color 0.15s;
-    }
-    .gear-icon:hover { color: var(--text-body); }
+    .nav-item.active svg { fill: var(--orange-nav); }
 
-    /* ─── MAIN CONTENT ───────────────────────────────────────── */
+    /* Settings at bottom */
+    .sidebar-bottom {
+      padding: 0 8px 4px 8px;
+    }
+
+    /* ── MAIN ───────────────────────────────────────────── */
     .main {
       flex: 1;
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      position: relative;
-      z-index: 1;
+      min-width: 0;
     }
 
-    /* ─── TOP BAR ─────────────────────────────────────────────── */
+    /* ── TOP BAR ────────────────────────────────────────── */
     .topbar {
+      height: 54px;
+      background: var(--bg-sidebar);
+      border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      padding: 18px 36px 10px 36px;
+      justify-content: flex-end;
+      padding: 0 28px;
+      gap: 14px;
       flex-shrink: 0;
     }
 
-    .search-bar {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      background: var(--bg-search);
-      backdrop-filter: blur(8px);
-      border: 1px solid rgba(200, 200, 230, 0.35);
-      border-radius: var(--r-full);
-      height: 42px;
-      padding: 0 18px;
-      width: 360px;
-      box-shadow: 0 2px 10px rgba(100, 80, 200, 0.04);
-      transition: all 0.2s ease;
-    }
-    .search-bar:focus-within {
-      border-color: rgba(124, 92, 250, 0.35);
-      box-shadow: 0 0 0 3px rgba(124, 92, 250, 0.1), 0 2px 10px rgba(100, 80, 200, 0.06);
-    }
-    .search-bar input {
-      border: none; outline: none; background: transparent;
-      font-size: 0.88rem; font-weight: 500; color: var(--text-body);
-      width: 100%;
-      font-family: inherit;
-    }
-    .search-bar input::placeholder { color: var(--text-placeholder); }
-
-    .topbar-right {
-      display: flex; align-items: center; gap: 14px;
-    }
-
-    .notif-wrap {
-      position: relative; cursor: pointer;
-    }
-    .notif-icon {
-      width: 38px; height: 38px;
-      border-radius: 50%;
+    .notif-btn {
+      position: relative;
+      width: 34px; height: 34px;
       display: flex; align-items: center; justify-content: center;
-      color: #555;
+      cursor: pointer; border-radius: 50%;
       transition: background 0.15s;
     }
-    .notif-icon:hover { background: rgba(0,0,0,0.05); }
+    .notif-btn:hover { background: #F3F4F6; }
+    .notif-btn svg { width: 20px; height: 20px; fill: #4B5563; }
     .notif-dot {
-      position: absolute;
-      top: 8px; right: 8px;
-      width: 9px; height: 9px;
-      background: var(--orange);
+      position: absolute; top: 8px; right: 7px;
+      width: 8px; height: 8px;
+      background: #EF4444;
       border-radius: 50%;
-      border: 2px solid var(--bg-app);
+      border: 2px solid white;
     }
 
-    .topbar-avatar {
-      width: 38px; height: 38px;
+    .user-avatar {
+      width: 32px; height: 32px;
       border-radius: 50%;
-      background: var(--purple-avatar-bg);
-      color: var(--purple-text);
+      background: #374151;
+      color: #ffffff;
       display: flex; align-items: center; justify-content: center;
-      font-weight: 700; font-size: 0.92rem;
+      font-weight: 700; font-size: 0.82rem;
       cursor: pointer;
-      transition: box-shadow 0.15s;
+      flex-shrink: 0;
     }
-    .topbar-avatar:hover { box-shadow: 0 0 0 3px rgba(124, 92, 250, 0.25); }
 
-    /* ─── CONTENT SCROLL AREA ─────────────────────────────────── */
+    /* ── CONTENT AREA ───────────────────────────────────── */
     .content {
       flex: 1;
       overflow-y: auto;
-      padding: 4px 36px 36px 36px;
+      padding: 32px 36px 36px 36px;
     }
     .content::-webkit-scrollbar { width: 0; }
 
-    /* ─── PROFILE HERO ────────────────────────────────────────── */
-    .profile-hero {
-      display: flex;
-      align-items: center;
-      gap: 18px;
-      margin-bottom: 26px;
-    }
-    .hero-avatar {
-      width: 62px; height: 62px;
-      border-radius: 50%;
-      background: var(--purple-avatar-bg);
-      color: var(--purple-text);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 1.65rem;
-      font-weight: 700;
-      flex-shrink: 0;
-    }
-    .hero-name {
-      font-size: 2rem;
-      font-weight: 800;
-      color: var(--text-heading);
-      letter-spacing: -0.04em;
-      line-height: 1.15;
-    }
-    .hero-id {
-      font-size: 0.88rem;
-      font-weight: 500;
-      color: var(--text-muted);
-      margin-top: 3px;
+    /* ── VIEW TRANSITIONS ───────────────────────────────── */
+    .view { display: none; }
+    .view.active { display: block; animation: fadeIn 0.18s ease; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
 
-    /* ─── ACTION CARDS (Create / Join) ───────────────────────── */
+    /* ══════════════════════════════════════════════════════
+       HOME VIEW
+    ══════════════════════════════════════════════════════ */
+
+    /* Greeting Row */
+    .greeting-row {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      margin-bottom: 28px;
+    }
+    .greeting-left h1 {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: var(--text-primary);
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+    }
+    .greeting-left .user-code {
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+    .greeting-tagline {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      padding-bottom: 4px;
+    }
+
+    /* Action Cards Row */
     .action-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 20px;
-      margin-bottom: 28px;
+      gap: 16px;
+      margin-bottom: 24px;
     }
 
     .action-card {
-      border-radius: var(--r-xl);
-      padding: 24px 26px 22px 22px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: var(--radius-card);
+      padding: 18px 20px;
       display: flex;
-      align-items: flex-start;
-      gap: 16px;
-      border: 1px solid transparent;
+      align-items: center;
+      gap: 14px;
       box-shadow: var(--shadow-card);
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-    .action-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 28px rgba(100, 80, 200, 0.10);
     }
 
-    .card-create {
-      background: linear-gradient(145deg, #FFF6F0 0%, #FFEDE3 100%);
-      border-color: rgba(255, 180, 140, 0.30);
-    }
-    .card-join {
-      background: linear-gradient(145deg, #F5F1FF 0%, #EDE8FF 100%);
-      border-color: rgba(180, 160, 255, 0.30);
-    }
-
-    /* Icon circle */
-    .card-icon-circle {
-      width: 50px; height: 50px;
+    /* Icon circle in action cards */
+    .card-icon {
+      width: 42px; height: 42px;
       border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
-      margin-top: 2px;
     }
     .card-icon-orange {
-      background: var(--orange);
-      box-shadow: 0 5px 16px rgba(255, 87, 34, 0.38);
-      color: #fff;
+      background: var(--orange-icon-bg);
     }
-    .card-icon-purple {
-      background: var(--purple);
-      box-shadow: 0 5px 16px rgba(124, 92, 250, 0.38);
-      color: #fff;
+    .card-icon-orange svg { width: 20px; height: 20px; fill: var(--red); }
+    .card-icon-gray {
+      background: #F3F4F6;
     }
-    .card-icon-circle svg {
-      width: 24px; height: 24px;
-      fill: #ffffff;
-    }
+    .card-icon-gray svg { width: 20px; height: 20px; fill: #6B7280; }
 
-    .card-body { flex: 1; min-width: 0; }
-
-    .card-title {
-      font-size: 1.08rem;
+    .card-info { flex: 1; min-width: 0; }
+    .card-info-title {
+      font-size: 0.93rem;
       font-weight: 700;
-      color: var(--text-heading);
-      letter-spacing: -0.02em;
-      margin-bottom: 14px;
+      color: var(--text-primary);
+      margin-bottom: 3px;
+    }
+    .card-info-sub {
+      font-size: 0.78rem;
+      font-weight: 400;
+      color: var(--text-secondary);
+      line-height: 1.4;
     }
 
-    /* New Meeting Button */
-    .btn-new-meeting {
-      display: flex; align-items: center; justify-content: center; gap: 8px;
-      width: 100%;
-      height: 44px;
-      background: var(--orange);
-      color: #fff;
+    /* Red/Orange Pill Button */
+    .btn-red {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--red);
+      color: #ffffff;
       border: none;
-      border-radius: var(--r-full);
-      font-size: 0.94rem;
-      font-weight: 700;
-      cursor: pointer;
-      font-family: inherit;
-      box-shadow: var(--shadow-btn);
-      transition: all 0.18s ease;
-      letter-spacing: -0.01em;
-    }
-    .btn-new-meeting:hover {
-      background: #F44D1A;
-      transform: translateY(-1px);
-      box-shadow: 0 8px 24px rgba(255, 87, 34, 0.45);
-    }
-    .btn-new-meeting:active { transform: translateY(0); }
-
-    /* Join row (input + button) */
-    .join-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .join-input-wrap {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: rgba(255,255,255,0.85);
-      border: 1px solid rgba(200, 185, 255, 0.40);
-      border-radius: var(--r-md);
-      height: 44px;
-      padding: 0 14px;
-      box-shadow: 0 2px 8px rgba(100, 80, 200, 0.04);
-      transition: border 0.15s;
-    }
-    .join-input-wrap:focus-within {
-      border-color: rgba(124, 92, 250, 0.5);
-      box-shadow: 0 0 0 3px rgba(124, 92, 250, 0.10);
-    }
-    .hash-symbol {
-      font-size: 1.05rem;
-      font-weight: 700;
-      color: var(--text-muted);
+      height: 38px; padding: 0 18px;
+      border-radius: 22px;
+      font-size: 0.85rem; font-weight: 700;
+      cursor: pointer; font-family: inherit;
+      white-space: nowrap;
+      box-shadow: 0 3px 12px rgba(220, 53, 69, 0.32);
+      transition: all 0.16s ease;
       flex-shrink: 0;
     }
-    .join-input-wrap input {
-      border: none; outline: none; background: transparent;
-      font-size: 0.86rem; font-weight: 500;
-      color: var(--text-body);
-      width: 100%;
-      font-family: inherit;
-    }
-    .join-input-wrap input::placeholder { color: var(--text-placeholder); }
-
-    .btn-join {
-      display: flex; align-items: center; gap: 6px;
-      height: 44px;
-      padding: 0 18px;
-      background: var(--purple);
-      color: #fff;
-      border: none;
-      border-radius: var(--r-md);
-      font-size: 0.94rem;
-      font-weight: 700;
-      cursor: pointer;
-      font-family: inherit;
-      box-shadow: var(--shadow-btn-purple);
-      transition: all 0.18s ease;
-      white-space: nowrap;
-      letter-spacing: -0.01em;
-    }
-    .btn-join:hover {
-      background: #6B4EE8;
+    .btn-red:hover {
+      background: var(--red-dark);
       transform: translateY(-1px);
-      box-shadow: 0 8px 24px rgba(124, 92, 250, 0.48);
+      box-shadow: 0 5px 16px rgba(220, 53, 69, 0.4);
     }
-    .btn-join svg { width: 16px; height: 16px; fill: #fff; }
+    .btn-red:active { transform: translateY(0); }
 
-    /* ─── BOTTOM SPLIT (Meetings + Notes) ────────────────────── */
+    /* Join meeting card right side */
+    .join-right {
+      display: flex; align-items: center; gap: 8px;
+      flex-shrink: 0;
+    }
+    .join-input {
+      height: 36px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0 12px;
+      font-size: 0.82rem;
+      font-weight: 400;
+      color: var(--text-primary);
+      background: #FAFAFA;
+      outline: none;
+      font-family: inherit;
+      width: 190px;
+      transition: border 0.15s, box-shadow 0.15s;
+    }
+    .join-input::placeholder { color: var(--text-muted); }
+    .join-input:focus {
+      border-color: var(--red);
+      box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.12);
+      background: #fff;
+    }
+    .btn-join-sm {
+      display: inline-flex; align-items: center;
+      background: var(--red);
+      color: #ffffff;
+      border: none;
+      height: 36px; padding: 0 18px;
+      border-radius: 6px;
+      font-size: 0.85rem; font-weight: 700;
+      cursor: pointer; font-family: inherit;
+      white-space: nowrap;
+      box-shadow: 0 2px 8px rgba(220, 53, 69, 0.28);
+      transition: all 0.16s ease;
+      flex-shrink: 0;
+    }
+    .btn-join-sm:hover { background: var(--red-dark); }
+
+    /* Bottom section */
     .bottom-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 20px;
+      gap: 16px;
     }
 
-    /* Section headers */
-    .section-head {
+    /* Card panel (white) */
+    .panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: var(--radius-card);
+      box-shadow: var(--shadow-card);
+      overflow: hidden;
+    }
+
+    .panel-head {
       display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 12px;
+      padding: 14px 18px 12px 18px;
+      border-bottom: 1px solid #F3F4F6;
     }
-    .section-title {
-      font-size: 1rem; font-weight: 700;
-      color: var(--text-heading);
-      letter-spacing: -0.01em;
-    }
-    .section-title-group {
+    .panel-title-group {
       display: flex; align-items: center; gap: 8px;
     }
+    .panel-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .panel-title-icon svg {
+      width: 18px; height: 18px; fill: #6B7280;
+    }
     .view-all-link {
-      display: flex; align-items: center; gap: 3px;
-      font-size: 0.84rem; font-weight: 600;
-      color: var(--orange);
-      cursor: pointer;
-      transition: opacity 0.15s;
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 0.8rem; font-weight: 600;
+      color: var(--text-secondary);
+      cursor: pointer; text-decoration: none;
+      transition: color 0.15s;
     }
-    .view-all-link:hover { opacity: 0.8; }
-    .view-all-link svg { width: 14px; height: 14px; fill: var(--orange); }
+    .view-all-link:hover { color: var(--text-primary); }
+    .view-all-link svg { width: 14px; height: 14px; fill: currentColor; }
 
-    /* Notes icon badge (purple) */
-    .notes-icon-badge {
-      width: 28px; height: 28px;
-      border-radius: var(--r-sm);
-      background: #EDE9FF;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .notes-icon-badge svg { width: 16px; height: 16px; fill: var(--purple); }
-
-    .section-arrow {
-      cursor: pointer; color: var(--orange);
-      display: flex; align-items: center;
-    }
-    .section-arrow svg { width: 16px; height: 16px; fill: var(--orange); }
-
-    /* Meetings empty card */
-    .meetings-card {
-      background: var(--bg-card);
-      border-radius: var(--r-xl);
-      border: 1px solid var(--border-card);
-      box-shadow: var(--shadow-card);
-      padding: 32px 24px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 240px;
+    /* Empty state inside meetings panel */
+    .empty-state {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 36px 24px 30px 24px;
       text-align: center;
     }
-    .empty-icon-wrap {
-      width: 54px; height: 54px;
+    .empty-icon {
+      width: 52px; height: 52px;
       border-radius: 50%;
-      background: #F0F0F8;
+      background: #F3F4F6;
       display: flex; align-items: center; justify-content: center;
       margin-bottom: 14px;
     }
-    .empty-icon-wrap svg { width: 26px; height: 26px; fill: #AAAACC; }
+    .empty-icon svg { width: 24px; height: 24px; fill: #9CA3AF; }
     .empty-title {
-      font-size: 0.95rem; font-weight: 700;
-      color: var(--text-body);
+      font-size: 0.92rem; font-weight: 700;
+      color: var(--text-primary);
       margin-bottom: 6px;
     }
     .empty-desc {
-      font-size: 0.82rem; font-weight: 400;
-      color: var(--text-muted);
-      line-height: 1.5;
-      margin-bottom: 20px;
+      font-size: 0.8rem; color: var(--text-secondary);
+      line-height: 1.5; margin-bottom: 20px;
       max-width: 280px;
     }
-    .btn-new-meeting-sm {
-      display: inline-flex; align-items: center; gap: 7px;
-      height: 42px; padding: 0 22px;
-      background: var(--orange);
-      color: #fff; border: none; border-radius: var(--r-full);
-      font-size: 0.9rem; font-weight: 700;
+    /* Outlined button for empty state */
+    .btn-outline {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: transparent;
+      color: var(--text-primary);
+      border: 1.5px solid var(--border-card);
+      height: 36px; padding: 0 18px;
+      border-radius: 8px;
+      font-size: 0.84rem; font-weight: 600;
       cursor: pointer; font-family: inherit;
-      box-shadow: var(--shadow-btn);
-      transition: all 0.18s ease;
+      transition: all 0.15s ease;
     }
-    .btn-new-meeting-sm:hover {
-      background: #F44D1A;
-      transform: translateY(-1px);
-      box-shadow: 0 8px 24px rgba(255, 87, 34, 0.45);
-    }
+    .btn-outline:hover { border-color: var(--red); color: var(--red); background: #FFF5F5; }
+    .btn-outline svg { width: 15px; height: 15px; }
 
-    /* Notes card */
-    .notes-card {
-      background: var(--bg-card);
-      border-radius: var(--r-xl);
-      border: 1px solid var(--border-card);
-      box-shadow: var(--shadow-card);
-      padding: 20px 22px;
-      min-height: 240px;
-      display: flex;
-      flex-direction: column;
+    /* Notes textarea */
+    .notes-body {
+      padding: 12px 18px;
     }
     .notes-textarea {
-      width: 100%; flex: 1;
-      border: none; outline: none; background: transparent;
-      font-size: 0.88rem; font-weight: 400;
-      color: var(--text-body);
-      line-height: 1.65;
-      resize: none;
+      width: 100%;
+      min-height: 96px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 0.84rem;
       font-family: inherit;
-      min-height: 190px;
+      color: var(--text-primary);
+      outline: none;
+      resize: vertical;
+      line-height: 1.55;
+      background: #FAFAFA;
+      transition: border 0.15s;
     }
-    .notes-textarea::placeholder { color: var(--text-placeholder); }
-
-    /* ─── MODAL / DRAWER ──────────────────────────────────────── */
-    .overlay {
-      position: fixed; inset: 0;
-      background: rgba(20, 10, 50, 0.35);
-      backdrop-filter: blur(4px);
-      z-index: 200;
-      display: none; align-items: flex-start; justify-content: flex-end;
-    }
-    .overlay.open { display: flex; }
-
-    .drawer {
-      width: 400px; height: 100%;
+    .notes-textarea::placeholder { color: var(--text-muted); }
+    .notes-textarea:focus {
+      border-color: #D1D5DB;
       background: #fff;
-      box-shadow: -10px 0 40px rgba(100, 80, 200, 0.14);
-      padding: 32px 28px;
-      display: flex; flex-direction: column;
-      animation: slideIn 0.26s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    @keyframes slideIn {
-      from { transform: translateX(100%); }
-      to { transform: translateX(0); }
-    }
-    .drawer-head {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 24px;
-    }
-    .drawer-head h2 { font-size: 1.2rem; font-weight: 800; }
-    .drawer-close {
-      width: 32px; height: 32px; border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; background: #f4f4f8;
-      transition: background 0.15s;
-    }
-    .drawer-close:hover { background: #e8e8f0; }
-    .drawer-close svg { width: 18px; height: 18px; fill: #555; }
-
-    .drawer-option {
-      display: flex; align-items: center; gap: 14px;
-      border: 1px solid #e8e8f0; border-radius: 14px;
-      padding: 16px; margin-bottom: 12px;
-      cursor: pointer; transition: all 0.15s;
-    }
-    .drawer-option:hover { border-color: var(--orange); background: #FFF6F0; }
-    .opt-icon {
-      width: 44px; height: 44px; border-radius: 12px;
-      background: var(--orange); color: #fff;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
-    }
-    .opt-icon svg { width: 22px; height: 22px; fill: #fff; }
-    .opt-icon.green { background: #22c55e; }
-    .opt-icon.blue { background: #3b82f6; }
-    .opt-title { font-size: 0.95rem; font-weight: 700; margin-bottom: 3px; }
-    .opt-sub { font-size: 0.8rem; color: var(--text-muted); }
-
-    /* ─── VIEW TRANSITIONS ─────────────────────────────────────── */
-    .view { display: none; }
-    .view.active { display: block; animation: fadeUp 0.2s ease; }
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(5px); }
-      to { opacity: 1; transform: translateY(0); }
+      box-shadow: 0 0 0 3px rgba(0,0,0,0.04);
     }
 
-    /* ─── VIDEO ROOM ───────────────────────────────────────────── */
+    /* ══════════════════════════════════════════════════════
+       VAULT VIEW
+    ══════════════════════════════════════════════════════ */
+    .vault-search-bar {
+      display: flex; gap: 12px; margin-bottom: 20px;
+    }
+    .vault-input {
+      flex: 1; height: 44px;
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 0 16px; font-size: 0.9rem; outline: none; font-family: inherit;
+      background: #fff;
+      transition: border 0.15s;
+    }
+    .vault-input:focus { border-color: var(--red); }
+
+    /* ══════════════════════════════════════════════════════
+       SETTINGS VIEW
+    ══════════════════════════════════════════════════════ */
+    .settings-panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: var(--radius-card);
+      box-shadow: var(--shadow-card);
+      padding: 28px;
+      max-width: 480px;
+    }
+    .form-group { margin-bottom: 18px; }
+    .form-group label {
+      display: block; font-size: 0.82rem; font-weight: 700;
+      color: #374151; margin-bottom: 6px;
+    }
+    .form-select {
+      width: 100%; height: 40px;
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 0 12px; font-size: 0.86rem; outline: none; font-family: inherit;
+      background: #FAFAFA;
+    }
+    .form-select:focus { border-color: var(--red); }
+
+    /* ══════════════════════════════════════════════════════
+       ROOM VIEW
+    ══════════════════════════════════════════════════════ */
     .room-wrap {
-      background: #0d1117;
-      border-radius: var(--r-xl);
+      height: calc(100vh - 130px);
+      background: #0D1117;
+      border-radius: 12px;
       overflow: hidden;
-      height: calc(100vh - 150px);
       display: flex; flex-direction: column;
     }
     .room-video { flex: 1; position: relative; }
     #webcam-video { width: 100%; height: 100%; object-fit: cover; display: block; }
-    #cam-placeholder {
+    #cam-ph {
       display: none; width: 100%; height: 100%;
-      align-items: center; justify-content: center; flex-direction: column;
-      color: #fff; gap: 14px;
+      align-items: center; justify-content: center; flex-direction: column; gap: 12px;
     }
-    .room-controls {
-      height: 72px; background: rgba(15, 23, 42, 0.95);
+    .room-controls-bar {
+      height: 68px; background: rgba(15, 23, 42, 0.95);
       display: flex; align-items: center; justify-content: space-between;
-      padding: 0 28px; flex-shrink: 0;
-      border-top: 1px solid rgba(255,255,255,0.07);
+      padding: 0 28px; border-top: 1px solid rgba(255,255,255,0.07);
     }
-    .ctrl-btn {
-      width: 46px; height: 46px; border-radius: 50%;
-      background: rgba(255,255,255,0.12); border: none; color: #fff;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; transition: all 0.15s;
-    }
-    .ctrl-btn:hover { background: rgba(255,255,255,0.22); }
-    .ctrl-btn.off { background: #ef4444; }
-    .ctrl-btn svg { width: 22px; height: 22px; fill: #fff; }
-    .ctrl-btns { display: flex; gap: 12px; }
-    .btn-end {
-      display: flex; align-items: center; gap: 7px;
-      background: #ef4444; color: #fff; border: none;
-      height: 42px; padding: 0 20px; border-radius: 999px;
-      font-weight: 700; cursor: pointer; font-family: inherit;
-    }
-    .btn-end svg { width: 18px; height: 18px; fill: #fff; }
-    .room-code { font-weight: 700; color: rgba(255,255,255,0.7); font-size: 0.9rem; }
+    .ctrl { width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.12); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
+    .ctrl:hover { background: rgba(255,255,255,0.22); }
+    .ctrl.off { background: #EF4444; }
+    .ctrl svg { width: 20px; height: 20px; fill: #fff; }
+    .ctrl-group { display: flex; gap: 12px; }
+    .btn-end-call { display: flex; align-items: center; gap: 8px; background: #EF4444; color: #fff; border: none; height: 40px; padding: 0 20px; border-radius: 999px; font-weight: 700; cursor: pointer; font-family: inherit; }
+    .btn-end-call svg { width: 18px; height: 18px; fill: #fff; }
+    .room-label { color: rgba(255,255,255,0.65); font-size: 0.85rem; font-weight: 600; }
 
+    /* ── SLIDE DRAWER ─────────────────────────────────── */
+    .overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.3); backdrop-filter: blur(3px);
+      z-index: 200; display: none; justify-content: flex-end;
+    }
+    .overlay.open { display: flex; }
+    .drawer {
+      width: 380px; height: 100%; background: #fff;
+      box-shadow: -8px 0 32px rgba(0,0,0,0.1);
+      padding: 28px 24px;
+      display: flex; flex-direction: column;
+      animation: slideIn 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+    .drawer-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
+    .drawer-head h2 { font-size: 1.1rem; font-weight: 800; }
+    .drawer-close { width: 30px; height: 30px; border-radius: 50%; background: #F3F4F6; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .drawer-close svg { width: 16px; height: 16px; fill: #6B7280; }
+    .drawer-opt { display: flex; align-items: center; gap: 14px; border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; cursor: pointer; transition: all 0.15s; }
+    .drawer-opt:hover { border-color: var(--red); background: #FFF5F5; }
+    .dopt-icon { width: 42px; height: 42px; border-radius: 10px; background: var(--red); display: flex; align-items: center; justify-content: center; }
+    .dopt-icon svg { width: 20px; height: 20px; fill: #fff; }
+    .dopt-icon.green { background: #22C55E; }
+    .dopt-icon.blue  { background: #3B82F6; }
+    .dopt-title { font-size: 0.9rem; font-weight: 700; }
+    .dopt-sub   { font-size: 0.77rem; color: var(--text-secondary); margin-top: 2px; }
   </style>
 </head>
 <body>
 
-  <!-- Window Chrome -->
-  <div class="window-chrome">
-    <div class="chrome-btn chrome-min" onclick="alert('Minimize')"></div>
-    <div class="chrome-btn chrome-max" onclick="alert('Maximize')"></div>
-    <div class="chrome-btn chrome-close" onclick="alert('Close')"></div>
-  </div>
+<div class="app">
 
-  <!-- Ambient Background Blobs -->
-  <div class="blob blob-purple-bl"></div>
-  <div class="blob blob-purple-br"></div>
-  <div class="blob blob-peach-tr"></div>
-  <div class="blob blob-purple-tr-dot"></div>
-  <div class="blob blob-peach-main"></div>
+  <!-- ══════════════════════════════════
+       SIDEBAR
+  ══════════════════════════════════ -->
+  <aside class="sidebar">
 
-  <div class="app-shell">
-
-    <!-- ══════════════════════════════════
-         LEFT SIDEBAR
-    ══════════════════════════════════ -->
-    <aside class="sidebar">
-
-      <!-- Brand / Logo -->
-      <div class="brand" onclick="switchView('home')">
-        <div class="brand-icon">🤖</div>
-        <span class="brand-name">MeetVault</span>
-      </div>
-
-      <!-- Navigation -->
-      <nav class="nav-list">
-
-        <!-- Home (Active) -->
-        <div class="nav-item active" id="nav-home" onclick="switchView('home')">
-          <span class="nav-icon">
-            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
-            </svg>
-          </span>
-          Home
-        </div>
-
-        <!-- Vault -->
-        <div class="nav-item" id="nav-vault" onclick="switchView('vault')">
-          <span class="nav-icon">
-            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
-            </svg>
-          </span>
-          Vault
-        </div>
-
-      </nav>
-
-      <!-- Sidebar User Footer -->
-      <div class="sidebar-user" onclick="switchView('settings')">
-        <div class="avatar-sm">A</div>
-        <div class="sidebar-user-info">
-          <div class="sidebar-user-name">Arfaaz Khan</div>
-          <div class="sidebar-user-id">MTG-DA22D7</div>
-        </div>
-        <svg class="gear-icon" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+    <!-- Logo -->
+    <div class="brand" onclick="switchView('home')">
+      <div class="brand-icon">
+        <!-- Camera/MV icon -->
+        <svg viewBox="0 0 24 24">
+          <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
         </svg>
       </div>
+      <span class="brand-name">MeetVault</span>
+    </div>
 
-    </aside>
+    <!-- Nav items -->
+    <nav class="nav">
+      <div class="nav-item active" id="nav-home" onclick="switchView('home')">
+        <!-- Home icon -->
+        <svg viewBox="0 0 24 24">
+          <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+        </svg>
+        Home
+      </div>
+      <div class="nav-item" id="nav-vault" onclick="switchView('vault')">
+        <!-- Lock icon -->
+        <svg viewBox="0 0 24 24">
+          <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+        </svg>
+        Vault
+      </div>
+    </nav>
 
-    <!-- ══════════════════════════════════
-         MAIN CONTENT
-    ══════════════════════════════════ -->
-    <div class="main">
+    <!-- Settings at bottom -->
+    <div class="sidebar-bottom">
+      <div class="nav-item" id="nav-settings" onclick="switchView('settings')">
+        <!-- Gear icon -->
+        <svg viewBox="0 0 24 24">
+          <path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+        </svg>
+        Settings
+      </div>
+    </div>
 
-      <!-- TOP BAR -->
-      <header class="topbar">
-        <div class="search-bar">
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#AAAAC0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-          <input type="text" id="search-input" placeholder="Search meetings or start typing..." oninput="handleSearch(this.value)">
+  </aside>
+
+  <!-- ══════════════════════════════════
+       MAIN
+  ══════════════════════════════════ -->
+  <div class="main">
+
+    <!-- TOP BAR -->
+    <header class="topbar">
+      <div class="notif-btn" onclick="alert('No new notifications')">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
+        </svg>
+        <div class="notif-dot"></div>
+      </div>
+      <div class="user-avatar" onclick="switchView('settings')" title="Account">A</div>
+    </header>
+
+    <!-- PAGE CONTENT -->
+    <div class="content">
+
+      <!-- ──────────────────────────────
+           HOME VIEW
+      ────────────────────────────── -->
+      <div class="view active" id="view-home">
+
+        <!-- Greeting Row -->
+        <div class="greeting-row">
+          <div class="greeting-left">
+            <h1>Good to see you, Arfaaz Khan</h1>
+            <div class="user-code">MTG-DA22D7</div>
+          </div>
+          <div class="greeting-tagline">Make meetings more productive.</div>
         </div>
 
-        <div class="topbar-right">
-          <div class="notif-wrap" onclick="alert('No new notifications')">
-            <div class="notif-icon">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="#555">
-                <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
+        <!-- Action Cards -->
+        <div class="action-row">
+
+          <!-- Create a Meeting Card -->
+          <div class="action-card" id="card-create">
+            <div class="card-icon card-icon-orange">
+              <svg viewBox="0 0 24 24">
+                <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
               </svg>
             </div>
-            <div class="notif-dot"></div>
+            <div class="card-info">
+              <div class="card-info-title">Create a Meeting</div>
+              <div class="card-info-sub">Start an instant meeting and invite others.</div>
+            </div>
+            <button class="btn-red" id="btn-new-meeting" onclick="openDrawer()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+              New Meeting
+            </button>
           </div>
 
-          <div class="topbar-avatar" onclick="switchView('settings')" title="Account">A</div>
-        </div>
-      </header>
-
-      <!-- SCROLLABLE CONTENT -->
-      <div class="content">
-
-        <!-- ── HOME VIEW ── -->
-        <div class="view active" id="view-home">
-
-          <!-- Profile Hero -->
-          <div class="profile-hero">
-            <div class="hero-avatar">A</div>
-            <div>
-              <h1 class="hero-name">Arfaaz Khan</h1>
-              <div class="hero-id">MTG-DA22D7</div>
+          <!-- Join a Meeting Card -->
+          <div class="action-card" id="card-join">
+            <div class="card-icon card-icon-gray">
+              <!-- Link icon -->
+              <svg viewBox="0 0 24 24">
+                <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/>
+              </svg>
+            </div>
+            <div class="card-info">
+              <div class="card-info-title">Join a Meeting</div>
+              <div class="card-info-sub">Enter a meeting code to join.</div>
+            </div>
+            <div class="join-right">
+              <input type="text" class="join-input" id="join-code" placeholder="Enter meeting code (e.g. MTG-XXX-XX)" onkeydown="if(event.key==='Enter') doJoin()">
+              <button class="btn-join-sm" onclick="doJoin()">Join</button>
             </div>
           </div>
 
-          <!-- Action Cards Row -->
-          <div class="action-row">
+        </div><!-- /action-row -->
 
-            <!-- Create a Meeting -->
-            <div class="action-card card-create">
-              <div class="card-icon-circle card-icon-orange">
-                <!-- Video Camera Icon -->
-                <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
-              </div>
-              <div class="card-body">
-                <div class="card-title">Create a Meeting</div>
-                <button class="btn-new-meeting" id="btn-create-meeting" onclick="openDrawer()">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                  New Meeting
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
-                </button>
-              </div>
+        <!-- Bottom Split -->
+        <div class="bottom-row">
+
+          <!-- Recent Meetings -->
+          <div class="panel">
+            <div class="panel-head">
+              <span class="panel-title">Recent Meetings</span>
+              <a class="view-all-link" onclick="switchView('vault')">
+                View all
+                <svg viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
+              </a>
             </div>
-
-            <!-- Join a Meeting -->
-            <div class="action-card card-join">
-              <div class="card-icon-circle card-icon-purple">
-                <!-- Group / People Icon -->
-                <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+            <div class="empty-state">
+              <div class="empty-icon">
+                <svg viewBox="0 0 24 24">
+                  <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
+                </svg>
               </div>
-              <div class="card-body">
-                <div class="card-title">Join a Meeting</div>
-                <div class="join-row">
-                  <div class="join-input-wrap">
-                    <span class="hash-symbol">#</span>
-                    <input type="text" id="join-code-input" placeholder="Enter meeting code (e.g. MTG-XXX:XX)" onkeydown="if(event.key==='Enter') joinMeeting()">
-                  </div>
-                  <button class="btn-join" onclick="joinMeeting()">
-                    Join
-                    <svg viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-          </div><!-- /action-row -->
-
-          <!-- Bottom Split -->
-          <div class="bottom-row">
-
-            <!-- Recent Meetings -->
-            <div>
-              <div class="section-head">
-                <span class="section-title">Recent Meetings</span>
-                <span class="view-all-link" onclick="switchView('vault')">
-                  View all
-                  <svg viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
-                </span>
-              </div>
-
-              <div class="meetings-card">
-                <div class="empty-icon-wrap">
-                  <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
-                </div>
-                <div class="empty-title">No meetings yet</div>
-                <div class="empty-desc">
-                  Start a meeting or join with a code to see your recent meetings here.
-                </div>
-                <button class="btn-new-meeting-sm" onclick="openDrawer()">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                  New Meeting
-                </button>
-              </div>
-            </div>
-
-            <!-- Notes -->
-            <div>
-              <div class="section-head">
-                <div class="section-title-group">
-                  <div class="notes-icon-badge">
-                    <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
-                  </div>
-                  <span class="section-title">Notes</span>
-                </div>
-                <span class="section-arrow" onclick="alert('Notes expanded')">
-                  <svg viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
-                </span>
-              </div>
-
-              <div class="notes-card">
-                <textarea class="notes-textarea" id="notes-field" placeholder="Start typing your notes..." oninput="saveNotes(this.value)"></textarea>
-              </div>
-            </div>
-
-          </div><!-- /bottom-row -->
-
-        </div><!-- /view-home -->
-
-        <!-- ── VAULT VIEW ── -->
-        <div class="view" id="view-vault">
-          <h2 style="font-size:1.45rem;font-weight:800;margin-bottom:6px;">Knowledge Vault</h2>
-          <p style="color:var(--text-muted);margin-bottom:24px;font-size:0.9rem;">Semantic search across all your meeting transcripts and AI summaries.</p>
-
-          <div style="background:#fff;border-radius:18px;padding:24px;border:1px solid var(--border-card);box-shadow:var(--shadow-card);">
-            <div style="display:flex;gap:12px;margin-bottom:0;">
-              <input type="text" id="vault-q" placeholder="Ask AI a question about past meetings..." style="flex:1;height:46px;border:1px solid #ddd;border-radius:12px;padding:0 16px;font-size:0.9rem;outline:none;font-family:inherit;" onfocus="this.style.borderColor='var(--purple)'" onblur="this.style.borderColor='#ddd'" onkeydown="if(event.key==='Enter') vaultSearch()">
-              <button onclick="vaultSearch()" style="height:46px;padding:0 22px;background:var(--purple);color:#fff;border:none;border-radius:12px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:var(--shadow-btn-purple);">Search Vault</button>
-            </div>
-            <div id="vault-result" style="display:none;margin-top:18px;background:#f8f7ff;border-radius:12px;padding:18px;font-size:0.9rem;line-height:1.6;color:var(--text-body);"></div>
-          </div>
-        </div>
-
-        <!-- ── ROOM VIEW ── -->
-        <div class="view" id="view-room">
-          <div class="room-wrap">
-            <div class="room-video">
-              <video id="webcam-video" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;"></video>
-              <div id="cam-placeholder" style="display:none;width:100%;height:100%;align-items:center;justify-content:center;flex-direction:column;gap:12px;">
-                <div style="width:76px;height:76px;border-radius:50%;background:var(--purple-avatar-bg);color:var(--purple-text);display:flex;align-items:center;justify-content:center;font-size:2rem;font-weight:700;">A</div>
-                <div style="color:#fff;font-weight:700;">Camera Off</div>
-              </div>
-            </div>
-            <div class="room-controls">
-              <span class="room-code" id="room-code-label">meetvault.live/instant</span>
-              <div class="ctrl-btns">
-                <button class="ctrl-btn" id="btn-mic" onclick="toggleMic()">
-                  <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z"/></svg>
-                </button>
-                <button class="ctrl-btn" id="btn-cam" onclick="toggleCam()">
-                  <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
-                </button>
-                <button class="ctrl-btn" onclick="shareScreen()">
-                  <svg viewBox="0 0 24 24"><path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>
-                </button>
-              </div>
-              <button class="btn-end" onclick="endCall()">
-                <svg viewBox="0 0 24 24"><path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56-.35-.12-.74-.03-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/></svg>
-                End Call
+              <div class="empty-title">No meetings yet</div>
+              <div class="empty-desc">Start a meeting or join with a code to see your recent meetings here.</div>
+              <button class="btn-outline" onclick="openDrawer()">
+                <svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px;"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                New Meeting
               </button>
             </div>
           </div>
-        </div>
 
-        <!-- ── SETTINGS VIEW ── -->
-        <div class="view" id="view-settings">
-          <h2 style="font-size:1.45rem;font-weight:800;margin-bottom:6px;">Account & Settings</h2>
-          <p style="color:var(--text-muted);margin-bottom:24px;font-size:0.9rem;">Manage your profile, devices and preferences.</p>
-          <div style="background:#fff;border-radius:18px;padding:28px;border:1px solid var(--border-card);box-shadow:var(--shadow-card);max-width:500px;">
-            <div style="display:flex;align-items:center;gap:14px;margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid #f0f0f8;">
-              <div style="width:54px;height:54px;border-radius:50%;background:var(--purple-avatar-bg);color:var(--purple-text);display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:700;">A</div>
-              <div>
-                <div style="font-size:1.05rem;font-weight:700;">Arfaaz Khan</div>
-                <div style="font-size:0.8rem;color:var(--text-muted);">MTG-DA22D7 · Personal Account</div>
+          <!-- Notes -->
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-title-group">
+                <div class="panel-title-icon">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
+                  </svg>
+                </div>
+                <span class="panel-title">Notes</span>
               </div>
+              <a class="view-all-link" onclick="alert('All notes')">
+                View all
+                <svg viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
+              </a>
             </div>
-            <div style="margin-bottom:16px;">
-              <label style="font-size:0.82rem;font-weight:700;color:#475569;display:block;margin-bottom:6px;">Camera</label>
-              <select style="width:100%;height:42px;border:1px solid #e2e8f0;border-radius:10px;padding:0 12px;font-size:0.88rem;background:#f8fafc;outline:none;font-family:inherit;"><option>HD Web Camera (Integrated)</option></select>
+            <div class="notes-body">
+              <textarea class="notes-textarea" id="notes-field" placeholder="Write a quick note..." oninput="saveNote(this.value)"></textarea>
             </div>
-            <div style="margin-bottom:20px;">
-              <label style="font-size:0.82rem;font-weight:700;color:#475569;display:block;margin-bottom:6px;">Microphone</label>
-              <select style="width:100%;height:42px;border:1px solid #e2e8f0;border-radius:10px;padding:0 12px;font-size:0.88rem;background:#f8fafc;outline:none;font-family:inherit;"><option>Default Microphone Array</option></select>
+          </div>
+
+        </div><!-- /bottom-row -->
+
+      </div><!-- /view-home -->
+
+      <!-- ──────────────────────────────
+           VAULT VIEW
+      ────────────────────────────── -->
+      <div class="view" id="view-vault">
+        <h2 style="font-size:1.4rem;font-weight:800;margin-bottom:4px;">Knowledge Vault</h2>
+        <p style="color:var(--text-secondary);font-size:0.86rem;margin-bottom:24px;">Semantic search across all meetings, transcripts and summaries.</p>
+        <div class="vault-search-bar">
+          <input type="text" class="vault-input" id="vault-q" placeholder="Ask AI about past meetings (e.g. What decisions were made last week?)" onkeydown="if(event.key==='Enter') vaultSearch()">
+          <button class="btn-red" onclick="vaultSearch()">Search Vault</button>
+        </div>
+        <div id="vault-result" style="display:none;background:#fff;border:1px solid var(--border-card);border-radius:10px;padding:18px;font-size:0.9rem;line-height:1.6;color:var(--text-primary);box-shadow:var(--shadow-sm);"></div>
+      </div>
+
+      <!-- ──────────────────────────────
+           ROOM VIEW
+      ────────────────────────────── -->
+      <div class="view" id="view-room">
+        <div class="room-wrap">
+          <div class="room-video">
+            <video id="webcam-video" autoplay playsinline muted></video>
+            <div id="cam-ph" style="background:#0d1117;flex-direction:column;align-items:center;justify-content:center;gap:12px;">
+              <div style="width:72px;height:72px;border-radius:50%;background:#374151;color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.8rem;font-weight:700;">A</div>
+              <div style="color:#fff;font-weight:600;">Camera Off</div>
             </div>
-            <button onclick="alert('Settings saved!')" style="width:100%;height:44px;background:var(--orange);color:#fff;border:none;border-radius:999px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:var(--shadow-btn);">Save Settings</button>
+          </div>
+          <div class="room-controls-bar">
+            <span class="room-label" id="room-label">meetvault.live/instant</span>
+            <div class="ctrl-group">
+              <button class="ctrl" id="btn-mic" onclick="toggleMic()">
+                <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z"/></svg>
+              </button>
+              <button class="ctrl" id="btn-cam" onclick="toggleCam()">
+                <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+              </button>
+              <button class="ctrl" onclick="shareScreen()">
+                <svg viewBox="0 0 24 24"><path d="M20 18c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg>
+              </button>
+            </div>
+            <button class="btn-end-call" onclick="endCall()">
+              <svg viewBox="0 0 24 24"><path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56-.35-.12-.74-.03-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/></svg>
+              End Call
+            </button>
           </div>
         </div>
+      </div>
 
-      </div><!-- /content -->
-    </div><!-- /main -->
-  </div><!-- /app-shell -->
-
-  <!-- ═══════════════════════════════════
-       NEW MEETING DRAWER MODAL
-  ═══════════════════════════════════ -->
-  <div class="overlay" id="drawer-overlay" onclick="closeDrawer(event)">
-    <div class="drawer" onclick="event.stopPropagation()">
-      <div class="drawer-head">
-        <h2>Start a Meeting</h2>
-        <div class="drawer-close" onclick="closeDrawer()">
-          <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      <!-- ──────────────────────────────
+           SETTINGS VIEW
+      ────────────────────────────── -->
+      <div class="view" id="view-settings">
+        <h2 style="font-size:1.4rem;font-weight:800;margin-bottom:4px;">Settings</h2>
+        <p style="color:var(--text-secondary);font-size:0.86rem;margin-bottom:24px;">Manage account, devices and preferences.</p>
+        <div class="settings-panel">
+          <div style="display:flex;align-items:center;gap:14px;margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid var(--border);">
+            <div style="width:48px;height:48px;border-radius:50%;background:#374151;color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.2rem;font-weight:700;">A</div>
+            <div>
+              <div style="font-size:1rem;font-weight:700;">Arfaaz Khan</div>
+              <div style="font-size:0.78rem;color:var(--text-secondary);">MTG-DA22D7 · Personal</div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Camera</label>
+            <select class="form-select"><option>HD Web Camera (Integrated)</option><option>USB Camera</option></select>
+          </div>
+          <div class="form-group">
+            <label>Microphone</label>
+            <select class="form-select"><option>Default Microphone Array</option><option>Headset Mic</option></select>
+          </div>
+          <button class="btn-red" style="width:100%;justify-content:center;border-radius:8px;" onclick="alert('Settings saved!')">Save Settings</button>
         </div>
       </div>
 
-      <div class="drawer-option" onclick="startCall()">
-        <div class="opt-icon">
-          <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
-        </div>
-        <div>
-          <div class="opt-title">Start Instant Meeting</div>
-          <div class="opt-sub">Open video room with camera & mic immediately</div>
-        </div>
-      </div>
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app -->
 
-      <div class="drawer-option" onclick="copyMeetingLink()">
-        <div class="opt-icon green">
-          <svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>
-        </div>
-        <div>
-          <div class="opt-title">Create Meeting Link</div>
-          <div class="opt-sub">Generate a shareable room code for attendees</div>
-        </div>
-      </div>
-
-      <div class="drawer-option" onclick="alert('Schedule meeting feature coming soon!')">
-        <div class="opt-icon blue">
-          <svg viewBox="0 0 24 24"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg>
-        </div>
-        <div>
-          <div class="opt-title">Schedule for Later</div>
-          <div class="opt-sub">Set topic, time and invite participants</div>
-        </div>
-      </div>
+<!-- ══════════════════════════════════
+     NEW MEETING DRAWER
+══════════════════════════════════ -->
+<div class="overlay" id="drawer-overlay" onclick="closeDrawer(event)">
+  <div class="drawer" onclick="event.stopPropagation()">
+    <div class="drawer-head">
+      <h2>Start a Meeting</h2>
+      <button class="drawer-close" onclick="closeDrawer()">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      </button>
+    </div>
+    <div class="drawer-opt" onclick="startCall()">
+      <div class="dopt-icon"><svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg></div>
+      <div><div class="dopt-title">Instant Meeting</div><div class="dopt-sub">Join immediately with camera & mic</div></div>
+    </div>
+    <div class="drawer-opt" onclick="copyLink()">
+      <div class="dopt-icon green"><svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg></div>
+      <div><div class="dopt-title">Create Meeting Link</div><div class="dopt-sub">Generate & copy a shareable room code</div></div>
+    </div>
+    <div class="drawer-opt" onclick="alert('Schedule meeting coming soon!')">
+      <div class="dopt-icon blue"><svg viewBox="0 0 24 24"><path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-2 .9-2 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/></svg></div>
+      <div><div class="dopt-title">Schedule Meeting</div><div class="dopt-sub">Pick a time, topic and invite attendees</div></div>
     </div>
   </div>
+</div>
 
-  <script>
-    // ── Restore saved notes ──────────────────────────────────────────
-    (function() {
-      const saved = localStorage.getItem('mv_notes');
-      if (saved) {
-        const el = document.getElementById('notes-field');
-        if (el) el.value = saved;
-      }
-    })();
+<script>
+  // ── Restore notes ────────────────────────────────────────
+  (function(){
+    const n = localStorage.getItem('mv_notes_v2');
+    if(n){ const el = document.getElementById('notes-field'); if(el) el.value = n; }
+  })();
 
-    function saveNotes(val) {
-      localStorage.setItem('mv_notes', val);
-    }
+  function saveNote(v){ localStorage.setItem('mv_notes_v2', v); }
 
-    // ── View switching ───────────────────────────────────────────────
-    function switchView(name) {
-      // Remove active from nav
-      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-      const navEl = document.getElementById('nav-' + name);
-      if (navEl) navEl.classList.add('active');
+  // ── View switching ────────────────────────────────────────
+  function switchView(name){
+    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+    const nav = document.getElementById('nav-' + name);
+    if(nav) nav.classList.add('active');
 
-      // Hide all views
-      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-      const target = document.getElementById('view-' + name);
-      if (target) target.classList.add('active');
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    const t = document.getElementById('view-' + name);
+    if(t) t.classList.add('active');
 
-      // Stop camera if leaving room
-      if (name !== 'room') {
-        stopStream();
-      }
-    }
+    if(name !== 'room') stopStream();
+  }
 
-    // ── Drawer ───────────────────────────────────────────────────────
-    function openDrawer() {
-      document.getElementById('drawer-overlay').classList.add('open');
-    }
-    function closeDrawer(e) {
+  // ── Drawer ────────────────────────────────────────────────
+  function openDrawer(){ document.getElementById('drawer-overlay').classList.add('open'); }
+  function closeDrawer(e){
+    if(!e || e.target === document.getElementById('drawer-overlay'))
       document.getElementById('drawer-overlay').classList.remove('open');
+  }
+
+  // ── Meeting controls ──────────────────────────────────────
+  let stream = null, micOn = true, camOn = true;
+
+  async function startCall(){
+    closeDrawer();
+    switchView('room');
+    const vid = document.getElementById('webcam-video');
+    const ph  = document.getElementById('cam-ph');
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      vid.srcObject = stream;
+      vid.style.display = 'block';
+      ph.style.display = 'none';
+    } catch(e){
+      vid.style.display = 'none';
+      ph.style.display = 'flex';
     }
+  }
 
-    // ── Start call ───────────────────────────────────────────────────
-    let stream = null;
-    let micOn = true, camOn = true;
+  function stopStream(){
+    if(stream){ stream.getTracks().forEach(t => t.stop()); stream = null; }
+  }
 
-    async function startCall() {
-      closeDrawer();
-      switchView('room');
-      const vid = document.getElementById('webcam-video');
-      const ph = document.getElementById('cam-placeholder');
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        vid.srcObject = stream;
-        vid.style.display = 'block';
-        ph.style.display = 'none';
-      } catch(e) {
-        vid.style.display = 'none';
-        ph.style.display = 'flex';
-      }
-    }
+  function toggleMic(){
+    micOn = !micOn;
+    if(stream) stream.getAudioTracks().forEach(t => t.enabled = micOn);
+    document.getElementById('btn-mic').classList.toggle('off', !micOn);
+  }
 
-    function stopStream() {
-      if (stream) {
-        stream.getTracks().forEach(t => t.stop());
-        stream = null;
-      }
-    }
+  function toggleCam(){
+    camOn = !camOn;
+    const vid = document.getElementById('webcam-video');
+    const ph  = document.getElementById('cam-ph');
+    if(stream) stream.getVideoTracks().forEach(t => t.enabled = camOn);
+    document.getElementById('btn-cam').classList.toggle('off', !camOn);
+    vid.style.display = camOn ? 'block' : 'none';
+    ph.style.display  = camOn ? 'none'  : 'flex';
+  }
 
-    function toggleMic() {
-      micOn = !micOn;
-      if (stream) stream.getAudioTracks().forEach(t => t.enabled = micOn);
-      document.getElementById('btn-mic').classList.toggle('off', !micOn);
-    }
+  function shareScreen(){
+    navigator.mediaDevices.getDisplayMedia({ video: true }).then(s => {
+      document.getElementById('webcam-video').srcObject = s;
+    }).catch(()=>{});
+  }
 
-    function toggleCam() {
-      camOn = !camOn;
-      const vid = document.getElementById('webcam-video');
-      const ph = document.getElementById('cam-placeholder');
-      if (stream) stream.getVideoTracks().forEach(t => t.enabled = camOn);
-      document.getElementById('btn-cam').classList.toggle('off', !camOn);
-      vid.style.display = camOn ? 'block' : 'none';
-      ph.style.display = camOn ? 'none' : 'flex';
-    }
+  function endCall(){ stopStream(); switchView('home'); }
 
-    function shareScreen() {
-      navigator.mediaDevices.getDisplayMedia({ video: true }).then(s => {
-        document.getElementById('webcam-video').srcObject = s;
-      }).catch(() => {});
-    }
+  // ── Join meeting ─────────────────────────────────────────
+  function doJoin(){
+    const code = document.getElementById('join-code').value.trim();
+    if(!code){ document.getElementById('join-code').focus(); return; }
+    document.getElementById('room-label').textContent = 'meetvault.live/' + code;
+    startCall();
+  }
 
-    function endCall() {
-      stopStream();
-      switchView('home');
-    }
+  // ── Copy link ────────────────────────────────────────────
+  function copyLink(){
+    const code = 'MTG-' + Math.random().toString(36).substring(2,7).toUpperCase();
+    const url  = 'https://meetvault.live/' + code;
+    navigator.clipboard.writeText(url).catch(()=>{});
+    closeDrawer();
+    alert('Meeting link copied!\n\n' + url);
+  }
 
-    // ── Join meeting ─────────────────────────────────────────────────
-    function joinMeeting() {
-      const code = document.getElementById('join-code-input').value.trim();
-      if (!code) {
-        document.getElementById('join-code-input').focus();
-        return;
-      }
-      document.getElementById('room-code-label').textContent = 'meetvault.live/' + code;
-      startCall();
-    }
-
-    // ── Copy link ────────────────────────────────────────────────────
-    function copyMeetingLink() {
-      const code = 'MTG-' + Math.random().toString(36).substring(2, 8).toUpperCase();
-      const link = 'https://meetvault.live/' + code;
-      navigator.clipboard.writeText(link).catch(() => {});
-      closeDrawer();
-      alert('Meeting link copied!\n\n' + link);
-    }
-
-    // ── Search ───────────────────────────────────────────────────────
-    function handleSearch(val) { /* live search placeholder */ }
-
-    // ── Vault search ─────────────────────────────────────────────────
-    function vaultSearch() {
-      const q = document.getElementById('vault-q').value.trim();
-      const res = document.getElementById('vault-result');
-      if (!q) return;
-      res.style.display = 'block';
-      res.innerHTML = '<em style="color:var(--text-muted);">Searching vault for "' + q + '"...</em>';
-      setTimeout(() => {
-        res.innerHTML = '<strong>Answer for "' + q + '":</strong><br>Based on 3 recent meetings, the team decided to use Faster-Whisper for low-latency transcription and a database queue for async AI job processing.';
-      }, 700);
-    }
-  </script>
+  // ── Vault search ─────────────────────────────────────────
+  function vaultSearch(){
+    const q   = document.getElementById('vault-q').value.trim();
+    const res = document.getElementById('vault-result');
+    if(!q) return;
+    res.style.display = 'block';
+    res.innerHTML = '<em style="color:#9CA3AF;">Searching vault for "' + q + '"...</em>';
+    setTimeout(()=>{
+      res.innerHTML = '<strong>Result:</strong> Based on 3 recent meetings, the team decided on Faster-Whisper for transcription and a PostgreSQL queue for AI job processing.';
+    }, 600);
+  }
+</script>
 
 </body>
 </html>
