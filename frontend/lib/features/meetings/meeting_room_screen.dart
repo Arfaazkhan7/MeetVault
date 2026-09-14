@@ -45,6 +45,7 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
   bool _microphoneEnabled = true;
   bool _cameraEnabled = true;
   bool _screenShareEnabled = false;
+  Participant? _pinnedParticipant;
   String _connectionStatus = 'Connecting';
   String? _errorMessage;
   String? _inviteCode;
@@ -459,9 +460,66 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
     );
   }
 
-  // ── Room View (Video Grid) ────────────────────────────────────────────
+  // ── Room View (Video Grid & Stage Layout) ────────────────────────────
   Widget _buildRoom() {
-    return _ParticipantGrid(participants: _participants);
+    return Column(
+      children: [
+        if (_screenShareEnabled)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            color: const Color(0xFF1E2023),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.screen_share, size: 16, color: Color(0xFF8AB4F8)),
+                      SizedBox(width: 8),
+                      Text(
+                        'You are presenting to everyone',
+                        style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFA8C7FA),
+                    foregroundColor: const Color(0xFF040E25),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  ),
+                  onPressed: _toggleScreenShare,
+                  child: const Text('Stop presenting', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                ),
+              ],
+            ),
+          ),
+        Expanded(
+          child: _ParticipantGrid(
+            participants: _participants,
+            isScreenSharing: _screenShareEnabled,
+            pinnedParticipant: _pinnedParticipant,
+            onPinToggle: (p) {
+              setState(() {
+                if (_pinnedParticipant == p) {
+                  _pinnedParticipant = null;
+                } else {
+                  _pinnedParticipant = p;
+                }
+              });
+            },
+          ),
+        ),
+      ],
+    );
   }
 
   // ── Bottom Controls Bar ───────────────────────────────────────────────
@@ -642,7 +700,7 @@ class _ControlButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final bgColor = isDestructive
         ? const Color(0xFFEF4444)
-        : const Color(0xFF334155);
+        : (isActive ? const Color(0xFF2563EB) : const Color(0xFF334155));
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -668,11 +726,19 @@ class _ControlButton extends StatelessWidget {
   }
 }
 
-// ── Participant Grid ──────────────────────────────────────────────────────
+// ── Participant Grid / Stage View ─────────────────────────────────────────
 class _ParticipantGrid extends StatelessWidget {
   final List<Participant> participants;
+  final bool isScreenSharing;
+  final Participant? pinnedParticipant;
+  final ValueChanged<Participant> onPinToggle;
 
-  const _ParticipantGrid({required this.participants});
+  const _ParticipantGrid({
+    required this.participants,
+    this.isScreenSharing = false,
+    this.pinnedParticipant,
+    required this.onPinToggle,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -691,19 +757,56 @@ class _ParticipantGrid extends StatelessWidget {
         ),
       );
     }
+
+    final bool isStageMode = isScreenSharing || pinnedParticipant != null;
+
+    if (isStageMode) {
+      final stageParticipant = pinnedParticipant ?? participants.first;
+      final sidebarParticipants = participants.where((p) => p != stageParticipant).toList();
+
+      return Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            // Left Stage View (~75%)
+            Expanded(
+              child: _ParticipantTile(
+                participant: stageParticipant,
+                isPinned: pinnedParticipant == stageParticipant,
+                onPinToggle: () => onPinToggle(stageParticipant),
+              ),
+            ),
+            if (sidebarParticipants.isNotEmpty) ...[
+              const SizedBox(width: 12),
+              // Right Sidebar (~25%)
+              SizedBox(
+                width: 240,
+                child: ListView.separated(
+                  itemCount: sidebarParticipants.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final p = sidebarParticipants[index];
+                    return SizedBox(
+                      height: 150,
+                      child: _ParticipantTile(
+                        participant: p,
+                        isPinned: pinnedParticipant == p,
+                        onPinToggle: () => onPinToggle(p),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final count = participants.length;
-        int columns;
-        if (count == 1) {
-          columns = 1;
-        } else if (count <= 4) {
-          columns = 2;
-        } else if (constraints.maxWidth > 1000) {
-          columns = 3;
-        } else {
-          columns = 2;
-        }
+        int columns = count == 1 ? 1 : (count <= 4 ? 2 : (constraints.maxWidth > 1000 ? 3 : 2));
         return GridView.builder(
           padding: const EdgeInsets.all(12),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -713,7 +816,14 @@ class _ParticipantGrid extends StatelessWidget {
             childAspectRatio: 16 / 10,
           ),
           itemCount: participants.length,
-          itemBuilder: (context, index) => _ParticipantTile(participant: participants[index]),
+          itemBuilder: (context, index) {
+            final p = participants[index];
+            return _ParticipantTile(
+              participant: p,
+              isPinned: pinnedParticipant == p,
+              onPinToggle: () => onPinToggle(p),
+            );
+          },
         );
       },
     );
@@ -723,8 +833,14 @@ class _ParticipantGrid extends StatelessWidget {
 // ── Participant Tile ──────────────────────────────────────────────────────
 class _ParticipantTile extends StatelessWidget {
   final Participant participant;
+  final bool isPinned;
+  final VoidCallback? onPinToggle;
 
-  const _ParticipantTile({required this.participant});
+  const _ParticipantTile({
+    required this.participant,
+    this.isPinned = false,
+    this.onPinToggle,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -773,6 +889,27 @@ class _ParticipantTile extends StatelessWidget {
                       color: Colors.white,
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            // Pin Overlay Button on top-left
+            if (onPinToggle != null)
+              Positioned(
+                top: 10,
+                left: 10,
+                child: InkWell(
+                  onTap: onPinToggle,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: isPinned ? const Color(0xFF2563EB) : Colors.black.withOpacity(0.6),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                      size: 16,
+                      color: Colors.white,
                     ),
                   ),
                 ),
