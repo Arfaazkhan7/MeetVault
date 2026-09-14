@@ -149,14 +149,13 @@ class SpeakerMappingService:
         user_id: Optional[str]
     ):
         """
-        Update transcript segments with user mapping.
-        
-        Args:
-            db: Database session
-            meeting_id: Meeting public ID
-            speaker_label: Speaker label
-            user_id: User public ID or None
+        Update transcript segments, evidence, and AI entities with user mapping.
         """
+        from app.models.evidence import Evidence
+        from app.models.task import Task
+        from app.models.decision import Decision
+        from app.models.intelligence import Question, Risk, Commitment
+
         segments = db.query(TranscriptSegment).filter(
             TranscriptSegment.meeting_id == meeting_id,
             TranscriptSegment.speaker_label == speaker_label
@@ -167,6 +166,50 @@ class SpeakerMappingService:
             if user_id:
                 segment.speaker_confirmed = True
         
+        # Propagate to Evidence
+        evidences = db.query(Evidence).filter(
+            Evidence.meeting_id == meeting_id,
+            Evidence.speaker_label == speaker_label
+        ).all()
+        for ev in evidences:
+            ev.user_id = user_id
+
+        # Propagate to Tasks (Action Items)
+        tasks = db.query(Task).filter(
+            Task.meeting_id == meeting_id,
+            Task.speaker_label == speaker_label
+        ).all()
+        for t in tasks:
+            if user_id:
+                t.assignee_id = user_id
+
+        # Propagate to Decisions
+        decisions = db.query(Decision).filter(
+            Decision.meeting_id == meeting_id,
+            Decision.speaker_label == speaker_label
+        ).all()
+        for d in decisions:
+            if user_id:
+                d.proposer_id = user_id
+
+        # Propagate to Questions
+        questions = db.query(Question).filter(
+            Question.meeting_id == meeting_id,
+            Question.asked_by_participant_id == speaker_label
+        ).all()
+        for q in questions:
+            if user_id:
+                q.asked_by_participant_id = user_id
+
+        # Propagate to Commitments
+        commitments = db.query(Commitment).filter(
+            Commitment.meeting_id == meeting_id,
+            Commitment.person == speaker_label
+        ).all()
+        for c in commitments:
+            if user_id:
+                c.participant_id = user_id
+
         db.commit()
     
     def auto_map_speakers(

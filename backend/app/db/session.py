@@ -43,6 +43,19 @@ except Exception as e:
             ("users", "account_type", "VARCHAR NOT NULL DEFAULT 'personal'"),
             ("users", "firebase_uid", "VARCHAR"),
             ("companies", "workspace_code", "VARCHAR"),
+            ("tasks", "project_id", "VARCHAR"),
+            ("tasks", "source_segment_id", "VARCHAR"),
+            ("tasks", "source_start_ms", "FLOAT"),
+            ("tasks", "source_end_ms", "FLOAT"),
+            ("tasks", "speaker_label", "VARCHAR"),
+            ("decisions", "source_segment_id", "VARCHAR"),
+            ("decisions", "source_start_ms", "FLOAT"),
+            ("decisions", "source_end_ms", "FLOAT"),
+            ("decisions", "speaker_label", "VARCHAR"),
+            ("evidence", "question_id", "VARCHAR"),
+            ("evidence", "risk_id", "VARCHAR"),
+            ("evidence", "commitment_id", "VARCHAR"),
+            ("evidence", "unresolved_issue_id", "VARCHAR"),
         ):
             columns = {row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({table})")}
             if column not in columns:

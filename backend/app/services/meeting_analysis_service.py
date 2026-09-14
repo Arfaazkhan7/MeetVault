@@ -11,7 +11,8 @@ from app.models.decision import Decision
 from app.models.task import Task
 from app.models.evidence import Evidence
 from app.models.meeting_summary import MeetingSummary
-from app.services.llm_provider import LLMProvider, MockLLMProvider
+from app.models.intelligence import Question, Risk, UnresolvedIssue, Commitment, Reminder
+from app.services.llm_provider import LLMProvider, MockLLMProvider, get_llm_provider
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -25,9 +26,9 @@ class MeetingAnalysisService:
         Initialize meeting analysis service.
         
         Args:
-            llm_provider: LLM provider to use (defaults to Mock provider for development)
+            llm_provider: LLM provider to use (defaults to provider configured in settings)
         """
-        self.llm_provider = llm_provider or MockLLMProvider()
+        self.llm_provider = llm_provider or get_llm_provider()
         self.max_retries = 3
         self.retry_delay = 2  # seconds
     
@@ -227,6 +228,15 @@ Please provide a comprehensive analysis following the JSON structure specified a
         # Store tasks
         self._store_tasks(db, meeting, analysis["action_items"], segments)
         
+        # Store questions
+        self._store_questions(db, meeting, analysis.get("questions", []), segments)
+
+        # Store risks
+        self._store_risks(db, meeting, analysis.get("concerns", []) or analysis.get("risks", []), segments)
+
+        # Store commitments
+        self._store_commitments(db, meeting, analysis.get("commitments", []) or analysis["action_items"], segments)
+
         # Store evidence for summary
         self._store_summary_evidence(db, meeting, analysis, segments)
         
@@ -262,7 +272,7 @@ Please provide a comprehensive analysis following the JSON structure specified a
             if "evidence" in topic_data:
                 self._create_evidence_from_data(
                     db, meeting, topic_data["evidence"], segments, 
-                    "topic", topic_id=topic.public_id
+                    "topic", topic_id=str(getattr(topic, 'public_id', None) or topic.id)
                 )
     
     def _store_decisions(
@@ -297,7 +307,7 @@ Please provide a comprehensive analysis following the JSON structure specified a
             if "evidence" in decision_data:
                 self._create_evidence_from_data(
                     db, meeting, decision_data["evidence"], segments,
-                    "decision", decision_id=decision.public_id
+                    "decision", decision_id=str(getattr(decision, 'public_id', None) or decision.id)
                 )
     
     def _store_tasks(
@@ -332,8 +342,75 @@ Please provide a comprehensive analysis following the JSON structure specified a
             if "evidence" in task_data:
                 self._create_evidence_from_data(
                     db, meeting, task_data["evidence"], segments,
-                    "task", task_id=task.public_id
+                    "task", task_id=str(getattr(task, 'public_id', None) or task.id)
                 )
+    
+    def _store_questions(
+        self,
+        db: Session,
+        meeting: Meeting,
+        questions: List[Any],
+        segments: List[TranscriptSegment]
+    ):
+        db.query(Question).filter(Question.meeting_id == meeting.public_id).delete()
+        for q_data in questions:
+            q_text = q_data.get("question") if isinstance(q_data, dict) else str(q_data)
+            if not q_text:
+                continue
+            question = Question(
+                meeting_id=meeting.public_id,
+                project_id=meeting.project_id,
+                question=q_text,
+                status="OPEN"
+            )
+            db.add(question)
+
+    def _store_risks(
+        self,
+        db: Session,
+        meeting: Meeting,
+        risks: List[Any],
+        segments: List[TranscriptSegment]
+    ):
+        db.query(Risk).filter(Risk.meeting_id == meeting.public_id).delete()
+        for r_data in risks:
+            r_title = r_data.get("title") or r_data.get("concern") if isinstance(r_data, dict) else str(r_data)
+            if not r_title:
+                continue
+            risk = Risk(
+                meeting_id=meeting.public_id,
+                project_id=meeting.project_id,
+                title=r_title,
+                severity=r_data.get("severity", "medium") if isinstance(r_data, dict) else "medium",
+                status="OPEN"
+            )
+            db.add(risk)
+
+    def _store_commitments(
+        self,
+        db: Session,
+        meeting: Meeting,
+        commitments: List[Any],
+        segments: List[TranscriptSegment]
+    ):
+        db.query(Commitment).filter(Commitment.meeting_id == meeting.public_id).delete()
+        for c_data in commitments:
+            if isinstance(c_data, dict):
+                c_text = c_data.get("commitment") or c_data.get("action_item") or c_data.get("title")
+                person = c_data.get("assignee") or c_data.get("speaker") or "Unassigned"
+            else:
+                c_text = str(c_data)
+                person = "Unassigned"
+            if not c_text:
+                continue
+            commitment = Commitment(
+                meeting_id=meeting.public_id,
+                project_id=meeting.project_id,
+                person=person,
+                commitment=c_text,
+                status="OPEN"
+            )
+            db.add(commitment)
     
     def _store_summary_evidence(
         self,
@@ -368,7 +445,7 @@ Please provide a comprehensive analysis following the JSON structure specified a
             
             evidence = Evidence(
                 meeting_id=meeting.public_id,
-                transcript_segment_id=segment.public_id if segment else None,
+                transcript_segment_id=str(getattr(segment, 'public_id', None) or segment.id) if segment else None,
                 timestamp=ev_data.get("timestamp"),
                 speaker_label=ev_data.get("speaker"),
                 user_id=ev_data.get("user_id"),

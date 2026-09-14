@@ -25,6 +25,10 @@ class Evidence(Base):
     topic_id = Column(String, nullable=True, index=True)
     decision_id = Column(String, nullable=True, index=True)
     task_id = Column(String, nullable=True, index=True)
+    question_id = Column(String, nullable=True, index=True)
+    risk_id = Column(String, nullable=True, index=True)
+    commitment_id = Column(String, nullable=True, index=True)
+    unresolved_issue_id = Column(String, nullable=True, index=True)
     
     # Metadata
     extracted_by = Column(String, nullable=True)  # AI model identifier

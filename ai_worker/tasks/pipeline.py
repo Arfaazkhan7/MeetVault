@@ -88,59 +88,15 @@ def process_meeting_intelligence(ai_job_id: str):
 
         # Stage 5 & 6: AI Structured Extraction & Summary Generation
         manager.update_stage(job, "EXTRACTING_INTELLIGENCE")
-        from ai_worker.providers import analyze
-        from app.models.meeting_summary import MeetingSummary
-        from app.models.intelligence import Question, Commitment, Risk
-        import json
+        from app.services.meeting_analysis_service import MeetingAnalysisService
+        from app.models.transcript import TranscriptSegment as DbTranscriptSegment
 
-        analysis = analyze(meeting.title, mapped_segments)
-        
-        # Save monolithic summary
-        db.query(MeetingSummary).filter(MeetingSummary.meeting_id == meeting.public_id).delete()
-        summary = MeetingSummary(
-            meeting_id=meeting.public_id,
-            company_id=job.company_id or "default",
-            summary_text=analysis.summary,
-            key_takeaways=json.dumps(analysis.key_takeaways),
-            questions=json.dumps(analysis.questions),
-            answers=json.dumps(analysis.answers),
-            suggestions=json.dumps(analysis.suggestions),
-            proposals=json.dumps(analysis.proposals),
-            concerns=json.dumps(analysis.concerns),
-            agreements=json.dumps(analysis.agreements),
-            disagreements=json.dumps(analysis.disagreements),
-            extracted_by="openai",
-            extraction_confidence="high"
-        )
-        db.add(summary)
+        db_segments = db.query(DbTranscriptSegment).filter(
+            DbTranscriptSegment.meeting_id == meeting.public_id
+        ).order_by(DbTranscriptSegment.start_time).all()
 
-        # Populate relational tables
-        db.query(Question).filter(Question.meeting_id == meeting.public_id).delete()
-        for q in analysis.questions:
-            if isinstance(q, dict) and 'question' in q:
-                db.add(Question(meeting_id=meeting.public_id, question=q['question'], status='OPEN'))
-            elif isinstance(q, str):
-                db.add(Question(meeting_id=meeting.public_id, question=q, status='OPEN'))
-
-        db.query(Commitment).filter(Commitment.meeting_id == meeting.public_id).delete()
-        for task in analysis.action_items:
-            if isinstance(task, dict) and 'action_item' in task:
-                db.add(Commitment(
-                    meeting_id=meeting.public_id, 
-                    person=task.get('assignee') or task.get('speaker') or 'Unassigned',
-                    commitment=task['action_item']
-                ))
-            elif isinstance(task, str):
-                db.add(Commitment(meeting_id=meeting.public_id, person="Unassigned", commitment=task))
-
-        db.query(Risk).filter(Risk.meeting_id == meeting.public_id).delete()
-        for concern in analysis.concerns:
-            if isinstance(concern, dict) and 'concern' in concern:
-                db.add(Risk(meeting_id=meeting.public_id, title=concern['concern'], severity='medium'))
-            elif isinstance(concern, str):
-                db.add(Risk(meeting_id=meeting.public_id, title=concern, severity='medium'))
-
-        db.commit()
+        analysis_service = MeetingAnalysisService()
+        analysis_service.analyze_meeting(db=db, meeting=meeting, force_reanalysis=True)
 
         # Stage 7: Embeddings / RAG Update
         manager.update_stage(job, "UPDATING_RAG")

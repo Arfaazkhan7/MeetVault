@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, DateTime
+from sqlalchemy import Column, String, Text, DateTime, Float
 from sqlalchemy.orm import relationship
 from .base import Base
 
@@ -15,10 +15,15 @@ class Task(Base):
     due_date = Column(DateTime(timezone=True), nullable=True)
     
     # Task details
+    project_id = Column(String, nullable=True, index=True)
     priority = Column(String, nullable=True)  # high, medium, low
     deadline = Column(DateTime(timezone=True), nullable=True)
     estimated_hours = Column(String, nullable=True)
     
-    # AI extraction metadata
+    # Evidence & AI extraction metadata
+    source_segment_id = Column(String, nullable=True, index=True)
+    source_start_ms = Column(Float, nullable=True)
+    source_end_ms = Column(Float, nullable=True)
+    speaker_label = Column(String, nullable=True)
     extracted_by = Column(String, nullable=True)
     extraction_confidence = Column(String, nullable=True)

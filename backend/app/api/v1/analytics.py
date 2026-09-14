@@ -47,6 +47,7 @@ def dashboard_analytics(current_user: User | None = Depends(get_optional_current
         ).scalar() or 0
         recent = meetings.order_by(Meeting.created_at.desc()).limit(5).all()
 
+        from app.models.intelligence import Question, Risk, Commitment
         return {
             "meeting_count": meetings.count(),
             "meeting_duration": int(total_duration),
@@ -56,6 +57,9 @@ def dashboard_analytics(current_user: User | None = Depends(get_optional_current
             "tasks": task_query.count(),
             "open_tasks": task_query.filter(Task.status.in_(["open", "OPEN", "pending", "PENDING"])).count(),
             "completed_tasks": task_query.filter(Task.status.in_(["completed", "COMPLETED", "done", "DONE"])).count(),
+            "questions": db.query(Question).filter(Question.meeting_id.in_(meeting_ids)).count(),
+            "risks": db.query(Risk).filter(Risk.meeting_id.in_(meeting_ids)).count(),
+            "commitments": db.query(Commitment).filter(Commitment.meeting_id.in_(meeting_ids)).count(),
             "recurring_topics": db.query(Topic.name).filter(Topic.meeting_id.in_(meeting_ids)).group_by(Topic.name).having(func.count(Topic.id) > 1).count(),
             "project_activity": [],
             "recent_meetings": [
@@ -69,6 +73,7 @@ def dashboard_analytics(current_user: User | None = Depends(get_optional_current
             ],
         }
 
+    from app.models.intelligence import Question, Risk, Commitment
     meetings = db.query(Meeting).filter(Meeting.company_id.in_(company_ids), Meeting.deleted_at.is_(None))
     meeting_ids = meetings.with_entities(Meeting.public_id)
     task_query = db.query(Task).filter(Task.company_id.in_(company_ids))
@@ -89,6 +94,9 @@ def dashboard_analytics(current_user: User | None = Depends(get_optional_current
         "tasks": task_query.count(),
         "open_tasks": task_query.filter(Task.status.in_(["open", "OPEN", "pending", "PENDING"])).count(),
         "completed_tasks": task_query.filter(Task.status.in_(["completed", "COMPLETED", "done", "DONE"])).count(),
+        "questions": db.query(Question).filter(Question.meeting_id.in_(meeting_ids)).count(),
+        "risks": db.query(Risk).filter(Risk.meeting_id.in_(meeting_ids)).count(),
+        "commitments": db.query(Commitment).filter(Commitment.meeting_id.in_(meeting_ids)).count(),
         "recurring_topics": db.query(Topic.name).filter(Topic.company_id.in_(company_ids)).group_by(Topic.name).having(func.count(Topic.id) > 1).count(),
         "project_activity": [{"project_id": row[0], "name": row[1], "meeting_count": row[2]} for row in project_rows],
         "recent_meetings": [

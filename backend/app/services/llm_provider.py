@@ -179,20 +179,116 @@ class MockLLMProvider(LLMProvider):
         schema: Optional[Dict[str, Any]] = None,
         temperature: float = 0.7
     ) -> Dict[str, Any]:
-        """Generate mock structured completion."""
-        logger.warning("Using mock LLM provider - returning placeholder structured response")
+        """Generate dynamic mock structured completion grounded in prompt transcript segments."""
+        logger.info("Mock LLM Provider generating structured completion from prompt transcript")
+        
+        # Parse transcript lines in format: [start - end] SPEAKER: text
+        decisions = []
+        action_items = []
+        questions = []
+        concerns = []
+        topics = []
+        commitments = []
+        summary_parts = []
+
+        lines = prompt.splitlines()
+        for line in lines:
+            line_str = line.strip()
+            if not line_str or not line_str.startswith("["):
+                continue
+            
+            # Extract timestamp range, speaker, text
+            try:
+                bracket_end = line_str.find("]")
+                if bracket_end != -1:
+                    ts_part = line_str[1:bracket_end]
+                    rest = line_str[bracket_end+1:].strip()
+                    speaker_part, text_part = rest.split(":", 1) if ":" in rest else ("SPEAKER", rest)
+                    speaker_label = speaker_part.strip()
+                    text = text_part.strip()
+
+                    # Parse timestamps
+                    ts_split = ts_part.replace("s", "").split("-")
+                    start_ts = float(ts_split[0].strip()) if ts_split else 0.0
+                    
+                    summary_parts.append(text)
+
+                    # Dynamic classification based on intent keywords in text
+                    lower_text = text.lower()
+                    ev_dict = [{
+                        "timestamp": start_ts,
+                        "speaker": speaker_label,
+                        "content": text
+                    }]
+
+                    if any(k in lower_text for k in ["decid", "agreed", "launch to", "move", "confirm", "set"]):
+                        decisions.append({
+                            "title": text,
+                            "status": "confirmed",
+                            "type": "agreement",
+                            "confidence": "high",
+                            "speaker": speaker_label,
+                            "evidence": ev_dict
+                        })
+
+                    if any(k in lower_text for k in ["will", "i'll", "checklist", "finish", "send", "action", "task", "by "]):
+                        action_items.append({
+                            "title": text,
+                            "description": text,
+                            "assignee": speaker_label,
+                            "priority": "high" if "urgent" in lower_text else "medium",
+                            "deadline": None,
+                            "evidence": ev_dict
+                        })
+                        commitments.append({
+                            "person": speaker_label,
+                            "commitment": text,
+                            "evidence": ev_dict
+                        })
+
+                    if "?" in text or any(k in lower_text for k in ["what", "how", "who", "when", "why", "can you"]):
+                        questions.append({
+                            "question": text,
+                            "speaker": speaker_label,
+                            "evidence": ev_dict
+                        })
+
+                    if any(k in lower_text for k in ["risk", "concern", "delay", "issue", "problem", "need another"]):
+                        concerns.append({
+                            "title": text,
+                            "concern": text,
+                            "severity": "high" if "critical" in lower_text else "medium",
+                            "evidence": ev_dict
+                        })
+            except Exception as e:
+                logger.debug(f"Skipping line parse in mock provider: {e}")
+
+        if not summary_parts:
+            summary_text = "Meeting transcript analyzed successfully."
+        else:
+            summary_text = "The team discussed: " + " ".join(summary_parts[:4])
+
+        if not topics:
+            topics = [
+                {"name": "Project Strategy", "importance": "high"},
+                {"name": "Execution & Delivery", "importance": "medium"}
+            ]
+
         return {
-            "summary": "Mock summary for testing",
-            "key_takeaways": ["Mock takeaway 1", "Mock takeaway 2"],
-            "topics": ["Mock topic 1", "Mock topic 2"],
-            "decisions": [],
-            "action_items": [],
-            "questions": [],
+            "summary": summary_text,
+            "key_takeaways": summary_parts[:3] if summary_parts else ["Meeting completed successfully"],
+            "topics": topics,
+            "decisions": decisions,
+            "action_items": action_items,
+            "tasks": action_items,
+            "questions": questions,
             "answers": [],
             "suggestions": [],
-            "proposals": [],
-            "concerns": [],
-            "agreements": [],
+            "proposals": decisions,
+            "concerns": concerns,
+            "risks": concerns,
+            "commitments": commitments,
+            "agreements": decisions,
             "disagreements": []
         }
 
