@@ -1064,6 +1064,34 @@
   </div>
 </div>
 
+<!-- JOINING INFO MODAL (GOOGLE MEET STYLE POPUP) -->
+<div id="joining-info-modal" class="auth-overlay" style="display: none; z-index: 2000;">
+  <div class="auth-modal-card" style="border-radius: 24px; padding: 28px; max-width: 440px; background: #FFFFFF; position: relative; box-shadow: 0 24px 48px rgba(0,0,0,0.25);">
+    <button onclick="closeJoiningModal()" style="position: absolute; top: 20px; right: 20px; border: none; background: none; font-size: 22px; cursor: pointer; color: #5f6368; line-height: 1; padding: 4px;" title="Close">✕</button>
+    <h3 style="font-size: 1.35rem; font-weight: 600; color: #202124; margin: 0 0 10px 0; font-family: inherit;">Here's your joining info</h3>
+    <p style="font-size: 0.88rem; color: #5f6368; margin: 0 0 18px 0; line-height: 1.4; font-family: inherit;">Send this to people you want to meet with. Be sure to save it so you can use it later, too.</p>
+    
+    <!-- Info Details -->
+    <div style="background: #F8FAFC; border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; border: 1px solid #E2E8F0;">
+      <div style="font-size: 0.83rem; color: #475569; margin-bottom: 4px;"><strong>Created by:</strong> <span id="joining-modal-creator">Host</span></div>
+      <div style="font-size: 0.83rem; color: #475569;"><strong>Members:</strong> <span id="joining-modal-members">1 participant (Host)</span></div>
+    </div>
+
+    <!-- Code Input Box with Copy Button -->
+    <div style="display: flex; align-items: center; background: #F1F3F4; border-radius: 10px; padding: 8px 14px; margin-bottom: 20px; border: 1px solid #DADCE0;">
+      <input id="joining-modal-code" type="text" readonly style="flex: 1; border: none; background: transparent; font-family: monospace; font-size: 1.1rem; font-weight: 700; color: #202124; outline: none;" value="MTG-ABC123">
+      <button onclick="copyJoiningCode()" style="border: none; background: transparent; cursor: pointer; padding: 6px; display: flex; align-items: center; justify-content: center; color: #1a73e8;" title="Copy code">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+      </button>
+    </div>
+
+    <!-- Join Button -->
+    <button onclick="confirmJoinFromModal()" class="btn-red-action" style="width: 100%; justify-content: center; height: 46px; font-size: 0.95rem; border-radius: 10px; background: #1a73e8; color: #fff; font-weight: 700; cursor: pointer; border: none;">
+      Join Meeting
+    </button>
+  </div>
+</div>
+
 <script>
 
 // ── Firebase & Google OAuth Initialization ──────────────────
@@ -1336,20 +1364,64 @@ function copyHeroCode(){
   showToast('Meeting code copied: ' + code);
 }
 
+let pendingMeetingCode = '';
+
 function createNewMeeting(){
+  closeDrawer();
   const code = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
-  currentRoomCode = code;
-  const roomLbl = document.getElementById('room-lbl');
-  if(roomLbl) roomLbl.textContent = 'Team meeting | ' + code;
-  const badge = document.getElementById('room-badge-text');
-  if(badge) badge.textContent = code;
-  const heroCode = document.getElementById('hero-code');
-  if(heroCode) heroCode.textContent = code;
-  
-  const link = 'https://meetvault.live/' + code;
-  navigator.clipboard.writeText(link).catch(()=>{});
-  showToast('Meeting Created! Code: ' + code + ' (Link copied)');
-  startCall(code);
+  pendingMeetingCode = code;
+
+  const codeInput = document.getElementById('joining-modal-code');
+  if(codeInput) codeInput.value = code;
+
+  const creatorEl = document.getElementById('joining-modal-creator');
+  if(creatorEl) {
+    let name = 'Host';
+    try {
+      const stored = localStorage.getItem('mv_user');
+      if(stored) {
+        const parsed = JSON.parse(stored);
+        name = parsed.name || parsed.email || 'Host';
+      }
+    } catch(_){}
+    creatorEl.textContent = name;
+  }
+
+  const membersEl = document.getElementById('joining-modal-members');
+  if(membersEl) membersEl.textContent = '1 participant (Host)';
+
+  const modal = document.getElementById('joining-info-modal');
+  if(modal) modal.style.display = 'flex';
+}
+
+function closeJoiningModal(){
+  const modal = document.getElementById('joining-info-modal');
+  if(modal) modal.style.display = 'none';
+}
+
+function copyJoiningCode(){
+  const codeInput = document.getElementById('joining-modal-code');
+  const code = codeInput ? codeInput.value : pendingMeetingCode;
+  if(code){
+    navigator.clipboard.writeText(code).catch(()=>{});
+    showToast('Invite code copied to clipboard: ' + code);
+  }
+}
+
+function confirmJoinFromModal(){
+  closeJoiningModal();
+  const code = pendingMeetingCode || (document.getElementById('joining-modal-code') ? document.getElementById('joining-modal-code').value : '');
+  if(code){
+    currentRoomCode = code;
+    const roomLbl = document.getElementById('room-lbl');
+    if(roomLbl) roomLbl.textContent = 'Team meeting | ' + code;
+    const badge = document.getElementById('room-badge-text');
+    if(badge) badge.textContent = code;
+    const heroCode = document.getElementById('hero-code');
+    if(heroCode) heroCode.textContent = code;
+
+    startCall(code);
+  }
 }
 
 function copyCurrentRoomLink(){

@@ -1222,56 +1222,75 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 24),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                meeting['title'] ?? 'Meeting Ready',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        contentPadding: const EdgeInsets.all(24),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Icon(Icons.person_outline_rounded, size: 16, color: Color(0xFF64748B)),
-                const SizedBox(width: 6),
-                const Text('Created by: ', style: TextStyle(fontSize: 13, color: Color(0xFF64748B))),
-                Expanded(
+                const Expanded(
                   child: Text(
-                    creatorName,
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
-                    overflow: TextOverflow.ellipsis,
+                    "Here's your joining info",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF202124)),
                   ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 20, color: Color(0xFF5F6368)),
+                  onPressed: () => Navigator.pop(dialogContext),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  tooltip: 'Close',
                 ),
               ],
             ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                const Icon(Icons.people_outline_rounded, size: 16, color: Color(0xFF64748B)),
-                const SizedBox(width: 6),
-                const Text('Members: ', style: TextStyle(fontSize: 13, color: Color(0xFF64748B))),
-                const Text('1 participant (Host)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF0F172A))),
-              ],
+            const SizedBox(height: 8),
+            const Text(
+              'Send this to people you want to meet with. Be sure to save it so you can use it later, too.',
+              style: TextStyle(fontSize: 13, color: Color(0xFF5F6368), height: 1.4),
             ),
             const SizedBox(height: 16),
-            const Text('Meeting Invite Code:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
-            const SizedBox(height: 6),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFCBD5E1)),
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Text('Created by: ', style: TextStyle(fontSize: 13, color: Color(0xFF475569))),
+                      Expanded(
+                        child: Text(
+                          creatorName,
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Row(
+                    children: [
+                      Text('Members: ', style: TextStyle(fontSize: 13, color: Color(0xFF475569))),
+                      Text('1 participant (Host)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F3F4),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFDADCE0)),
               ),
               child: Row(
                 children: [
@@ -1280,15 +1299,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       code,
                       style: const TextStyle(
                         fontFamily: 'monospace',
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFFFF5722),
-                        letterSpacing: 1.2,
+                        color: Color(0xFF202124),
+                        letterSpacing: 1.1,
                       ),
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.copy_rounded, color: Color(0xFF2563EB), size: 20),
+                    icon: const Icon(Icons.copy_rounded, color: Color(0xFF1A73E8), size: 20),
                     tooltip: 'Copy Code',
                     onPressed: () async {
                       await Clipboard.setData(ClipboardData(text: code));
@@ -1302,30 +1321,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF1A73E8),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                  Navigator.pushNamed(context, AppRouter.meetingRoom, arguments: {
+                    'id': meeting['public_id'],
+                    'title': meeting['title'] ?? 'Meeting Room',
+                    'isHost': true,
+                  });
+                },
+                child: const Text('Join Meeting', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+              ),
+            ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Close'),
-          ),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFFF5722),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            ),
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              Navigator.pushNamed(context, AppRouter.meetingRoom, arguments: {
-                'id': meeting['public_id'],
-                'title': meeting['title'] ?? 'Meeting Room',
-                'isHost': true,
-              });
-            },
-            icon: const Icon(Icons.video_call_rounded),
-            label: const Text('Join Meeting'),
-          ),
-        ],
       ),
     );
   }
