@@ -1209,76 +1209,56 @@ function initAuthState(){
   const settingsAuthPanel = document.getElementById('settings-auth-panel');
   const authModal = document.getElementById('auth-modal');
 
-  if(userStr){
-    try {
-      const user = JSON.parse(userStr);
-      const parts = (user.name || user.email.split('@')[0]).trim().split(' ');
-      const firstName = parts[0] || 'User';
-      const lastName = parts.slice(1).join(' ');
-      const initials = (firstName[0] + (lastName[0] || '')).toUpperCase();
-
-      if(authModal) authModal.style.display = 'none';
-
-      if(heroGreet) heroGreet.textContent = 'Good to see you,';
-      if(heroFirst) heroFirst.textContent = firstName;
-      if(heroLast) heroLast.textContent = lastName;
-      if(heroCode && user.code) heroCode.textContent = user.code;
-
-      if(authArea){
-        authArea.innerHTML = `
-          <div class="user-menu-wrap" style="position:relative;">
-            <div class="user-pill" onclick="toggleUserMenu()" style="display:flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;background:#F1F5F9;border:1px solid var(--border);border-radius:999px;cursor:pointer;user-select:none;">
-              <div style="width:28px;height:28px;border-radius:50%;background:#0F172A;color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;">${initials}</div>
-              <span style="font-size:0.82rem;font-weight:700;color:#0F172A;">${firstName}</span>
-              <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:#64748B;"><path d="M7 10l5 5 5-5z"/></svg>
-            </div>
-            <div class="user-dropdown" id="user-dropdown">
-              <div style="padding:10px 14px;border-bottom:1px solid var(--border);">
-                <div style="font-weight:700;font-size:0.84rem;color:#0F172A;">${user.name || firstName}</div>
-                <div style="font-size:0.75rem;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;">${user.email}</div>
-              </div>
-              <a class="dropdown-item" onclick="switchView('settings'); toggleUserMenu(false);">Settings</a>
-              <a class="dropdown-item" onclick="logoutUser()" style="color:#EF4444;">Sign Out</a>
-            </div>
-          </div>`;
-      }
-
-      if(settingsName) settingsName.textContent = user.name || firstName;
-      if(settingsCode) settingsCode.textContent = 'Code: ' + (user.code || 'MTG-ACTIVE');
-      if(settingsAvatar) settingsAvatar.textContent = initials;
-      if(settingsAuthPanel){
-        settingsAuthPanel.innerHTML = `
-          <h3 style="font-size:0.95rem;font-weight:800;margin-bottom:8px;">Account Connected</h3>
-          <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:16px;">Signed in as <strong>${user.email}</strong></p>
-          <button class="btn-red-action" style="width:100%;justify-content:center;border-radius:8px;height:38px;background:#EF4444;" onclick="logoutUser()">Sign Out</button>`;
-      }
-      return;
-    } catch(e){}
+  if(!userStr){
+    // Mandatory Redirect to Login Page on First Open
+    window.location.href = 'login.html';
+    return;
   }
 
-  // Not Logged In -> Show In-App Auth Modal
-  if(authModal) authModal.style.display = 'flex';
+  try {
+    const user = JSON.parse(userStr);
+    const parts = (user.name || user.email.split('@')[0]).trim().split(' ');
+    const firstName = parts[0] || 'User';
+    const lastName = parts.slice(1).join(' ');
+    const initials = (firstName[0] + (lastName[0] || '')).toUpperCase();
 
-  if(heroGreet) heroGreet.textContent = 'Welcome to MeetVault,';
-  if(heroFirst) heroFirst.textContent = 'Guest';
-  if(heroLast) heroLast.textContent = '';
-  
-  if(authArea){
-    authArea.innerHTML = `
-      <div style="display:flex;align-items:center;gap:8px;">
-        <button class="top-login-btn" onclick="showAuthModal()">Sign In</button>
-        <a href="signup.html" class="top-login-btn" style="background:#0F172A;color:#fff;">Sign Up</a>
-      </div>`;
-  }
+    if(authModal) authModal.style.display = 'none';
 
-  if(settingsName) settingsName.textContent = 'Guest User';
-  if(settingsCode) settingsCode.textContent = 'Not signed in';
-  if(settingsAvatar) settingsAvatar.textContent = 'G';
-  if(settingsAuthPanel){
-    settingsAuthPanel.innerHTML = `
-      <h3 style="font-size:0.95rem;font-weight:800;margin-bottom:8px;">Sign In to MeetVault</h3>
-      <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:16px;">Sync your meeting transcripts, notes, and AI summaries.</p>
-      <button class="top-login-btn" style="width:100%;justify-content:center;height:38px;" onclick="showAuthModal()">Sign In</button>`;
+    if(heroGreet) heroGreet.textContent = 'Good to see you,';
+    if(heroFirst) heroFirst.textContent = firstName;
+    if(heroLast) heroLast.textContent = lastName;
+    if(heroCode && user.code) heroCode.textContent = user.code;
+
+    if(authArea){
+      authArea.innerHTML = `
+        <div class="user-menu-wrap" style="position:relative;">
+          <div class="user-pill" onclick="toggleUserMenu()" style="display:flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;background:#F1F5F9;border:1px solid var(--border);border-radius:999px;cursor:pointer;user-select:none;">
+            <div style="width:28px;height:28px;border-radius:50%;background:#0F172A;color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;">${initials}</div>
+            <span style="font-size:0.82rem;font-weight:700;color:#0F172A;">${firstName}</span>
+            <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:#64748B;"><path d="M7 10l5 5 5-5z"/></svg>
+          </div>
+          <div class="user-dropdown" id="user-dropdown">
+            <div style="padding:10px 14px;border-bottom:1px solid var(--border);">
+              <div style="font-weight:700;font-size:0.84rem;color:#0F172A;">${user.name || firstName}</div>
+              <div style="font-size:0.75rem;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;">${user.email}</div>
+            </div>
+            <a class="dropdown-item" onclick="switchView('settings'); toggleUserMenu(false);">Settings</a>
+            <a class="dropdown-item" onclick="logoutUser()" style="color:#EF4444;">Sign Out</a>
+          </div>
+        </div>`;
+    }
+
+    if(settingsName) settingsName.textContent = user.name || firstName;
+    if(settingsCode) settingsCode.textContent = 'Code: ' + (user.code || 'MTG-ACTIVE');
+    if(settingsAvatar) settingsAvatar.textContent = initials;
+    if(settingsAuthPanel){
+      settingsAuthPanel.innerHTML = `
+        <h3 style="font-size:0.95rem;font-weight:800;margin-bottom:8px;">Account Connected</h3>
+        <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:16px;">Signed in as <strong>${user.email}</strong></p>
+        <button class="btn-red-action" style="width:100%;justify-content:center;border-radius:8px;height:38px;background:#EF4444;" onclick="logoutUser()">Sign Out</button>`;
+    }
+  } catch(e){
+    window.location.href = 'login.html';
   }
 }
 
@@ -1296,7 +1276,6 @@ function closeGooglePickerApp(){
   const modal = document.getElementById('google-picker-modal-app');
   if(modal) modal.style.display = 'none';
 }
-}
 
 
 function loginWithEmailInApp(e){
@@ -1313,9 +1292,14 @@ function loginWithEmailInApp(e){
 function logoutUser(){
   localStorage.removeItem('mv_user');
   localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
   toggleUserMenu(false);
-  showToast('Signed out');
-  initAuthState();
+  // Sign out from Firebase if available
+  if (typeof firebase !== 'undefined' && firebase.auth) {
+    firebase.auth().signOut().catch(() => {});
+  }
+  showToast('Signed out successfully');
+  setTimeout(() => { window.location.href = 'login.html'; }, 600);
 }
 
 function toggleUserMenu(forceState){
@@ -1739,24 +1723,6 @@ function renderUpcoming(){
 initAuthState();
 buildCalendar();
 </script>
-
-
-      </div>
-
-      <div class="google-account-item" onclick="selectGoogleAccountApp('user.google@gmail.com', 'Google User')">
-        <div class="google-avatar" style="background:#10B981;">G</div>
-        <div>
-          <div style="font-weight:700;font-size:0.85rem;color:#0F172A;">Google Workspace Account</div>
-          <div style="font-size:0.75rem;color:#64748B;">user.google@gmail.com</div>
-        </div>
-      </div>
-    </div>
-
-    <div style="margin-top:14px;padding-top:12px;border-top:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center;">
-      <a onclick="promptCustomGoogleAccountApp()" style="font-size:0.8rem;color:#2563EB;font-weight:700;cursor:pointer;text-decoration:none;">+ Use another Google account</a>
-    </div>
-  </div>
-</div>
 
 </body>
 </html>
