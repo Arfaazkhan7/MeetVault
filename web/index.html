@@ -1164,6 +1164,9 @@
                 <button class="meet-btn-circle" id="btn-cam" onclick="toggleCam()" title="Toggle Camera">
                   <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
                 </button>
+                <button class="meet-btn-circle" id="btn-speaker" onclick="enableMeetingAudio()" title="Enable meeting audio" aria-label="Enable meeting audio">
+                  <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm11 0v6c1.2-.56 2-1.73 2-3s-.8-2.44-2-3zm0-5v2.06c2.89.86 5 3.54 5 6.94s-2.11 6.08-5 6.94V21c4.01-.91 7-4.49 7-8s-2.99-7.09-7-8z"/></svg>
+                </button>
                 <button class="meet-btn-circle" onclick="showToast('Captions enabled')" title="Turn on captions">
                   <svg viewBox="0 0 24 24"><path d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 7H9.5v-.5h-2v3h2V13H11v1c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1zm7 0h-1.5v-.5h-2v3h2V13H18v1c0 .55-.45 1-1 1h-3c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1z"/></svg>
                 </button>
@@ -1593,6 +1596,35 @@ let ROOM_PARTICIPANTS = [];
 let meetingRecorder = null;
 let meetingRecordingChunks = [];
 let meetingRecordingStartedAt = 0;
+let remoteAudioElements = [];
+
+function attachRemoteAudio(audioElement, remoteStream) {
+  if (!audioElement || !remoteStream) return;
+  audioElement.autoplay = true;
+  audioElement.playsInline = true;
+  audioElement.muted = false;
+  audioElement.volume = 1;
+  audioElement.srcObject = remoteStream;
+  remoteStream.getAudioTracks().forEach(track => { track.enabled = true; });
+  if (!remoteAudioElements.includes(audioElement)) remoteAudioElements.push(audioElement);
+  audioElement.play().catch(() => {
+    const button = document.getElementById('btn-speaker');
+    if (button) button.classList.add('needs-gesture');
+  });
+}
+
+function enableMeetingAudio() {
+  remoteAudioElements = remoteAudioElements.filter(audio => audio && audio.isConnected);
+  remoteAudioElements.forEach(audio => {
+    audio.muted = false;
+    audio.volume = 1;
+    if (audio.srcObject) audio.srcObject.getAudioTracks().forEach(track => { track.enabled = true; });
+    audio.play().catch(() => {});
+  });
+  const button = document.getElementById('btn-speaker');
+  if (button) button.classList.remove('needs-gesture');
+  showToast('Meeting audio enabled');
+}
 
 function startMeetingRecording() {
   if (!stream || typeof MediaRecorder === 'undefined') return;
@@ -1879,6 +1911,7 @@ function createParticipantTile(p) {
   } else if (p.isRemotePeer) {
     mediaHTML = `
       <video id="remote-video" autoplay playsinline style="transform:none;"></video>
+      <audio id="remote-audio" autoplay playsinline></audio>
       <div id="remote-cam-ph" class="cam-placeholder" style="display:none;">
         <div class="avatar-circle" style="background:#2563EB;">${initial}</div>
         <div class="cam-status" style="margin-top:6px; font-weight:600; font-size:0.85rem; color:#E2E8F0;">${p.name}</div>
@@ -1913,6 +1946,7 @@ function createParticipantTile(p) {
         remoteVid.srcObject = p.stream;
         remoteVid.play().catch(()=>{});
       }
+      attachRemoteAudio(tile.querySelector('#remote-audio'), p.stream);
     }, 10);
   }
 
@@ -1976,6 +2010,7 @@ function renderMeetGrid(){
       } else {
         stageMediaHTML = `
           <video id="stage-remote-video" autoplay playsinline style="transform:none;"></video>
+          <audio id="stage-remote-audio" autoplay playsinline></audio>
           <div class="cam-placeholder" style="display:none;">
             <div class="avatar-circle" style="background:#2563EB;">${stageInitial}</div>
             <div class="cam-status" style="margin-top:6px; font-weight:600; font-size:0.85rem; color:#E2E8F0;">${stageParticipant.name}</div>
@@ -2000,6 +2035,7 @@ function renderMeetGrid(){
           stageVid.srcObject = stageParticipant.stream;
           stageVid.play().catch(()=>{});
         }
+        attachRemoteAudio(stageWrap.querySelector('#stage-remote-audio'), stageParticipant.stream);
       }
     } else {
       unpinStage();
@@ -2055,6 +2091,10 @@ async function startCall(code){
     if(btnCam) btnCam.classList.remove('off');
   } catch(e){
     camOn = false;
+    micOn = false;
+    document.getElementById('btn-mic')?.classList.add('off');
+    document.getElementById('btn-cam')?.classList.add('off');
+    showToast('Camera or microphone permission is unavailable. Check browser permissions.');
   }
 
   startMeetingRecording();
@@ -2172,6 +2212,7 @@ function stopStream(){
   if(activePeerCall){ try{ activePeerCall.close(); }catch(e){} activePeerCall=null; }
   if(peer){ try{ peer.destroy(); }catch(e){} peer=null; }
   ROOM_PARTICIPANTS = [];
+  remoteAudioElements = [];
 }
 
 function toggleMic(){
