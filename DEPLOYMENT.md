@@ -6,7 +6,7 @@
 GitHub
   -> Render Web Service: FastAPI backend
   -> Firebase Hosting: Flutter Web frontend
-  -> Supabase: database and private recording storage
+  -> Supabase: PostgreSQL database and private recording storage
   -> LiveKit: meeting rooms and participant media
   -> Render-compatible worker: Celery AI processing
 ```
@@ -72,6 +72,19 @@ SUPABASE_URL
 SUPABASE_SERVICE_ROLE_KEY
 OPENAI_API_KEY
 ```
+
+### Supabase database setup
+
+The application SQL data and recording files use two different Supabase connections:
+
+1. In Supabase, open **Connect** and copy a PostgreSQL connection string. Use the Session Pooler connection when direct connections are unavailable. Add `sslmode=require` if it is not already present.
+2. In Render, set the same `DATABASE_URL` on both `meetvault-api` and `meetvault-ai-worker`. This must be a PostgreSQL URI such as `postgresql://...`; do not use the Supabase project URL here.
+3. Set `SUPABASE_URL` to the project API URL (`https://<project-ref>.supabase.co`) and set `SUPABASE_SERVICE_ROLE_KEY` only in Render. Keep the `meeting-recordings` bucket private.
+4. Redeploy the API. Its startup runs the migrations and creates the application tables. Refresh Supabase **Database > Tables** and confirm tables appear.
+
+The committed `supabase_schema_and_rls.sql` is not the application bootstrap and should not be used as a substitute for the backend schema. The FastAPI service owns schema creation through SQLAlchemy/Alembic and uses its server-side database credentials.
+
+For recordings, the existing bucket currently has a 50 MB limit. Either raise that bucket limit to at least 500 MB or set `MAX_RECORDING_UPLOAD_BYTES=52428800` in Render so the application limit matches the bucket. Storage policies are not required for the server upload because the service-role key is server-side; do not make recordings public.
 
 Backend non-secret config is already in `render.yaml`:
 

@@ -27,6 +27,8 @@ FIREBASE_API_KEY=your_firebase_web_api_key
 
 Do not commit `.env`, service account JSON files, database passwords, JWT secrets, LiveKit secrets, or Supabase service-role keys.
 
+For a hosted Supabase database, replace `DATABASE_URL` with the PostgreSQL URI from Supabase **Connect**. `SUPABASE_URL` is only the project API URL and cannot be used as `DATABASE_URL`.
+
 ## Backend
 
 ```bash
