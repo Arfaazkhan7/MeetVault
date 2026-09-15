@@ -399,9 +399,21 @@
       firebase.initializeApp(firebaseConfig);
     }
 
-    // If already signed in → go straight to main app
-    if (localStorage.getItem('mv_user')) {
-      window.location.replace('index.html');
+    // If already signed in with valid user → go straight to main app
+    const userStr = localStorage.getItem('mv_user');
+    if (userStr) {
+      try {
+        const u = JSON.parse(userStr);
+        if (u && typeof u === 'object' && (u.email || u.name || u.uid)) {
+          window.location.replace('index.html');
+        } else {
+          localStorage.removeItem('mv_user');
+          localStorage.removeItem('access_token');
+        }
+      } catch(e) {
+        localStorage.removeItem('mv_user');
+        localStorage.removeItem('access_token');
+      }
     }
 
     // ─── Password toggle ──────────────────────────────────────────

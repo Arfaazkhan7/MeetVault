@@ -1452,14 +1452,23 @@ function initAuthState(){
   const authModal = document.getElementById('auth-modal');
 
   if(!userStr){
-    // Mandatory Redirect to Login Page on First Open
+    // Mandatory Redirect to Login Page on First Open or when not signed in
+    localStorage.removeItem('mv_user');
+    localStorage.removeItem('access_token');
     window.location.href = 'login.html';
     return;
   }
 
   try {
     const user = JSON.parse(userStr);
-    const parts = (user.name || user.email.split('@')[0]).trim().split(' ');
+    if (!user || typeof user !== 'object' || (!user.email && !user.name && !user.uid)) {
+      localStorage.removeItem('mv_user');
+      localStorage.removeItem('access_token');
+      window.location.href = 'login.html';
+      return;
+    }
+
+    const parts = ((user.name || user.email || 'User').split('@')[0]).trim().split(' ');
     const firstName = parts[0] || 'User';
     const lastName = parts.slice(1).join(' ');
     const initials = (firstName[0] + (lastName[0] || '')).toUpperCase();
@@ -1486,7 +1495,7 @@ function initAuthState(){
           <div class="user-dropdown" id="user-dropdown">
             <div style="padding:10px 14px;border-bottom:1px solid var(--border);">
               <div style="font-weight:700;font-size:0.84rem;color:#0F172A;">${user.name || firstName}</div>
-              <div style="font-size:0.75rem;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;">${user.email}</div>
+              <div style="font-size:0.75rem;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;">${user.email || ''}</div>
               <div style="font-size:0.72rem;font-weight:700;color:#2563eb;margin-top:2px;">ID: ${publicId}</div>
             </div>
             <a class="dropdown-item" onclick="switchView('settings'); toggleUserMenu(false);">Settings</a>
@@ -1501,7 +1510,7 @@ function initAuthState(){
     if(settingsAuthPanel){
       settingsAuthPanel.innerHTML = `
         <h3 style="font-size:0.95rem;font-weight:800;margin-bottom:8px;">Account Connected</h3>
-        <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:4px;">Signed in as <strong>${user.email}</strong></p>
+        <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:4px;">Signed in as <strong>${user.email || firstName}</strong></p>
         <p style="font-size:0.75rem;color:#2563eb;font-weight:700;margin-bottom:16px;">MeetVault ID: ${publicId}</p>
         <button class="btn-red-action" style="width:100%;justify-content:center;border-radius:8px;height:38px;background:#EF4444;" onclick="logoutUser()">Sign Out</button>`;
     }
@@ -1525,6 +1534,8 @@ function initAuthState(){
         }).catch(() => {});
     }
   } catch(e){
+    localStorage.removeItem('mv_user');
+    localStorage.removeItem('access_token');
     window.location.href = 'login.html';
   }
 }
