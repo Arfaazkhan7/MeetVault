@@ -1595,6 +1595,9 @@ let currentRoomCode = 'MTG-DA22D7';
 
 let peer = null;
 let activePeerCall = null;
+let meetingConnections = [];
+let isMeetingHost = false;
+let isEndingCall = false;
 let ROOM_PARTICIPANTS = [];
 let meetingRecorder = null;
 let meetingRecordingChunks = [];
@@ -1696,6 +1699,7 @@ let currentMeetingId = null;
 
 async function createNewMeeting(){
   closeDrawer();
+  isMeetingHost = true;
   const token = localStorage.getItem('access_token');
   const headers = { 'Content-Type': 'application/json' };
   if (token) {
@@ -2136,10 +2140,16 @@ function initP2PCall(roomCode) {
   });
 
   peer.on('connection', (conn) => {
+    meetingConnections.push(conn);
     conn.on('open', () => {
       conn.send({ type: 'user_info', name: myName });
     });
     conn.on('data', (data) => {
+      if (data && data.type === 'room_ended') {
+        showToast('The host ended this meeting');
+        endCall(false);
+        return;
+      }
       if (data && data.type === 'user_info' && data.name) {
         if (activePeerCall) {
           activePeerCall.remoteName = data.name;
@@ -2185,6 +2195,13 @@ function initP2PCall(roomCode) {
       });
     }
   });
+
+  peer.on('close', () => {
+    if (!isEndingCall && !isMeetingHost && document.getElementById('view-room')?.classList.contains('active')) {
+      showToast('The host ended this meeting');
+      endCall(false);
+    }
+  });
 }
 
 function attachRemoteCallStream(call) {
@@ -2212,6 +2229,15 @@ function stopStream(){
   if(btnShare) btnShare.classList.remove('active');
 
   if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  if (isMeetingHost) {
+    meetingConnections.forEach(conn => {
+      try {
+        if (conn.open) conn.send({ type: 'room_ended' });
+      } catch (e) {}
+    });
+  }
+  meetingConnections.forEach(conn => { try { conn.close(); } catch (e) {} });
+  meetingConnections = [];
   if(activePeerCall){ try{ activePeerCall.close(); }catch(e){} activePeerCall=null; }
   if(peer){ try{ peer.destroy(); }catch(e){} peer=null; }
   ROOM_PARTICIPANTS = [];
@@ -2296,7 +2322,9 @@ function stopScreenShare(){
   renderMeetGrid();
   showToast('Screen sharing stopped');
 }
-async function endCall(){
+async function endCall(endForEveryone = isMeetingHost){
+  if (isEndingCall) return;
+  isEndingCall = true;
   const recording = await stopMeetingRecording();
   try { await uploadMeetingRecording(recording); }
   catch (error) { console.warn('Recording upload failed:', error); showToast('Meeting ended; recording could not be uploaded'); }
@@ -2318,10 +2346,12 @@ async function endCall(){
         headers: headers
       }).catch(()=>{});
 
-      await fetch(`${baseUrl}/meetings/${currentMeetingId}/end`, {
-        method: 'POST',
-        headers: headers
-      }).catch(()=>{});
+      if (endForEveryone) {
+        await fetch(`${baseUrl}/meetings/${currentMeetingId}/end`, {
+          method: 'POST',
+          headers: headers
+        }).catch(()=>{});
+      }
     } catch (e) {
       console.warn('Backend end meeting notification error:', e);
     }
@@ -2329,6 +2359,8 @@ async function endCall(){
 
   switchView('home');
   showToast('Meeting ended');
+  isMeetingHost = false;
+  isEndingCall = false;
 
   renderUpcoming();
   renderVaultMeetings();
@@ -2359,6 +2391,7 @@ function doJoin(providedCode){
     code = code.toUpperCase();
   }
   currentRoomCode = code;
+  isMeetingHost = false;
   showToast('Joining Meeting: ' + code);
   startCall(code);
 }
