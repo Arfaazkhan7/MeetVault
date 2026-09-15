@@ -22,4 +22,4 @@ COPY alembic ./alembic
 
 ENV PORT=8080
 
-CMD ["sh", "-c", "python scripts/bootstrap_db.py && alembic stamp head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
+CMD ["sh", "-c", "alembic upgrade head && python scripts/bootstrap_db.py && uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
