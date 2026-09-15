@@ -1,6 +1,27 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <script>
+    (function() {
+      const userStr = localStorage.getItem('mv_user');
+      if (!userStr) {
+        window.location.replace('login.html');
+        return;
+      }
+      try {
+        const u = JSON.parse(userStr);
+        if (!u || typeof u !== 'object' || (!u.email && !u.name && !u.uid)) {
+          localStorage.removeItem('mv_user');
+          localStorage.removeItem('access_token');
+          window.location.replace('login.html');
+        }
+      } catch(e) {
+        localStorage.removeItem('mv_user');
+        localStorage.removeItem('access_token');
+        window.location.replace('login.html');
+      }
+    })();
+  </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MeetVault — Home</title>
