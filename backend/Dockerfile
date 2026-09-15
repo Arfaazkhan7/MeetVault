@@ -22,4 +22,6 @@ COPY alembic ./alembic
 
 ENV PORT=8080
 
-CMD ["sh", "-c", "alembic upgrade head && python scripts/bootstrap_db.py && uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
+# bootstrap_db creates the complete current ORM schema before optional historical
+# migrations; running Alembic first breaks on a fresh Supabase database.
+CMD ["sh", "-c", "python scripts/bootstrap_db.py && uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
