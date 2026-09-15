@@ -1595,9 +1595,13 @@ let currentRoomCode = 'MTG-DA22D7';
 
 let peer = null;
 let activePeerCall = null;
+<<<<<<< HEAD
 let meetingConnections = [];
 let isMeetingHost = false;
 let isEndingCall = false;
+=======
+let activePeerCallsMap = {};
+>>>>>>> 19db9cf (fix: resolve false host ended meeting ejection and media permission call disconnects)
 let ROOM_PARTICIPANTS = [];
 let meetingRecorder = null;
 let meetingRecordingChunks = [];
@@ -1864,7 +1868,23 @@ function updateRoomParticipants() {
     muted: !micOn
   }];
 
-  if (activePeerCall && activePeerCall.remoteStream) {
+  if (typeof activePeerCallsMap !== 'undefined' && Object.keys(activePeerCallsMap).length > 0) {
+    Object.keys(activePeerCallsMap).forEach(peerId => {
+      const callObj = activePeerCallsMap[peerId];
+      if (callObj && callObj.remoteStream) {
+        const rName = callObj.remoteName || 'Participant';
+        ROOM_PARTICIPANTS.push({
+          id: 'remote-' + peerId,
+          name: rName,
+          rawName: rName,
+          isRemotePeer: true,
+          speaking: false,
+          muted: false,
+          stream: callObj.remoteStream
+        });
+      }
+    });
+  } else if (activePeerCall && activePeerCall.remoteStream) {
     const rName = activePeerCall.remoteName || 'Participant';
     ROOM_PARTICIPANTS.push({
       id: 'remote-' + activePeerCall.peer,
@@ -2097,6 +2117,7 @@ async function startCall(code){
     if(btnMic) btnMic.classList.remove('off');
     if(btnCam) btnCam.classList.remove('off');
   } catch(e){
+    console.warn('Camera/microphone access warning:', e);
     camOn = false;
     micOn = false;
     document.getElementById('btn-mic')?.classList.add('off');
@@ -2151,8 +2172,8 @@ function initP2PCall(roomCode) {
         return;
       }
       if (data && data.type === 'user_info' && data.name) {
-        if (activePeerCall) {
-          activePeerCall.remoteName = data.name;
+        if (conn.peer && activePeerCallsMap[conn.peer]) {
+          activePeerCallsMap[conn.peer].remoteName = data.name;
           updateRoomParticipants();
         }
       }
@@ -2160,11 +2181,19 @@ function initP2PCall(roomCode) {
   });
 
   peer.on('call', (call) => {
-    activePeerCall = call;
+    const peerId = call.peer;
     if (call.metadata && call.metadata.name) {
       call.remoteName = call.metadata.name;
     }
-    if (stream) call.answer(stream);
+    try {
+      if (stream) {
+        call.answer(stream);
+      } else {
+        call.answer();
+      }
+    } catch(e) {
+      console.warn('Call answer exception:', e);
+    }
     attachRemoteCallStream(call);
   });
 
@@ -2173,26 +2202,38 @@ function initP2PCall(roomCode) {
       const partPeerId = 'mv-part-' + cleanCode + '-' + Math.random().toString(36).substring(2, 6);
       peer = new Peer(partPeerId, { debug: 1 });
 
-      peer.on('open', () => {
-        if (stream) {
-          const call = peer.call(hostPeerId, stream, { metadata: { name: myName } });
-          activePeerCall = call;
+      const connectAsParticipant = () => {
+        const call = peer.call(hostPeerId, stream || undefined, { metadata: { name: myName } });
+        if (call) {
+          if (call.metadata && call.metadata.name) call.remoteName = call.metadata.name;
           attachRemoteCallStream(call);
+        }
 
-          const conn = peer.connect(hostPeerId, { metadata: { name: myName } });
+        const conn = peer.connect(hostPeerId, { metadata: { name: myName } });
+        if (conn) {
           conn.on('open', () => {
             conn.send({ type: 'user_info', name: myName });
           });
           conn.on('data', (data) => {
             if (data && data.type === 'user_info' && data.name) {
-              if (activePeerCall) {
-                activePeerCall.remoteName = data.name;
+              if (conn.peer && activePeerCallsMap[conn.peer]) {
+                activePeerCallsMap[conn.peer].remoteName = data.name;
                 updateRoomParticipants();
               }
             }
           });
         }
+      };
+
+      peer.on('open', () => {
+        connectAsParticipant();
       });
+
+      peer.on('error', (pErr) => {
+        console.warn('Participant Peer error:', pErr);
+      });
+    } else {
+      console.warn('Peer error:', err);
     }
   });
 
@@ -2205,17 +2246,29 @@ function initP2PCall(roomCode) {
 }
 
 function attachRemoteCallStream(call) {
+  const peerId = call.peer;
+  activePeerCall = call;
+  activePeerCallsMap[peerId] = call;
+
   call.on('stream', (remoteStream) => {
     call.remoteStream = remoteStream;
-    activePeerCall = call;
+    activePeerCallsMap[peerId] = call;
     updateRoomParticipants();
     showToast('Participant connected to live video!');
   });
 
   call.on('close', () => {
-    activePeerCall = null;
+    delete activePeerCallsMap[peerId];
+    if (activePeerCall === call) activePeerCall = null;
     updateRoomParticipants();
     showToast('Participant left call');
+  });
+
+  call.on('error', (e) => {
+    console.warn('Remote peer call error:', e);
+    delete activePeerCallsMap[peerId];
+    if (activePeerCall === call) activePeerCall = null;
+    updateRoomParticipants();
   });
 }
 
@@ -2239,6 +2292,12 @@ function stopStream(){
   meetingConnections.forEach(conn => { try { conn.close(); } catch (e) {} });
   meetingConnections = [];
   if(activePeerCall){ try{ activePeerCall.close(); }catch(e){} activePeerCall=null; }
+  if(typeof activePeerCallsMap !== 'undefined'){
+    Object.keys(activePeerCallsMap).forEach(k => {
+      try { activePeerCallsMap[k].close(); } catch(e){}
+    });
+    activePeerCallsMap = {};
+  }
   if(peer){ try{ peer.destroy(); }catch(e){} peer=null; }
   ROOM_PARTICIPANTS = [];
   remoteAudioElements = [];
@@ -2322,12 +2381,24 @@ function stopScreenShare(){
   renderMeetGrid();
   showToast('Screen sharing stopped');
 }
-async function endCall(endForEveryone = isMeetingHost){
-  if (isEndingCall) return;
-  isEndingCall = true;
-  const recording = await stopMeetingRecording();
-  try { await uploadMeetingRecording(recording); }
-  catch (error) { console.warn('Recording upload failed:', error); showToast('Meeting ended; recording could not be uploaded'); }
+
+async function endCall(endForEveryone = false){
+  if (typeof isEndingCall !== 'undefined' && isEndingCall) return;
+  if (typeof isEndingCall !== 'undefined') isEndingCall = true;
+
+  if (typeof stopMeetingRecording === 'function') {
+    try {
+      const recording = await stopMeetingRecording();
+      if (recording && typeof uploadMeetingRecording === 'function') {
+        await uploadMeetingRecording(recording).catch(err => {
+          console.warn('Recording upload failed:', err);
+        });
+      }
+    } catch (err) {
+      console.warn('Recording stop warning:', err);
+    }
+  }
+
   stopStream();
 
   if (currentMeetingId) {
@@ -2358,29 +2429,19 @@ async function endCall(endForEveryone = isMeetingHost){
   }
 
   switchView('home');
+<<<<<<< HEAD
   showToast('Meeting ended');
   isMeetingHost = false;
   isEndingCall = false;
+=======
+  showToast(isHostEnd ? 'Meeting ended for all' : 'Left meeting');
+>>>>>>> 19db9cf (fix: resolve false host ended meeting ejection and media permission call disconnects)
 
   renderUpcoming();
   renderVaultMeetings();
 }
 
-/* Back Key Handler (Escape / Backspace) to leave call */
-document.addEventListener('keydown', (e) => {
-  const activeView = document.querySelector('.view.active');
-  const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
-  
-  if (activeView && activeView.id === 'view-room' && activeTag !== 'input' && activeTag !== 'textarea') {
-    if (e.key === 'Escape' || e.key === 'Backspace') {
-      e.preventDefault();
-      endCall();
-    }
-  }
-});
-
-
-function doJoin(providedCode){
+async function doJoin(providedCode){
   const inputEl = document.getElementById('join-code');
   let code = providedCode || (inputEl ? inputEl.value.trim() : '');
   if(!code){
@@ -2393,6 +2454,30 @@ function doJoin(providedCode){
   currentRoomCode = code;
   isMeetingHost = false;
   showToast('Joining Meeting: ' + code);
+
+  const token = localStorage.getItem('access_token');
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  try {
+    const baseUrl = (typeof API_BASE_URL !== 'undefined' && API_BASE_URL && !API_BASE_URL.startsWith('__'))
+      ? API_BASE_URL
+      : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000/api/v1' : 'https://meetvault-api.onrender.com/api/v1');
+    const res = await fetch(`${baseUrl}/meetings/join`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({ invite_code: code })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      currentMeetingId = data.meeting_id;
+      await fetch(`${baseUrl}/meetings/${currentMeetingId}/room/join`, {
+        method: 'POST',
+        headers: headers
+      }).catch(()=>{});
+    }
+  } catch(e){}
+
   startCall(code);
 }
 
