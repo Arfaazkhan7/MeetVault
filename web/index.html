@@ -1590,6 +1590,64 @@ let currentRoomCode = 'MTG-DA22D7';
 let peer = null;
 let activePeerCall = null;
 let ROOM_PARTICIPANTS = [];
+let meetingRecorder = null;
+let meetingRecordingChunks = [];
+let meetingRecordingStartedAt = 0;
+
+function startMeetingRecording() {
+  if (!stream || typeof MediaRecorder === 'undefined') return;
+  const mimeType = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
+    .find(type => MediaRecorder.isTypeSupported(type));
+  try {
+    meetingRecordingChunks = [];
+    meetingRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    meetingRecordingStartedAt = Date.now();
+    meetingRecorder.ondataavailable = event => {
+      if (event.data && event.data.size) meetingRecordingChunks.push(event.data);
+    };
+    meetingRecorder.start(1000);
+  } catch (error) {
+    meetingRecorder = null;
+    console.warn('Recording is unavailable in this browser:', error);
+  }
+}
+
+function stopMeetingRecording() {
+  return new Promise(resolve => {
+    if (!meetingRecorder || meetingRecorder.state === 'inactive') {
+      meetingRecorder = null;
+      meetingRecordingChunks = [];
+      resolve(null);
+      return;
+    }
+    const recorder = meetingRecorder;
+    recorder.onstop = () => {
+      const blob = meetingRecordingChunks.length
+        ? new Blob(meetingRecordingChunks, { type: recorder.mimeType || 'video/webm' })
+        : null;
+      meetingRecorder = null;
+      meetingRecordingChunks = [];
+      resolve(blob ? { blob, duration: Math.max(1, Math.round((Date.now() - meetingRecordingStartedAt) / 1000)) } : null);
+    };
+    recorder.stop();
+  });
+}
+
+async function uploadMeetingRecording(recording) {
+  if (!recording || !currentMeetingId) return;
+  const token = localStorage.getItem('access_token');
+  if (!token) return;
+  const baseUrl = (typeof API_BASE_URL !== 'undefined' && API_BASE_URL && !API_BASE_URL.startsWith('__'))
+    ? API_BASE_URL : 'https://meetvault-api.onrender.com/api/v1';
+  const form = new FormData();
+  form.append('duration_seconds', String(recording.duration));
+  form.append('file', recording.blob, `meeting-${currentRoomCode}.webm`);
+  const response = await fetch(`${baseUrl}/meetings/${currentMeetingId}/recordings`, {
+    method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form
+  });
+  if (!response.ok) throw new Error((await response.text()) || `Recording upload failed (${response.status})`);
+  showToast('Recording saved to Meeting Vault');
+}
 
 function copyHeroCode(){
   const codeEl = document.getElementById('hero-code');
@@ -1999,6 +2057,8 @@ async function startCall(code){
     camOn = false;
   }
 
+  startMeetingRecording();
+
   // Render ONLY real participants in meeting
   updateRoomParticipants();
 
@@ -2193,6 +2253,9 @@ function stopScreenShare(){
   showToast('Screen sharing stopped');
 }
 async function endCall(){
+  const recording = await stopMeetingRecording();
+  try { await uploadMeetingRecording(recording); }
+  catch (error) { console.warn('Recording upload failed:', error); showToast('Meeting ended; recording could not be uploaded'); }
   stopStream();
 
   if (currentMeetingId) {
