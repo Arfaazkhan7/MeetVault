@@ -7,14 +7,22 @@ import app.models  # noqa: F401,E402
 
 
 if engine.dialect.name == "postgresql":
+    vector_available = False
     try:
         with engine.begin() as connection:
             connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            vector_available = bool(
+                connection.execute(
+                    text("SELECT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'vector')")
+                ).scalar()
+            )
     except Exception:
-        # Render/Postgres plans may not permit extensions. The application also
-        # stores JSON vectors in vector_data for portable similarity search.
-        from app.models.embedding import Embedding
+        pass
 
+    # Supabase projects may not have pgvector enabled. The application also
+    # stores JSON vectors in vector_data for portable similarity search.
+    if not vector_available:
+        from app.models.embedding import Embedding
         Embedding.__table__.c.embedding.type = Text()
 
 Base.metadata.create_all(bind=engine)

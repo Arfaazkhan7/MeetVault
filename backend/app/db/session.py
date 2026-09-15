@@ -19,12 +19,14 @@ try:
             max_overflow=10,
             echo=(settings.ENVIRONMENT == "development"),
         )
-        # Test connection & ensure tables exist
+        # Test the connection. Production schema creation is handled by
+        # scripts/bootstrap_db.py so extension fallbacks run first.
         with engine.connect() as conn:
             pass
-        from app.models.base import Base
-        import app.models  # noqa: F401
-        Base.metadata.create_all(bind=engine)
+        if settings.ENVIRONMENT != "production":
+            from app.models.base import Base
+            import app.models  # noqa: F401
+            Base.metadata.create_all(bind=engine)
 except Exception as e:
     if settings.ENVIRONMENT == "production":
         logging.exception("Production database connection failed")
