@@ -11,6 +11,7 @@ class WorkerSettings:
     broker_url: str = _env("REDIS_URL", "redis://localhost:6379/0")
     queue_backend: str = _env("AI_WORKER_QUEUE", "database")
     poll_interval_seconds: float = float(_env("AI_WORKER_POLL_INTERVAL_SECONDS", "5"))
+    stale_job_minutes: int = int(_env("AI_WORKER_STALE_JOB_MINUTES", "30"))
     openai_api_key: str = _env("OPENAI_API_KEY")
     openai_model: str = _env("LLM_MODEL", "gpt-4o-mini")
     whisper_model: str = _env("WHISPER_MODEL", "small")
