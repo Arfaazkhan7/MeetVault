@@ -1304,6 +1304,9 @@
 
 // ── Firebase & Google OAuth Initialization ──────────────────
 const API_BASE_URL = "__API_BASE_URL__";
+const RUNTIME_API_BASE_URL = (API_BASE_URL && !API_BASE_URL.startsWith('__'))
+  ? API_BASE_URL
+  : 'https://meetvault-api.onrender.com/api/v1';
 const firebaseConfig = {
   apiKey: "__FIREBASE_API_KEY__",
   authDomain: "ai-meet-f8fd0.firebaseapp.com",
@@ -1334,7 +1337,7 @@ async function loginWithGoogle() {
     const user = result.user;
     const idToken = await user.getIdToken();
 
-    const response = await fetch(`${API_BASE_URL}/auth/firebase/google`, {
+    const response = await fetch(`${RUNTIME_API_BASE_URL}/auth/firebase/google`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id_token: idToken }),
@@ -1810,7 +1813,7 @@ async function confirmJoinFromModal(){
 }
 
 function copyCurrentRoomLink(){
-  const link = 'https://meetvault.live/' + currentRoomCode;
+  const link = `${window.location.origin}/#/join/${encodeURIComponent(currentRoomCode)}`;
   navigator.clipboard.writeText(link).catch(()=>{});
   showToast('Meeting link copied: ' + currentRoomCode);
 }
