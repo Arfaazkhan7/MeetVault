@@ -308,7 +308,10 @@
           p2.setCustomParameters({ prompt: 'select_account' });
           await firebase.auth().signInWithRedirect(p2); return;
         }
-        setMsg('error', 'Google sign-in failed. Please try again.');
+        const detail = err && (err.name === 'TypeError' || /failed to fetch/i.test(err.message || ''))
+          ? 'Cannot reach the MeetVault API. Check the Render service and its CORS settings.'
+          : (err.message || 'Please try again.');
+        setMsg('error', 'Google sign-in failed: ' + detail);
       }
     }
 
@@ -321,7 +324,12 @@
           localStorage.setItem('mv_user', JSON.stringify({ email: user.email, name: authData.name, photo: user.photoURL, uid: user.uid, public_id: authData.public_id }));
           window.location.href = 'index.html';
         }
-      }).catch(err => setMsg('error', 'Google sign-in failed: ' + (err.message || 'Unknown error')));
+      }).catch(err => {
+        const detail = err && (err.name === 'TypeError' || /failed to fetch/i.test(err.message || ''))
+          ? 'Cannot reach the MeetVault API. Check the Render service and its CORS settings.'
+          : (err.message || 'Unknown error');
+        setMsg('error', 'Google sign-in failed: ' + detail);
+      });
     }
 
     // Email Sign-Up

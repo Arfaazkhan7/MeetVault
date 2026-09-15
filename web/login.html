@@ -485,7 +485,10 @@
           }
           return;
         }
-        setMsg('error', 'Google sign-in failed: ' + (err.message || 'Unknown error'));
+        const detail = err && (err.name === 'TypeError' || /failed to fetch/i.test(err.message || ''))
+          ? 'Cannot reach the MeetVault API. Check the Render service and its CORS settings.'
+          : (err.message || 'Unknown error');
+        setMsg('error', 'Google sign-in failed: ' + detail);
       }
     }
 
@@ -500,7 +503,12 @@
           }));
           window.location.href = 'index.html';
         }
-      }).catch(err => setMsg('error', 'Google sign-in failed: ' + (err.message || 'Unknown error')));
+      }).catch(err => {
+        const detail = err && (err.name === 'TypeError' || /failed to fetch/i.test(err.message || ''))
+          ? 'Cannot reach the MeetVault API. Check the Render service and its CORS settings.'
+          : (err.message || 'Unknown error');
+        setMsg('error', 'Google sign-in failed: ' + detail);
+      });
     }
 
     // ─── Email / Password Form ────────────────────────────────────

@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from jose import JWTError
 from sqlalchemy.orm import Session
@@ -24,6 +26,8 @@ from app.schemas.auth import (
     UserResponse,
     MeResponse,
 )
+
+logger = logging.getLogger(__name__)
 from app.models.user import User
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -115,6 +119,14 @@ def login_with_google(payload: FirebaseLoginRequest, db: Session = Depends(get_d
     """
     try:
         decoded = verify_firebase_id_token(payload.id_token)
+    except RuntimeError as exc:
+        # Keep credentials and provider details out of the public response, but
+        # make a missing Render/Firebase Admin configuration diagnosable.
+        logger.error("Firebase Admin is not configured: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google sign-in is temporarily unavailable. The server administrator must configure Firebase Admin credentials.",
+        )
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
