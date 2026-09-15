@@ -138,6 +138,19 @@
       border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 520px) {
+      body { padding: 20px 12px calc(28px + env(safe-area-inset-bottom)); }
+      .page-wrap { max-width: 100%; }
+      .brand-row { margin-bottom: 18px; }
+      .brand-icon { width: 48px; height: 48px; border-radius: 14px; }
+      .brand-name { font-size: 1.4rem; }
+      .card { border-radius: 18px; padding: 24px 18px; }
+      .card-title { font-size: 1.18rem; }
+      .card-sub { margin-bottom: 20px; }
+      .google-btn, .submit-btn { min-height: 52px; }
+      input { font-size: 16px !important; }
+    }
   </style>
 </head>
 <body>
