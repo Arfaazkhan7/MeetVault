@@ -61,7 +61,6 @@ services:
     dockerfilePath: ./ai_worker/Dockerfile
     dockerContext: .
     autoDeployTrigger: commit
-    maxShutdownDelaySeconds: 120
     envVars:
       - key: ENVIRONMENT
         value: production
