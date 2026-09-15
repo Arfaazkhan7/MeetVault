@@ -415,7 +415,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id_token: idToken }),
-        signal: AbortSignal.timeout(10000)
+        signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(10000) : undefined
       });
       const data = await response.json();
       if (!response.ok || !data.access_token) {
@@ -537,7 +537,7 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password: pass }),
-          signal: AbortSignal.timeout(4000)
+          signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined
         });
         if (!r.ok && mode === 'personal') {
           // Attempt personal registration if first time email sign in
@@ -545,14 +545,14 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ full_name: email.split('@')[0], email, password: pass, account_type: 'personal' }),
-            signal: AbortSignal.timeout(4000)
+            signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined
           });
           if (r.ok) {
             r = await fetch(`${baseUrl}/auth/login/personal`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ email, password: pass }),
-              signal: AbortSignal.timeout(4000)
+              signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined
             });
           }
         }
