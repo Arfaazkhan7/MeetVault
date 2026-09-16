@@ -41,9 +41,7 @@ class MyApp extends StatelessWidget {
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: ThemeMode.light,
-          initialRoute: authProvider.isAuthenticated ? AppRouter.dashboard : AppRouter.login,
-          routes: AppRouter.routes,
-          onGenerateRoute: AppRouter.onGenerateRoute,
+          onGenerateRoute: (settings) => AppRouter.onGenerateRoute(settings, authProvider),
         );
       },
     );

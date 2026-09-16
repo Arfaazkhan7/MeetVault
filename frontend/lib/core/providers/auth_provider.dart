@@ -3,10 +3,17 @@ import 'package:flutter/foundation.dart';
 import '../services/api_service.dart';
 import '../services/firebase_auth_service.dart';
 
+enum AuthStatus {
+  initializing,
+  authenticated,
+  unauthenticated,
+}
+
 class AuthProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
   final FirebaseAuthService _firebaseAuthService = FirebaseAuthService();
 
+  AuthStatus _status = AuthStatus.initializing;
   bool _isLoading = false;
   String? _errorMessage;
   String? _currentUser;
@@ -14,17 +21,31 @@ class AuthProvider with ChangeNotifier {
   String? _userEmail;
   String? _currentCompanyId;
   String _accountType = 'personal';
+  String? _pendingInviteCode;
 
+  AuthStatus get status => _status;
+  bool get isInitializing => _status == AuthStatus.initializing;
+  bool get isAuthenticated => _status == AuthStatus.authenticated && _currentUser != null;
+  bool get isUnauthenticated => _status == AuthStatus.unauthenticated;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   String? get currentUser => _currentUser;
   String? get userFullName => _userFullName;
   String? get userEmail => _userEmail;
   String? get currentCompanyId => _currentCompanyId;
-  bool get isAuthenticated => _currentUser != null;
   String get accountType => _accountType;
   bool get isPersonal => _accountType == 'personal';
   bool get isOrganization => _accountType == 'organization';
+  String? get pendingInviteCode => _pendingInviteCode;
+
+  set pendingInviteCode(String? code) {
+    _pendingInviteCode = code;
+    notifyListeners();
+  }
+
+  void clearPendingInviteCode() {
+    _pendingInviteCode = null;
+  }
 
   String get displayName {
     if (_userFullName != null && _userFullName!.trim().isNotEmpty) {
@@ -38,6 +59,9 @@ class AuthProvider with ChangeNotifier {
   }
 
   Future<void> init() async {
+    _status = AuthStatus.initializing;
+    notifyListeners();
+
     await _apiService.init();
     if (_apiService.isAuthenticated) {
       try {
@@ -48,16 +72,37 @@ class AuthProvider with ChangeNotifier {
         _userEmail = data['email'];
         _currentCompanyId = data['company_id'];
         _accountType = data['account_type'] ?? 'personal';
+        await _loadCompany();
+        _status = AuthStatus.authenticated;
+      } on ApiException catch (e) {
+        if (e.statusCode == 401 || e.statusCode == 403) {
+          await _apiService.clearToken();
+          _resetUserData();
+          _status = AuthStatus.unauthenticated;
+        } else {
+          // Server/network error (503, timeout). Requirement 5:
+          // Do not delete a valid token on temporary network error.
+          _resetUserData();
+          _status = AuthStatus.unauthenticated;
+        }
       } catch (_) {
         await _apiService.clearToken();
-        _currentUser = null;
-        _userFullName = null;
-        _userEmail = null;
-        _accountType = 'personal';
+        _resetUserData();
+        _status = AuthStatus.unauthenticated;
       }
-      await _loadCompany();
-      notifyListeners();
+    } else {
+      _resetUserData();
+      _status = AuthStatus.unauthenticated;
     }
+    notifyListeners();
+  }
+
+  void _resetUserData() {
+    _currentUser = null;
+    _userFullName = null;
+    _userEmail = null;
+    _currentCompanyId = null;
+    _accountType = 'personal';
   }
 
   Future<bool> login(String email, String password, {String accountType = 'personal', String? workspaceCode}) async {
@@ -92,7 +137,6 @@ class AuthProvider with ChangeNotifier {
       _accountType = accountType; // Force to current login mode
 
       if (accountType == 'organization') {
-        // If workspace login provided a workspace_id in the token response, use it
         if (data.containsKey('workspace_id')) {
            _currentCompanyId = data['workspace_id'];
         }
@@ -102,6 +146,7 @@ class AuthProvider with ChangeNotifier {
         _apiService.companyId = null;
       }
 
+      _status = AuthStatus.authenticated;
       _isLoading = false;
       notifyListeners();
       return true;
@@ -121,6 +166,7 @@ class AuthProvider with ChangeNotifier {
     try {
       final idToken = await _firebaseAuthService.signInWithGoogleAndGetIdToken();
       await _finishGoogleBackendLogin(idToken);
+      _status = AuthStatus.authenticated;
       _isLoading = false;
       notifyListeners();
       return true;
@@ -154,10 +200,6 @@ class AuthProvider with ChangeNotifier {
         'organization_name': organizationName,
       });
 
-      // Instead of calling /auth/login directly, use the updated login method
-      // However, for a newly registered organization, we don't know the workspaceCode yet.
-      // We will login using standard /auth/login for the first time just to get the token,
-      // then load the company to set the companyId.
       final loginResponse = await _apiService.post('/auth/login', body: {
         'email': email,
         'password': password,
@@ -173,12 +215,13 @@ class AuthProvider with ChangeNotifier {
       _accountType = accountType;
 
       if (accountType == 'organization') {
-        await _loadCompany(); // sets _currentCompanyId and _apiService.companyId
+        await _loadCompany();
       } else {
         _currentCompanyId = null;
         _apiService.companyId = null;
       }
 
+      _status = AuthStatus.authenticated;
       _isLoading = false;
       notifyListeners();
       return true;
@@ -193,11 +236,8 @@ class AuthProvider with ChangeNotifier {
   Future<void> logout() async {
     await _firebaseAuthService.signOut();
     await _apiService.clearToken();
-    _currentUser = null;
-    _userFullName = null;
-    _userEmail = null;
-    _currentCompanyId = null;
-    _accountType = 'personal';
+    _resetUserData();
+    _status = AuthStatus.unauthenticated;
     notifyListeners();
   }
 

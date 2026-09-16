@@ -57,10 +57,18 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _continueAfterAuth({required bool replace}) {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final pendingCode = authProvider.pendingInviteCode;
     final fragment = Uri.base.fragment;
-    final isInvite = fragment.startsWith('/join/');
+    final isInvite = pendingCode != null || fragment.startsWith('/join/');
+    final code = pendingCode ?? (fragment.startsWith('/join/') ? fragment.substring('/join/'.length) : null);
+
+    if (pendingCode != null) {
+      authProvider.clearPendingInviteCode();
+    }
+
     final route = isInvite ? AppRouter.joinMeeting : AppRouter.dashboard;
-    final args = isInvite ? {'code': fragment.substring('/join/'.length)} : null;
+    final args = isInvite && code != null ? {'code': code} : null;
     if (replace) {
       Navigator.pushReplacementNamed(context, route, arguments: args);
     } else {

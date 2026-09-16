@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import '../widgets/auth_splash_gate.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/register_screen.dart';
 import '../../features/dashboard/dashboard_screen.dart';
@@ -56,110 +58,260 @@ class AppRouter {
   static const String adminLogin = '/admin/login';
   static const String adminDashboard = '/admin/dashboard';
 
-  static Map<String, WidgetBuilder> get routes => {
-    login: (context) => const LoginScreen(),
-    register: (context) => const RegisterScreen(),
-    dashboard: (context) => const DashboardScreen(),
-    companies: (context) => const CompanyScreen(),
-    users: (context) => const UsersScreen(),
-    projects: (context) => const ProjectsScreen(),
-    meetings: (context) => const MeetingsScreen(),
-    documents: (context) => const DocumentsScreen(),
-    projectMemory: (context) => const ProjectMemoryScreen(),
-    topicEvolution: (context) => const TopicEvolutionScreen(),
-    decisionHistory: (context) => const DecisionHistoryScreen(),
-    search: (context) => const SearchScreen(),
-    askMemory: (context) => const AskMemoryScreen(),
-    settings: (context) => const SettingsScreen(),
-    admin: (context) => const AdminDashboardScreen(),
-    adminLogin: (context) => const AdminLoginScreen(),
-    adminDashboard: (context) => const AdminDashboardScreen(),
-    joinMeeting: (context) => const JoinMeetingScreen(),
-  };
+  static Route<dynamic> onGenerateRoute(RouteSettings settings, AuthProvider authProvider) {
+    // 1. While auth status is initializing (/auth/me in progress), show splash gate (zero dashboard flash)
+    if (authProvider.isInitializing) {
+      return MaterialPageRoute(
+        builder: (context) => const AuthSplashGate(),
+        settings: settings,
+      );
+    }
 
-  static Route<dynamic> onGenerateRoute(RouteSettings settings) {
-    switch (settings.name) {
-      case projectDashboard:
+    final routeName = settings.name ?? '/';
+
+    // Extract deep-link meeting code if present (e.g. /join/MTG-ABC123)
+    String? joinCode;
+    if (routeName == joinMeeting || routeName.startsWith('/join/')) {
+      final parts = routeName.split('/');
+      if (parts.length > 2 && parts[2].trim().isNotEmpty) {
+        joinCode = Uri.decodeComponent(parts[2].trim());
+      } else if (settings.arguments is Map<String, dynamic>) {
         final args = settings.arguments as Map<String, dynamic>;
+        joinCode = args['code'] as String?;
+      }
+    }
+
+    // 2. UNAUTHENTICATED GUARD
+    if (!authProvider.isAuthenticated) {
+      // Store deep-link invite code if visiting /join/<code> unauthenticated
+      if (joinCode != null && joinCode.isNotEmpty) {
+        authProvider.pendingInviteCode = joinCode;
+      }
+
+      // Public unauthenticated routes
+      if (routeName == login) {
         return MaterialPageRoute(
-          builder: (context) => ProjectDashboardScreen(projectId: args['id']),
+          builder: (context) => const LoginScreen(),
+          settings: const RouteSettings(name: login),
         );
-      case meetingDetails:
-        final args = settings.arguments as Map<String, dynamic>;
+      }
+      if (routeName == register) {
         return MaterialPageRoute(
-          builder: (context) => MeetingDetailsScreen(meetingId: args['id']),
+          builder: (context) => const RegisterScreen(),
+          settings: const RouteSettings(name: register),
         );
-      case meetingRoom:
-        final args = settings.arguments as Map<String, dynamic>;
+      }
+      if (routeName == adminLogin) {
         return MaterialPageRoute(
-          builder: (context) => MeetingRoomScreen(
-            meetingId: args['id'],
-            meetingTitle: args['title'] ?? 'Meeting Room',
-            authToken: ApiService().token ?? '',
-            livekitUrl: args['livekitUrl'],
-            token: args['token'],
-            roomName: args['roomName'],
-            isHost: args['isHost'] ?? false,
-          ),
+          builder: (context) => const AdminLoginScreen(),
+          settings: const RouteSettings(name: adminLogin),
         );
-      case joinMeeting:
-        final args = settings.arguments as Map<String, dynamic>?;
-        
-        // Handle URL-based join route /join/:code (from settings.name)
-        String? code = args?['code'] as String?;
-        if (code == null && settings.name != null && settings.name!.startsWith('/join/')) {
-          final parts = settings.name!.split('/');
-          if (parts.length > 2) {
-            code = Uri.decodeComponent(parts[2]);
-          }
-        }
-        
+      }
+
+      // Any protected route or unknown route visited while unauthenticated -> Redirect to Login
+      return MaterialPageRoute(
+        builder: (context) => const LoginScreen(),
+        settings: const RouteSettings(name: login),
+      );
+    }
+
+    // 3. AUTHENTICATED GUARD
+    // If authenticated user visits /login or /register, redirect to dashboard (or pending invite route)
+    if (routeName == login || routeName == register) {
+      final pendingCode = authProvider.pendingInviteCode;
+      if (pendingCode != null && pendingCode.isNotEmpty) {
+        authProvider.clearPendingInviteCode();
         return MaterialPageRoute(
-          builder: (context) => JoinMeetingScreen(initialCode: code),
+          builder: (context) => JoinMeetingScreen(initialCode: pendingCode),
+          settings: RouteSettings(name: '/join/$pendingCode'),
         );
-      case participants:
-        final args = settings.arguments as Map<String, dynamic>;
+      }
+      return MaterialPageRoute(
+        builder: (context) => const DashboardScreen(),
+        settings: const RouteSettings(name: dashboard),
+      );
+    }
+
+    // Handle /join route for authenticated user
+    if (routeName == joinMeeting || routeName.startsWith('/join/')) {
+      final codeToUse = joinCode ?? authProvider.pendingInviteCode;
+      if (authProvider.pendingInviteCode != null) {
+        authProvider.clearPendingInviteCode();
+      }
+      return MaterialPageRoute(
+        builder: (context) => JoinMeetingScreen(initialCode: codeToUse),
+        settings: settings,
+      );
+    }
+
+    // Match static authenticated routes
+    switch (routeName) {
+      case dashboard:
+      case '/':
         return MaterialPageRoute(
-          builder: (context) => ParticipantsScreen(meetingId: args['id']),
+          builder: (context) => const DashboardScreen(),
+          settings: const RouteSettings(name: dashboard),
         );
-      case transcript:
-        final args = settings.arguments as Map<String, dynamic>;
+      case companies:
         return MaterialPageRoute(
-          builder: (context) => TranscriptScreen(meetingId: args['id']),
+          builder: (context) => const CompanyScreen(),
+          settings: settings,
         );
-      case summary:
-        final args = settings.arguments as Map<String, dynamic>;
+      case users:
         return MaterialPageRoute(
-          builder: (context) => MeetingSummaryScreen(meetingId: args['id']),
+          builder: (context) => const UsersScreen(),
+          settings: settings,
         );
-      case topics:
-        final args = settings.arguments as Map<String, dynamic>;
+      case projects:
         return MaterialPageRoute(
-          builder: (context) => TopicsScreen(meetingId: args['id']),
+          builder: (context) => const ProjectsScreen(),
+          settings: settings,
         );
-      case decisions:
-        final args = settings.arguments as Map<String, dynamic>;
+      case meetings:
         return MaterialPageRoute(
-          builder: (context) => DecisionsScreen(meetingId: args['id']),
+          builder: (context) => const MeetingsScreen(),
+          settings: settings,
         );
-      case tasks:
-        final args = settings.arguments as Map<String, dynamic>;
+      case documents:
         return MaterialPageRoute(
-          builder: (context) => TasksScreen(meetingId: args['id']),
+          builder: (context) => const DocumentsScreen(),
+          settings: settings,
         );
-      default:
-        // Handle URL-based join route matching /join/:code that fallback here
-        if (settings.name != null && settings.name!.startsWith('/join/')) {
-          final parts = settings.name!.split('/');
-          if (parts.length > 2) {
+      case projectMemory:
+        return MaterialPageRoute(
+          builder: (context) => const ProjectMemoryScreen(),
+          settings: settings,
+        );
+      case topicEvolution:
+        return MaterialPageRoute(
+          builder: (context) => const TopicEvolutionScreen(),
+          settings: settings,
+        );
+      case decisionHistory:
+        return MaterialPageRoute(
+          builder: (context) => const DecisionHistoryScreen(),
+          settings: settings,
+        );
+      case search:
+        return MaterialPageRoute(
+          builder: (context) => const SearchScreen(),
+          settings: settings,
+        );
+      case askMemory:
+        return MaterialPageRoute(
+          builder: (context) => const AskMemoryScreen(),
+          settings: settings,
+        );
+      case settings:
+        return MaterialPageRoute(
+          builder: (context) => const SettingsScreen(),
+          settings: settings,
+        );
+      case admin:
+      case adminDashboard:
+        return MaterialPageRoute(
+          builder: (context) => const AdminDashboardScreen(),
+          settings: settings,
+        );
+      case adminLogin:
+        return MaterialPageRoute(
+          builder: (context) => const AdminDashboardScreen(),
+          settings: const RouteSettings(name: adminDashboard),
+        );
+    }
+
+    // Parameterized route matching for authenticated users
+    if (routeName.startsWith('/projects/')) {
+      final parts = routeName.split('/');
+      if (parts.length > 2 && parts[2].trim().isNotEmpty) {
+        final projectId = Uri.decodeComponent(parts[2]);
+        return MaterialPageRoute(
+          builder: (context) => ProjectDashboardScreen(projectId: projectId),
+          settings: settings,
+        );
+      }
+    }
+
+    if (routeName.startsWith('/meetings/')) {
+      final parts = routeName.split('/');
+      if (parts.length > 2 && parts[2].trim().isNotEmpty) {
+        final meetingId = Uri.decodeComponent(parts[2]);
+        if (parts.length > 3) {
+          final sub = parts[3];
+          if (sub == 'room') {
+            final args = (settings.arguments as Map<String, dynamic>?) ?? {};
             return MaterialPageRoute(
-              builder: (context) => JoinMeetingScreen(initialCode: Uri.decodeComponent(parts[2])),
+              builder: (context) => MeetingRoomScreen(
+                meetingId: meetingId,
+                meetingTitle: args['title'] ?? 'Meeting Room',
+                authToken: ApiService().token ?? '',
+                livekitUrl: args['livekitUrl'],
+                token: args['token'],
+                roomName: args['roomName'],
+                isHost: args['isHost'] ?? false,
+              ),
+              settings: settings,
+            );
+          } else if (sub == 'participants') {
+            return MaterialPageRoute(
+              builder: (context) => ParticipantsScreen(meetingId: meetingId),
+              settings: settings,
+            );
+          } else if (sub == 'transcript') {
+            return MaterialPageRoute(
+              builder: (context) => TranscriptScreen(meetingId: meetingId),
+              settings: settings,
+            );
+          } else if (sub == 'summary') {
+            return MaterialPageRoute(
+              builder: (context) => MeetingSummaryScreen(meetingId: meetingId),
+              settings: settings,
+            );
+          } else if (sub == 'topics') {
+            return MaterialPageRoute(
+              builder: (context) => TopicsScreen(meetingId: meetingId),
+              settings: settings,
+            );
+          } else if (sub == 'decisions') {
+            return MaterialPageRoute(
+              builder: (context) => DecisionsScreen(meetingId: meetingId),
+              settings: settings,
+            );
+          } else if (sub == 'tasks') {
+            return MaterialPageRoute(
+              builder: (context) => TasksScreen(meetingId: meetingId),
+              settings: settings,
             );
           }
         }
         return MaterialPageRoute(
-          builder: (context) => const DashboardScreen(),
+          builder: (context) => MeetingDetailsScreen(meetingId: meetingId),
+          settings: settings,
         );
+      }
     }
+
+    // Handle parameterized routes passed via arguments
+    if (settings.arguments is Map<String, dynamic>) {
+      final args = settings.arguments as Map<String, dynamic>;
+      if (routeName == projectDashboard && args.containsKey('id')) {
+        return MaterialPageRoute(
+          builder: (context) => ProjectDashboardScreen(projectId: args['id']),
+          settings: settings,
+        );
+      }
+      if (routeName == meetingDetails && args.containsKey('id')) {
+        return MaterialPageRoute(
+          builder: (context) => MeetingDetailsScreen(meetingId: args['id']),
+          settings: settings,
+        );
+      }
+    }
+
+    // Unknown route fallback when authenticated: DashboardScreen
+    return MaterialPageRoute(
+      builder: (context) => const DashboardScreen(),
+      settings: const RouteSettings(name: dashboard),
+    );
   }
 }
