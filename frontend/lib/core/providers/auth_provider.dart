@@ -25,7 +25,8 @@ class AuthProvider with ChangeNotifier {
 
   AuthStatus get status => _status;
   bool get isInitializing => _status == AuthStatus.initializing;
-  bool get isAuthenticated => _status == AuthStatus.authenticated && _currentUser != null;
+  bool get isAuthenticated =>
+      _status == AuthStatus.authenticated && _currentUser != null;
   bool get isUnauthenticated => _status == AuthStatus.unauthenticated;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
@@ -58,11 +59,26 @@ class AuthProvider with ChangeNotifier {
     return _currentUser ?? 'User';
   }
 
+  /// Called by ApiService whenever a 401 is received and automatic token
+  /// refresh has also failed. Clears state and notifies listeners so that
+  /// the router immediately redirects to the Login screen.
+  void handleGlobalAuthFailure() {
+    debugPrint('[AuthProvider] handleGlobalAuthFailure — forcing logout');
+    _resetUserData();
+    _status = AuthStatus.unauthenticated;
+    notifyListeners();
+  }
+
   Future<void> init() async {
     _status = AuthStatus.initializing;
     notifyListeners();
 
     await _apiService.init();
+
+    // Register the global auth failure callback so any 401 (after failed
+    // refresh) automatically drives the router back to Login.
+    _apiService.onAuthFailure = handleGlobalAuthFailure;
+
     if (_apiService.isAuthenticated) {
       try {
         final response = await _apiService.get('/auth/me');
@@ -74,25 +90,37 @@ class AuthProvider with ChangeNotifier {
         _accountType = data['account_type'] ?? 'personal';
         await _loadCompany();
         _status = AuthStatus.authenticated;
+        debugPrint('[Auth] Startup verified. User: ${_currentUser} '
+            '(token length: ${_apiService.token?.length ?? 0})');
       } on ApiException catch (e) {
         if (e.statusCode == 401 || e.statusCode == 403) {
+          // Token is definitively invalid — clear everything.
           await _apiService.clearToken();
           _resetUserData();
           _status = AuthStatus.unauthenticated;
+          debugPrint('[Auth] Startup /auth/me returned ${e.statusCode} — '
+              'clearing token, redirecting to login');
         } else {
-          // Server/network error (503, timeout). Requirement 5:
-          // Do not delete a valid token on temporary network error.
+          // Transient server/network error (503, timeout etc.).
+          // ApiService already attempted refresh internally.
+          // If we arrive here it means even refresh failed or wasn't applicable.
+          // Clear the token to avoid a stuck authenticated-but-broken state.
+          await _apiService.clearToken();
           _resetUserData();
           _status = AuthStatus.unauthenticated;
+          debugPrint('[Auth] Startup /auth/me failed with ${e.statusCode} — '
+              'clearing state, user must re-login');
         }
-      } catch (_) {
+      } catch (e) {
         await _apiService.clearToken();
         _resetUserData();
         _status = AuthStatus.unauthenticated;
+        debugPrint('[Auth] Startup /auth/me unexpected error: $e');
       }
     } else {
       _resetUserData();
       _status = AuthStatus.unauthenticated;
+      debugPrint('[Auth] No stored token — unauthenticated');
     }
     notifyListeners();
   }
@@ -105,7 +133,12 @@ class AuthProvider with ChangeNotifier {
     _accountType = 'personal';
   }
 
-  Future<bool> login(String email, String password, {String accountType = 'personal', String? workspaceCode}) async {
+  Future<bool> login(
+    String email,
+    String password, {
+    String accountType = 'personal',
+    String? workspaceCode,
+  }) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -125,20 +158,31 @@ class AuthProvider with ChangeNotifier {
       final response = await _apiService.post(endpoint, body: body);
 
       final data = json.decode(response.body);
-      final token = data['access_token'];
+      final accessToken = data['access_token'] as String;
+      final refreshToken = data['refresh_token'] as String?;
 
-      await _apiService.setToken(token);
+      // Store BOTH tokens
+      if (refreshToken != null) {
+        await _apiService.setTokens(accessToken, refreshToken);
+        debugPrint('[Auth] Login stored access token (length: ${accessToken.length}) '
+            'and refresh token (length: ${refreshToken.length})');
+      } else {
+        await _apiService.setToken(accessToken);
+        debugPrint('[Auth] Login stored access token (length: ${accessToken.length}) '
+            '— no refresh token in response');
+      }
+
       final meResponse = await _apiService.get('/auth/me');
       final me = json.decode(meResponse.body);
       _currentUser = me['public_id'] ?? me['id'] ?? 'user';
       _userFullName = me['full_name'];
       _userEmail = me['email'];
       _currentCompanyId = me['company_id'];
-      _accountType = accountType; // Force to current login mode
+      _accountType = accountType;
 
       if (accountType == 'organization') {
         if (data.containsKey('workspace_id')) {
-           _currentCompanyId = data['workspace_id'];
+          _currentCompanyId = data['workspace_id'];
         }
         _apiService.companyId = _currentCompanyId;
       } else {
@@ -164,7 +208,8 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final idToken = await _firebaseAuthService.signInWithGoogleAndGetIdToken();
+      final idToken =
+          await _firebaseAuthService.signInWithGoogleAndGetIdToken();
       await _finishGoogleBackendLogin(idToken);
       _status = AuthStatus.authenticated;
       _isLoading = false;
@@ -205,8 +250,14 @@ class AuthProvider with ChangeNotifier {
         'password': password,
       });
       final data = json.decode(loginResponse.body);
-      await _apiService.setToken(data['access_token']);
-      
+      final accessToken = data['access_token'] as String;
+      final refreshToken = data['refresh_token'] as String?;
+      if (refreshToken != null) {
+        await _apiService.setTokens(accessToken, refreshToken);
+      } else {
+        await _apiService.setToken(accessToken);
+      }
+
       final meResponse = await _apiService.get('/auth/me');
       final me = json.decode(meResponse.body);
       _currentUser = me['public_id'] ?? me['id'] ?? 'user';
@@ -261,7 +312,8 @@ class AuthProvider with ChangeNotifier {
     if (message.contains('popup-blocked')) {
       return 'Your browser blocked the Google sign-in popup. Allow popups for this site and try again.';
     }
-    if (message.contains('invalid-api-key') || message.contains('api-key-not-valid')) {
+    if (message.contains('invalid-api-key') ||
+        message.contains('api-key-not-valid')) {
       return 'The Firebase API key is invalid. Update the FIREBASE_API_KEY GitHub secret and redeploy.';
     }
     if (message.contains('account-exists-with-different-credential')) {
@@ -284,7 +336,13 @@ class AuthProvider with ChangeNotifier {
       'id_token': idToken,
     });
     final data = json.decode(response.body);
-    await _apiService.setToken(data['access_token']);
+    final accessToken = data['access_token'] as String;
+    final refreshToken = data['refresh_token'] as String?;
+    if (refreshToken != null) {
+      await _apiService.setTokens(accessToken, refreshToken);
+    } else {
+      await _apiService.setToken(accessToken);
+    }
 
     final meResponse = await _apiService.get('/auth/me');
     final me = json.decode(meResponse.body);

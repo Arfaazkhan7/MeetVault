@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     # JWT
     JWT_SECRET: str = "change-this-to-a-very-long-random-secret-in-production"
     JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours — client implements refresh; short expiry caused 401 errors
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # App
