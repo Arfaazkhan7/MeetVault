@@ -3,8 +3,8 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
 import 'package:livekit_client/livekit_client.dart';
+import '../../core/services/api_service.dart';
 
 class MeetingRoomScreen extends StatefulWidget {
   final String meetingId;
@@ -22,7 +22,7 @@ class MeetingRoomScreen extends StatefulWidget {
     required this.meetingId,
     required this.meetingTitle,
     required this.authToken,
-    this.apiBaseUrl = 'http://localhost:8000/api/v1',
+    this.apiBaseUrl = ApiService.baseUrl,
     this.isHost = false,
     this.livekitUrl,
     this.token,
@@ -184,11 +184,10 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
     }
   }
 
+  final _api = ApiService();
+
   Future<_MeetingConnection> _requestConnection() async {
-    final response = await http.post(
-      Uri.parse('${widget.apiBaseUrl}/meetings/${widget.meetingId}/room/connect'),
-      headers: _headers,
-    );
+    final response = await _api.post('/meetings/${widget.meetingId}/room/connect');
     if (response.statusCode != 200) {
       final body = json.decode(response.body);
       throw Exception(body['detail'] ?? 'Unable to enter meeting (${response.statusCode})');
@@ -198,26 +197,15 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
 
   Future<void> _recordJoin() async {
     try {
-      await http.post(
-        Uri.parse('${widget.apiBaseUrl}/meetings/${widget.meetingId}/room/join'),
-        headers: _headers,
-      );
+      await _api.post('/meetings/${widget.meetingId}/room/join');
     } catch (_) {}
   }
 
   Future<void> _recordLeave() async {
     try {
-      await http.post(
-        Uri.parse('${widget.apiBaseUrl}/meetings/${widget.meetingId}/room/leave'),
-        headers: _headers,
-      );
+      await _api.post('/meetings/${widget.meetingId}/room/leave');
     } catch (_) {}
   }
-
-  Map<String, String> get _headers => {
-    'Authorization': 'Bearer ${widget.authToken}',
-    'Content-Type': 'application/json',
-  };
 
   Future<void> _initMicrophone() async {
     final room = _room;
