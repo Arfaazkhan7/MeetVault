@@ -376,28 +376,55 @@
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner"></span> Creating account…';
 
+      const BACKEND_TIMEOUT_MS = 60000;
+      const baseUrl = (typeof RUNTIME_API_BASE_URL !== 'undefined' && RUNTIME_API_BASE_URL && !RUNTIME_API_BASE_URL.startsWith('__'))
+        ? RUNTIME_API_BASE_URL
+        : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000/api/v1' : 'https://meetvault-api.onrender.com/api/v1');
+
       try {
-        const r = await fetch(`${RUNTIME_API_BASE_URL}/auth/register`, {
+        setMsg('info', '⏳ Creating account on server… (may take up to 60s on cold start)');
+
+        let r = await fetch(`${baseUrl}/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ full_name: name, email, password: pass, account_type: 'personal' }),
-          signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined
+          signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(BACKEND_TIMEOUT_MS) : undefined
         });
-        if (r.ok) {
-          const regData = await r.json();
-          saveUser(email, name, regData.public_id);
-          return;
-        }
-      } catch (_) {}
 
-      const users = JSON.parse(localStorage.getItem('mv_users') || '{}');
-      if (users[email]) {
-        btn.disabled = false; btn.textContent = 'Create Account';
-        return setMsg('error', 'An account with this email already exists. Try signing in.');
+        if (r.ok || r.status === 409) {
+          // If created or user already exists, log in
+          let loginRes = await fetch(`${baseUrl}/auth/login/personal`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password: pass }),
+            signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(BACKEND_TIMEOUT_MS) : undefined
+          });
+
+          if (loginRes.ok) {
+            const data = await loginRes.json();
+            localStorage.setItem('access_token', data.access_token);
+            if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
+            saveUser(email, name, data.public_id || (data.user && data.user.public_id));
+            return;
+          } else {
+            let errDetail = 'Account created, but sign-in failed. Try logging in.';
+            try { const errData = await loginRes.json(); errDetail = errData.detail || errDetail; } catch(_) {}
+            btn.disabled = false; btn.innerHTML = 'Create Account';
+            return setMsg('error', '❌ ' + errDetail);
+          }
+        } else {
+          let errDetail = 'Could not create account.';
+          try { const errData = await r.json(); errDetail = errData.detail || errDetail; } catch(_) {}
+          btn.disabled = false; btn.innerHTML = 'Create Account';
+          return setMsg('error', '❌ ' + errDetail);
+        }
+      } catch (err) {
+        btn.disabled = false; btn.innerHTML = 'Create Account';
+        const isTimeout = err && (err.name === 'TimeoutError' || err.name === 'AbortError');
+        return setMsg('error', isTimeout
+          ? '⏱️ Server is starting up. Please wait 30 seconds and try again.'
+          : '❌ Cannot reach server. Check your connection.');
       }
-      users[email] = pass;
-      localStorage.setItem('mv_users', JSON.stringify(users));
-      saveUser(email, name);
     }
 
     function saveUser(email, name, publicId) {
@@ -405,14 +432,13 @@
       localStorage.setItem('mv_user', JSON.stringify({ email, name, public_id: publicId || '' }));
       const existingToken = localStorage.getItem('access_token');
       if (!existingToken || existingToken.startsWith('mv-local-') || existingToken.startsWith('mail-')) {
-        localStorage.setItem('access_token', 'mv-local-token:' + email);
-      }
-      setMsg('success', '✅ Account created! Redirecting…');
-      setTimeout(() => { window.location.href = 'index.html'; }, 800);
-    }
-      const existingToken = localStorage.getItem('access_token');
-      if (!existingToken || existingToken.startsWith('mv-local-') || existingToken.startsWith('mail-')) {
-        localStorage.setItem('access_token', 'mv-local-token:' + email);
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('mv_user');
+        setMsg('error', '❌ Account created but session token missing. Please sign in.');
+        const btn = document.getElementById('submit-btn');
+        if (btn) { btn.disabled = false; btn.innerHTML = 'Create Account'; }
+        return;
       }
       setMsg('success', '✅ Account created! Redirecting…');
       setTimeout(() => { window.location.href = 'index.html'; }, 800);
@@ -420,7 +446,10 @@
 
     function setMsg(type, text) {
       const el = document.getElementById('msg');
-      el.className = 'msg ' + type; el.textContent = text;
+      if (el) {
+        el.className = 'msg ' + type;
+        el.textContent = text;
+      }
     }
   </script>
 </body>

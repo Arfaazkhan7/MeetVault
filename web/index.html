@@ -4,7 +4,11 @@
   <script>
     (function() {
       const userStr = localStorage.getItem('mv_user');
-      if (!userStr) {
+      const token = localStorage.getItem('access_token');
+      if (!userStr || !token || token.startsWith('mv-local-')) {
+        localStorage.removeItem('mv_user');
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
         window.location.replace('login.html');
         return;
       }
@@ -13,11 +17,13 @@
         if (!u || typeof u !== 'object' || (!u.email && !u.name && !u.uid)) {
           localStorage.removeItem('mv_user');
           localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
           window.location.replace('login.html');
         }
       } catch(e) {
         localStorage.removeItem('mv_user');
         localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
         window.location.replace('login.html');
       }
     })();
@@ -1463,6 +1469,122 @@ function closeDrawer(e){
   }
 }
 
+/* ════════════════════════════════════════════════════════
+   CENTRALIZED AUTHENTICATED API CLIENT (apiFetch)
+   Handles Authorization header, 401 response auto-refresh,
+   and clean logout redirect on session expiration.
+════════════════════════════════════════════════════════ */
+let isRefreshingToken = false;
+let refreshSubscribers = [];
+
+function onTokenRefreshed(newToken) {
+  refreshSubscribers.forEach(cb => cb(newToken));
+  refreshSubscribers = [];
+}
+
+function addRefreshSubscriber(cb) {
+  refreshSubscribers.push(cb);
+}
+
+function getApiBaseUrl() {
+  if (typeof API_BASE_URL !== 'undefined' && API_BASE_URL && !API_BASE_URL.startsWith('__')) {
+    return API_BASE_URL;
+  }
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return 'http://localhost:8000/api/v1';
+  }
+  return 'https://meetvault-api.onrender.com/api/v1';
+}
+
+function handleSessionExpired() {
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+  localStorage.removeItem('mv_user');
+  showToast('Your session has expired. Please sign in again.');
+  setTimeout(() => {
+    window.location.href = 'login.html';
+  }, 1200);
+}
+
+async function refreshAccessToken() {
+  const refreshToken = localStorage.getItem('refresh_token');
+  if (!refreshToken) return null;
+  const baseUrl = getApiBaseUrl();
+  try {
+    const res = await fetch(`${baseUrl}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+      signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.access_token) {
+        localStorage.setItem('access_token', data.access_token);
+        if (data.refresh_token) {
+          localStorage.setItem('refresh_token', data.refresh_token);
+        }
+        return data.access_token;
+      }
+    }
+  } catch (err) {
+    console.warn('[Auth] Token refresh error:', err);
+  }
+  return null;
+}
+
+async function apiFetch(endpoint, options = {}, isRetry = false) {
+  const baseUrl = getApiBaseUrl();
+  const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
+  
+  options.headers = options.headers || {};
+  let token = localStorage.getItem('access_token');
+  
+  if (token && !token.startsWith('mv-local-') && !options.headers['Authorization']) {
+    options.headers['Authorization'] = `Bearer ${token}`;
+  }
+  if (!options.headers['Content-Type'] && !(options.body instanceof FormData)) {
+    options.headers['Content-Type'] = 'application/json';
+  }
+
+  let response;
+  try {
+    response = await fetch(url, options);
+  } catch (netErr) {
+    console.error('[API] Network error:', netErr);
+    throw new Error('Network error. Check your server connection.');
+  }
+
+  // Handle 401 Unauthorized with token refresh
+  if (response.status === 401 && !isRetry) {
+    console.warn('[API] Received 401 Unauthorized for endpoint:', endpoint);
+    
+    if (!isRefreshingToken) {
+      isRefreshingToken = true;
+      const newToken = await refreshAccessToken();
+      isRefreshingToken = false;
+
+      if (newToken) {
+        onTokenRefreshed(newToken);
+        options.headers['Authorization'] = `Bearer ${newToken}`;
+        return apiFetch(endpoint, options, true);
+      } else {
+        handleSessionExpired();
+        return response;
+      }
+    } else {
+      return new Promise((resolve, reject) => {
+        addRefreshSubscriber(newToken => {
+          options.headers['Authorization'] = `Bearer ${newToken}`;
+          apiFetch(endpoint, options, true).then(resolve).catch(reject);
+        });
+      });
+    }
+  }
+
+  return response;
+}
+
 /* ── Auth & Profile Management ─────────────────────────── */
 function initAuthState(){
   const userStr = localStorage.getItem('mv_user');
@@ -1479,9 +1601,9 @@ function initAuthState(){
   const authModal = document.getElementById('auth-modal');
 
   if(!userStr){
-    // Mandatory Redirect to Login Page on First Open or when not signed in
     localStorage.removeItem('mv_user');
     localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
     window.location.href = 'login.html';
     return;
   }
@@ -1491,6 +1613,7 @@ function initAuthState(){
     if (!user || typeof user !== 'object' || (!user.email && !user.name && !user.uid)) {
       localStorage.removeItem('mv_user');
       localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
       window.location.href = 'login.html';
       return;
     }
@@ -1557,10 +1680,7 @@ function initAuthState(){
     // Async sync with backend GET /auth/me for real persistent user identity
     const token = localStorage.getItem('access_token');
     if (token && !token.startsWith('mv-local-')) {
-      const baseUrl = (typeof API_BASE_URL !== 'undefined' && API_BASE_URL && !API_BASE_URL.startsWith('__'))
-        ? API_BASE_URL
-        : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000/api/v1' : 'https://meetvault-api.onrender.com/api/v1');
-      fetch(`${baseUrl}/auth/me`, { headers: { 'Authorization': `Bearer ${token}` } })
+      apiFetch('/auth/me')
         .then(r => r.ok ? r.json() : null)
         .then(meData => {
           if (meData && meData.public_id) {
@@ -1575,6 +1695,7 @@ function initAuthState(){
   } catch(e){
     localStorage.removeItem('mv_user');
     localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
     window.location.href = 'login.html';
   }
 }
@@ -1597,13 +1718,7 @@ function closeGooglePickerApp(){
 
 function loginWithEmailInApp(e){
   e.preventDefault();
-  const email = document.getElementById('modal-email').value.trim();
-  const name = email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-  const code = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
-  localStorage.setItem('mv_user', JSON.stringify({ email, name, code }));
-  localStorage.setItem('access_token', 'mv-local-token:' + email);
-  showToast('✅ Signed in successfully!');
-  initAuthState();
+  window.location.href = 'login.html';
 }
 
 function logoutUser(){
@@ -1727,15 +1842,12 @@ function stopMeetingRecording() {
 
 async function uploadMeetingRecording(recording) {
   if (!recording || !currentMeetingId) return;
-  const token = localStorage.getItem('access_token');
-  if (!token) return;
-  const baseUrl = (typeof API_BASE_URL !== 'undefined' && API_BASE_URL && !API_BASE_URL.startsWith('__'))
-    ? API_BASE_URL : 'https://meetvault-api.onrender.com/api/v1';
   const form = new FormData();
   form.append('duration_seconds', String(recording.duration));
   form.append('file', recording.blob, `meeting-${currentRoomCode}.webm`);
-  const response = await fetch(`${baseUrl}/meetings/${currentMeetingId}/recordings`, {
-    method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form
+  const response = await apiFetch(`/meetings/${currentMeetingId}/recordings`, {
+    method: 'POST',
+    body: form
   });
   if (!response.ok) throw new Error((await response.text()) || `Recording upload failed (${response.status})`);
   showToast('Recording saved to Meeting Vault');
@@ -1743,9 +1855,11 @@ async function uploadMeetingRecording(recording) {
 
 function copyHeroCode(){
   const codeEl = document.getElementById('hero-code');
-  const code = codeEl ? codeEl.textContent.trim() : 'MTG-DA22D7';
-  navigator.clipboard.writeText(code).catch(()=>{});
-  showToast('Meeting code copied: ' + code);
+  const code = codeEl ? codeEl.textContent.trim() : '';
+  if (code) {
+    navigator.clipboard.writeText(code).catch(()=>{});
+    showToast('Meeting code copied: ' + code);
+  }
 }
 
 let pendingMeetingCode = '';
@@ -1754,42 +1868,44 @@ let currentMeetingId = null;
 async function createNewMeeting(){
   closeDrawer();
   isMeetingHost = true;
-  const token = localStorage.getItem('access_token');
-  const headers = { 'Content-Type': 'application/json' };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
+  pendingMeetingCode = '';
+  currentMeetingId = null;
 
-  let meetingData = null;
   try {
-    const baseUrl = (typeof API_BASE_URL !== 'undefined' && API_BASE_URL && !API_BASE_URL.startsWith('__'))
-      ? API_BASE_URL
-      : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000/api/v1' : 'https://meetvault-api.onrender.com/api/v1');
-
-    const res = await fetch(`${baseUrl}/meetings/personal`, {
+    showToast('Creating meeting on server…');
+    const res = await apiFetch('/meetings/personal', {
       method: 'POST',
-      headers: headers,
       body: JSON.stringify({ title: 'Personal Sync' })
     });
+
     if (res.ok) {
-      meetingData = await res.json();
+      const meetingData = await res.json();
       currentMeetingId = meetingData.public_id || meetingData.id;
       pendingMeetingCode = meetingData.invite_code || meetingData.meeting_code;
 
-      try {
-        await fetch(`${baseUrl}/meetings/${currentMeetingId}/room/join`, {
+      if (currentMeetingId) {
+        await apiFetch(`/meetings/${currentMeetingId}/room/join`, {
           method: 'POST',
-          headers: headers,
           body: JSON.stringify({ role: 'HOST' })
-        });
+        }).catch(() => {});
+      }
+    } else {
+      let errMsg = 'Could not create meeting.';
+      try {
+        const errData = await res.json();
+        if (errData && errData.detail) errMsg = errData.detail;
       } catch (_) {}
+      showToast('❌ ' + errMsg);
+      return;
     }
   } catch (err) {
-    console.warn('Backend personal meeting creation fallback:', err);
+    showToast('❌ Unable to create meeting: ' + (err.message || 'Server error'));
+    return;
   }
 
   if (!pendingMeetingCode) {
-    pendingMeetingCode = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+    showToast('❌ Meeting code was not returned by server.');
+    return;
   }
 
   const codeInput = document.getElementById('joining-modal-code');
@@ -1835,39 +1951,39 @@ function copyJoiningCode(){
 async function confirmJoinFromModal(){
   closeJoiningModal();
   const code = pendingMeetingCode || (document.getElementById('joining-modal-code') ? document.getElementById('joining-modal-code').value : '');
-  if(code){
-    currentRoomCode = code;
-    const roomLbl = document.getElementById('room-lbl');
-    if(roomLbl) roomLbl.textContent = 'Team meeting | ' + code;
-    const badge = document.getElementById('room-badge-text');
-    if(badge) badge.textContent = code;
-    const heroCode = document.getElementById('hero-code');
-    if(heroCode) heroCode.textContent = code;
+  if (!code) return;
 
-    const token = localStorage.getItem('access_token');
-    const headers = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    try {
-      const baseUrl = (typeof API_BASE_URL !== 'undefined' && API_BASE_URL && !API_BASE_URL.startsWith('__'))
-        ? API_BASE_URL
-        : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000/api/v1' : 'https://meetvault-api.onrender.com/api/v1');
-      const res = await fetch(`${baseUrl}/meetings/join`, {
-        method: 'POST',
-        headers: headers,
-        body: JSON.stringify({ invite_code: code })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        currentMeetingId = data.meeting_id;
-        await fetch(`${baseUrl}/meetings/${currentMeetingId}/room/join`, {
-          method: 'POST',
-          headers: headers
-        }).catch(()=>{});
-      }
-    } catch(e){}
+  currentRoomCode = code;
+  const roomLbl = document.getElementById('room-lbl');
+  if(roomLbl) roomLbl.textContent = 'Team meeting | ' + code;
+  const badge = document.getElementById('room-badge-text');
+  if(badge) badge.textContent = code;
+  const heroCode = document.getElementById('hero-code');
+  if(heroCode) heroCode.textContent = code;
 
-    startCall(code);
+  try {
+    const res = await apiFetch('/meetings/join', {
+      method: 'POST',
+      body: JSON.stringify({ invite_code: code })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      currentMeetingId = data.meeting_id;
+      await apiFetch(`/meetings/${currentMeetingId}/room/join`, {
+        method: 'POST'
+      }).catch(() => {});
+    } else {
+      let errMsg = 'Failed to join meeting';
+      try { const errData = await res.json(); errMsg = errData.detail || errMsg; } catch(_) {}
+      showToast('❌ ' + errMsg);
+      return;
+    }
+  } catch(e){
+    showToast('❌ Unable to join meeting: ' + (e.message || 'Server error'));
+    return;
   }
+
+  startCall(code);
 }
 
 function copyCurrentRoomLink(){
@@ -2503,24 +2619,13 @@ async function endCall(endForEveryone = false){
 
   if (currentMeetingId) {
     try {
-      const baseUrl = (typeof API_BASE_URL !== 'undefined' && API_BASE_URL && !API_BASE_URL.startsWith('__'))
-        ? API_BASE_URL
-        : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000/api/v1' : 'https://meetvault-api.onrender.com/api/v1');
-      const token = localStorage.getItem('access_token');
-      const headers = { 'Content-Type': 'application/json' };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      await fetch(`${baseUrl}/meetings/${currentMeetingId}/room/leave`, {
-        method: 'POST',
-        headers: headers
+      await apiFetch(`/meetings/${currentMeetingId}/room/leave`, {
+        method: 'POST'
       }).catch(()=>{});
 
       if (endForEveryone) {
-        await fetch(`${baseUrl}/meetings/${currentMeetingId}/end`, {
-          method: 'POST',
-          headers: headers
+        await apiFetch(`/meetings/${currentMeetingId}/end`, {
+          method: 'POST'
         }).catch(()=>{});
       }
     } catch (e) {
@@ -2550,41 +2655,40 @@ async function doJoin(providedCode){
   if (!code.startsWith('MTG-')) {
     code = 'MTG-' + code;
   }
-  currentRoomCode = code;
-  isMeetingHost = false;
+  
   showToast('Joining Meeting: ' + code);
 
-  const token = localStorage.getItem('access_token');
-  const headers = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-
   try {
-    const baseUrl = (typeof API_BASE_URL !== 'undefined' && API_BASE_URL && !API_BASE_URL.startsWith('__'))
-      ? API_BASE_URL
-      : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000/api/v1' : 'https://meetvault-api.onrender.com/api/v1');
-    const res = await fetch(`${baseUrl}/meetings/join`, {
+    const res = await apiFetch('/meetings/join', {
       method: 'POST',
-      headers: headers,
       body: JSON.stringify({ invite_code: code })
     });
     if (res.ok) {
       const data = await res.json();
       currentMeetingId = data.meeting_id;
-      await fetch(`${baseUrl}/meetings/${currentMeetingId}/room/join`, {
-        method: 'POST',
-        headers: headers
+      currentRoomCode = code;
+      isMeetingHost = (data.participant && data.participant.role === 'HOST');
+
+      await apiFetch(`/meetings/${currentMeetingId}/room/join`, {
+        method: 'POST'
       }).catch(()=>{});
     } else {
       let errMsg = 'Meeting not found. Check the invite code and try again.';
       try {
         const errData = await res.json();
-        if (errData && errData.detail) errMsg = errData.detail;
+        if (errData && errData.detail) {
+          if (res.status === 404) {
+            errMsg = 'Invalid or unavailable meeting code: ' + code;
+          } else {
+            errMsg = errData.detail;
+          }
+        }
       } catch(_) {}
       showToast('❌ ' + errMsg);
       return;
     }
   } catch(e){
-    showToast('❌ Cannot connect to server. Check your connection.');
+    showToast('❌ Cannot connect to server: ' + (e.message || 'Network error'));
     return;
   }
 
@@ -2655,13 +2759,8 @@ let fetchHistoryError = false;
 let fetchHistoryStatusCode = null;
 
 async function fetchMeetingHistory() {
-  const baseUrl = (typeof API_BASE_URL !== 'undefined' && API_BASE_URL && !API_BASE_URL.startsWith('__'))
-    ? API_BASE_URL
-    : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000/api/v1' : 'https://meetvault-api.onrender.com/api/v1');
-  const token = localStorage.getItem('access_token');
-  const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
   try {
-    const res = await fetch(`${baseUrl}/meetings/history`, { headers, signal: AbortSignal.timeout(8000) });
+    const res = await apiFetch('/meetings/history');
     fetchHistoryStatusCode = res.status;
     if (res.ok) {
       fetchHistoryError = false;
