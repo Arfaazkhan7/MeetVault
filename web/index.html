@@ -945,12 +945,18 @@
       </div>
     </nav>
 
-    <div class="sidebar-bottom">
+    <div class="sidebar-bottom" style="display:flex;flex-direction:column;gap:6px;width:100%;">
       <div class="nav-item" id="nav-settings" onclick="switchView('settings')">
         <div class="nav-icon">
           <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6-3.6z"/></svg>
         </div>
         <span>Settings</span>
+      </div>
+      <div class="nav-item" id="nav-logout" onclick="logoutUser()" style="color:#EF4444;" title="Sign out of MeetVault">
+        <div class="nav-icon">
+          <svg viewBox="0 0 24 24" fill="#EF4444"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+        </div>
+        <span>Sign Out</span>
       </div>
     </div>
   </aside>
@@ -1507,20 +1513,32 @@ function initAuthState(){
 
     if(authArea){
       authArea.innerHTML = `
-        <div class="user-menu-wrap" style="position:relative;">
-          <div class="user-pill" onclick="toggleUserMenu()" style="display:flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;background:#F1F5F9;border:1px solid var(--border);border-radius:999px;cursor:pointer;user-select:none;">
-            <div style="width:28px;height:28px;border-radius:50%;background:#0F172A;color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;">${initials}</div>
-            <span style="font-size:0.82rem;font-weight:700;color:#0F172A;">${firstName}</span>
-            <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:#64748B;"><path d="M7 10l5 5 5-5z"/></svg>
-          </div>
-          <div class="user-dropdown" id="user-dropdown">
-            <div style="padding:10px 14px;border-bottom:1px solid var(--border);">
-              <div style="font-weight:700;font-size:0.84rem;color:#0F172A;">${user.name || firstName}</div>
-              <div style="font-size:0.75rem;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;">${user.email || ''}</div>
-              <div style="font-size:0.72rem;font-weight:700;color:#2563eb;margin-top:2px;">ID: ${publicId}</div>
+        <div class="user-menu-wrap" style="position:relative;z-index:1000;">
+          <div class="user-pill" onclick="toggleUserMenu(event)" style="display:flex;align-items:center;gap:8px;padding:5px 14px 5px 5px;background:#FFFFFF;border:1px solid #CBD5E1;border-radius:999px;cursor:pointer;user-select:none;box-shadow:0 2px 6px rgba(0,0,0,0.06);transition:all 0.15s ease;">
+            <div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg, #1E293B, #0F172A);color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.78rem;font-weight:800;letter-spacing:0.02em;">${initials}</div>
+            <div style="display:flex;flex-direction:column;line-height:1.2;">
+              <span style="font-size:0.84rem;font-weight:700;color:#0F172A;">${firstName}</span>
+              <span style="font-size:0.68rem;font-weight:600;color:#2563EB;">${publicId}</span>
             </div>
-            <a class="dropdown-item" onclick="switchView('settings'); toggleUserMenu(false);">Settings</a>
-            <a class="dropdown-item" onclick="logoutUser()" style="color:#EF4444;">Sign Out</a>
+            <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:#64748B;margin-left:2px;"><path d="M7 10l5 5 5-5z"/></svg>
+          </div>
+          <div class="user-dropdown" id="user-dropdown" style="position:absolute;top:48px;right:0;width:220px;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:14px;box-shadow:0 12px 30px rgba(15,23,42,0.15);display:none;flex-direction:column;padding:8px 0;z-index:2000;">
+            <div style="padding:10px 16px;border-bottom:1px solid #F1F5F9;background:#F8FAFC;border-top-left-radius:13px;border-top-right-radius:13px;">
+              <div style="font-weight:800;font-size:0.88rem;color:#0F172A;">${user.name || firstName}</div>
+              <div style="font-size:0.75rem;color:#64748B;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;">${user.email || ''}</div>
+              <div style="font-size:0.72rem;font-weight:700;color:#2563EB;margin-top:4px;background:#EBF3FF;padding:2px 8px;border-radius:6px;display:inline-block;">User ID: ${publicId}</div>
+            </div>
+            <div style="padding:4px 0;">
+              <a class="dropdown-item" onclick="switchView('settings'); toggleUserMenu(false);" style="padding:10px 16px;display:flex;align-items:center;gap:10px;font-size:0.84rem;font-weight:600;color:#1E293B;text-decoration:none;cursor:pointer;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="#64748B"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6-3.6z"/></svg>
+                <span>Account Settings</span>
+              </a>
+              <div style="height:1px;background:#F1F5F9;margin:4px 0;"></div>
+              <a class="dropdown-item" onclick="logoutUser()" style="padding:10px 16px;display:flex;align-items:center;gap:10px;font-size:0.84rem;font-weight:700;color:#EF4444;text-decoration:none;cursor:pointer;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="#EF4444"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+                <span>Sign Out</span>
+              </a>
+            </div>
           </div>
         </div>`;
     }
@@ -1601,13 +1619,16 @@ function logoutUser(){
   setTimeout(() => { window.location.href = 'login.html'; }, 600);
 }
 
-function toggleUserMenu(forceState){
+function toggleUserMenu(eOrForce){
+  if(eOrForce && eOrForce.stopPropagation) eOrForce.stopPropagation();
   const menu = document.getElementById('user-dropdown');
   if(!menu) return;
-  if(typeof forceState === 'boolean'){
-    menu.classList.toggle('open', forceState);
+  if(typeof eOrForce === 'boolean'){
+    menu.classList.toggle('open', eOrForce);
+    menu.style.display = eOrForce ? 'flex' : 'none';
   } else {
-    menu.classList.toggle('open');
+    const isOpen = menu.classList.toggle('open');
+    menu.style.display = isOpen ? 'flex' : 'none';
   }
 }
 
@@ -1627,13 +1648,10 @@ let currentRoomCode = 'MTG-DA22D7';
 
 let peer = null;
 let activePeerCall = null;
-<<<<<<< HEAD
 let meetingConnections = [];
 let isMeetingHost = false;
 let isEndingCall = false;
-=======
 let activePeerCallsMap = {};
->>>>>>> 19db9cf (fix: resolve false host ended meeting ejection and media permission call disconnects)
 let ROOM_PARTICIPANTS = [];
 let meetingRecorder = null;
 let meetingRecordingChunks = [];
@@ -2461,13 +2479,9 @@ async function endCall(endForEveryone = false){
   }
 
   switchView('home');
-<<<<<<< HEAD
-  showToast('Meeting ended');
+  showToast(isHostEnd ? 'Meeting ended for all' : 'Meeting ended');
   isMeetingHost = false;
   isEndingCall = false;
-=======
-  showToast(isHostEnd ? 'Meeting ended for all' : 'Left meeting');
->>>>>>> 19db9cf (fix: resolve false host ended meeting ejection and media permission call disconnects)
 
   renderUpcoming();
   renderVaultMeetings();
@@ -2799,8 +2813,15 @@ function closeHistoryDetailsModal() {
 }
 
 // Initialize on Load
-initAuthState();
-buildCalendar();
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    initAuthState();
+    buildCalendar();
+  });
+} else {
+  initAuthState();
+  buildCalendar();
+}
 </script>
 
 </body>
