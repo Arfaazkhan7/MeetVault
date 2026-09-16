@@ -1642,8 +1642,8 @@ document.addEventListener('click', (e) => {
 
 /* ── Real-Time Video Call & Dynamic Room Grid (Real Participants Only) ───── */
 let stream = null;
-let micOn = true;
-let camOn = true;
+let micOn = false;
+let camOn = false;
 let currentRoomCode = 'MTG-DA22D7';
 
 let peer = null;
@@ -2159,20 +2159,52 @@ async function startCall(code){
   closeDrawer();
   switchView('room');
 
+  // Reset media state
+  micOn = false;
+  camOn = false;
+  stream = null;
+
+  // Request microphone permission independently
+  let micStream = null;
   try {
-    stream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
-    micOn = true; camOn = true;
-    const btnMic = document.getElementById('btn-mic');
-    const btnCam = document.getElementById('btn-cam');
-    if(btnMic) btnMic.classList.remove('off');
-    if(btnCam) btnCam.classList.remove('off');
-  } catch(e){
-    console.warn('Camera/microphone access warning:', e);
-    camOn = false;
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    micOn = true;
+  } catch(e) {
+    console.warn('Microphone permission denied or unavailable:', e);
     micOn = false;
-    document.getElementById('btn-mic')?.classList.add('off');
-    document.getElementById('btn-cam')?.classList.add('off');
-    showToast('Camera or microphone permission is unavailable. Check browser permissions.');
+  }
+
+  // Request camera permission independently
+  let camStream = null;
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    camOn = true;
+  } catch(e) {
+    console.warn('Camera permission denied or unavailable:', e);
+    camOn = false;
+  }
+
+  // Combine into a single stream with available tracks
+  const combinedTracks = [];
+  if (micStream) micStream.getAudioTracks().forEach(t => combinedTracks.push(t));
+  if (camStream) camStream.getVideoTracks().forEach(t => combinedTracks.push(t));
+
+  if (combinedTracks.length > 0) {
+    stream = new MediaStream(combinedTracks);
+  }
+
+  // Update UI buttons to reflect actual state
+  const btnMic = document.getElementById('btn-mic');
+  const btnCam = document.getElementById('btn-cam');
+  if(btnMic) btnMic.classList.toggle('off', !micOn);
+  if(btnCam) btnCam.classList.toggle('off', !camOn);
+
+  if (!micOn && !camOn) {
+    showToast('⚠️ Camera and microphone are not available. Check browser permissions.');
+  } else if (!micOn) {
+    showToast('⚠️ Microphone blocked. Check browser permissions.');
+  } else if (!camOn) {
+    showToast('⚠️ Camera blocked. Check browser permissions.');
   }
 
   startMeetingRecording();
@@ -2204,10 +2236,12 @@ function initP2PCall(roomCode) {
     peer = null;
   }
 
+  // Try to register as host first; if ID is taken, join as participant
   peer = new Peer(hostPeerId, { debug: 1 });
 
   peer.on('open', (id) => {
     console.log('Room host live:', id);
+    isMeetingHost = true;
   });
 
   peer.on('connection', (conn) => {
@@ -2217,8 +2251,11 @@ function initP2PCall(roomCode) {
     });
     conn.on('data', (data) => {
       if (data && data.type === 'room_ended') {
-        showToast('The host ended this meeting');
-        endCall(false);
+        // Only attendees should respond to room_ended
+        if (!isMeetingHost) {
+          showToast('The host ended this meeting');
+          endCall(false);
+        }
         return;
       }
       if (data && data.type === 'user_info' && data.name) {
@@ -2249,10 +2286,16 @@ function initP2PCall(roomCode) {
 
   peer.on('error', (err) => {
     if (err.type === 'unavailable-id') {
+      // Host ID taken → join as participant
+      isMeetingHost = false;
       const partPeerId = 'mv-part-' + cleanCode + '-' + Math.random().toString(36).substring(2, 6);
+      
+      // Destroy the failed peer before creating a new one
+      try { peer.destroy(); } catch(e){}
       peer = new Peer(partPeerId, { debug: 1 });
 
-      const connectAsParticipant = () => {
+      peer.on('open', () => {
+        console.log('Joined as participant:', partPeerId);
         const call = peer.call(hostPeerId, stream || undefined, { metadata: { name: myName } });
         if (call) {
           if (call.metadata && call.metadata.name) call.remoteName = call.metadata.name;
@@ -2265,6 +2308,11 @@ function initP2PCall(roomCode) {
             conn.send({ type: 'user_info', name: myName });
           });
           conn.on('data', (data) => {
+            if (data && data.type === 'room_ended') {
+              showToast('The host ended this meeting');
+              endCall(false);
+              return;
+            }
             if (data && data.type === 'user_info' && data.name) {
               if (conn.peer && activePeerCallsMap[conn.peer]) {
                 activePeerCallsMap[conn.peer].remoteName = data.name;
@@ -2273,24 +2321,26 @@ function initP2PCall(roomCode) {
             }
           });
         }
-      };
-
-      peer.on('open', () => {
-        connectAsParticipant();
       });
 
       peer.on('error', (pErr) => {
         console.warn('Participant Peer error:', pErr);
+      });
+
+      // Participant peer close should NOT show 'host ended' — host sends explicit room_ended message
+      peer.on('close', () => {
+        console.log('Participant peer connection closed');
       });
     } else {
       console.warn('Peer error:', err);
     }
   });
 
+  // Host peer close: only trigger leave if NOT ending call ourselves and NOT a host
   peer.on('close', () => {
     if (!isEndingCall && !isMeetingHost && document.getElementById('view-room')?.classList.contains('active')) {
-      showToast('The host ended this meeting');
-      endCall(false);
+      console.log('Host peer closed — this is normal for participant joining flow');
+      // Do NOT auto-leave here; wait for explicit room_ended message from host
     }
   });
 }
@@ -2479,7 +2529,7 @@ async function endCall(endForEveryone = false){
   }
 
   switchView('home');
-  showToast(isHostEnd ? 'Meeting ended for all' : 'Meeting ended');
+  showToast(endForEveryone ? 'Meeting ended for all' : 'Meeting ended');
   isMeetingHost = false;
   isEndingCall = false;
 
@@ -2490,12 +2540,15 @@ async function endCall(endForEveryone = false){
 async function doJoin(providedCode){
   const inputEl = document.getElementById('join-code');
   let code = providedCode || (inputEl ? inputEl.value.trim() : '');
-  if(!code){
-    code = 'MTG-' + Math.random().toString(36).substring(2, 7).toUpperCase();
-  } else if(!code.toUpperCase().startsWith('MTG-')){
-    code = 'MTG-' + code.toUpperCase();
-  } else {
-    code = code.toUpperCase();
+  if (!code) {
+    showToast('Please enter a meeting invite code');
+    return;
+  }
+  // Normalize code: strip surrounding spaces, uppercase
+  code = code.trim().toUpperCase();
+  // If user entered just the alphanumeric part without MTG- prefix, add it
+  if (!code.startsWith('MTG-')) {
+    code = 'MTG-' + code;
   }
   currentRoomCode = code;
   isMeetingHost = false;
@@ -2521,8 +2574,19 @@ async function doJoin(providedCode){
         method: 'POST',
         headers: headers
       }).catch(()=>{});
+    } else {
+      let errMsg = 'Meeting not found. Check the invite code and try again.';
+      try {
+        const errData = await res.json();
+        if (errData && errData.detail) errMsg = errData.detail;
+      } catch(_) {}
+      showToast('❌ ' + errMsg);
+      return;
     }
-  } catch(e){}
+  } catch(e){
+    showToast('❌ Cannot connect to server. Check your connection.');
+    return;
+  }
 
   startCall(code);
 }
