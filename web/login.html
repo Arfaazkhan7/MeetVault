@@ -255,6 +255,12 @@
       border: 1px solid #BBF7D0;
       padding: 10px 14px;
     }
+    .msg.info {
+      color: #1E40AF;
+      background: #EFF6FF;
+      border: 1px solid #BFDBFE;
+      padding: 10px 14px;
+    }
 
     /* ═══ DEMO INFO BOX ═══ */
     .demo-info {
@@ -334,9 +340,9 @@
       <!-- Divider -->
       <div class="divider">or sign in with email</div>
 
-      <!-- Demo info -->
-      <div class="demo-info">
-        <strong>Demo Mode:</strong> Enter any email and password (min 6 chars) to sign in. No real server needed.
+      <!-- Info -->
+      <div class="demo-info" style="background:#EFF6FF;border:1px solid #DBEAFE;border-radius:10px;padding:11px 14px;margin-bottom:20px;font-size:0.78rem;color:#1E40AF;line-height:1.55;">
+        <strong>First time?</strong> Enter your email and a password (min 6 chars) to automatically create your account.
       </div>
 
       <!-- Tabs -->
@@ -555,17 +561,20 @@
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner"></span> Signing in…';
 
-      // Try real backend authentication
+      // Try real backend authentication — longer timeout to handle cold-start on Render free tier
+      const BACKEND_TIMEOUT_MS = 60000; // 60 s
       try {
         const baseUrl = (typeof API_BASE_URL !== 'undefined' && API_BASE_URL && !API_BASE_URL.startsWith('__'))
           ? API_BASE_URL
           : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000/api/v1' : 'https://meetvault-api.onrender.com/api/v1');
 
+        setMsg('info', '⏳ Connecting to server… (first sign-in may take up to 60 seconds)');
+
         let r = await fetch(`${baseUrl}/auth/login/` + mode, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password: pass }),
-          signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined
+          signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(BACKEND_TIMEOUT_MS) : undefined
         });
         if (!r.ok && mode === 'personal') {
           // Attempt personal registration if first time email sign in
@@ -573,14 +582,14 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ full_name: email.split('@')[0], email, password: pass, account_type: 'personal' }),
-            signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined
+            signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(BACKEND_TIMEOUT_MS) : undefined
           });
           if (r.ok) {
             r = await fetch(`${baseUrl}/auth/login/personal`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ email, password: pass }),
-              signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined
+              signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(BACKEND_TIMEOUT_MS) : undefined
             });
           }
         }
@@ -590,11 +599,23 @@
           if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
           saveUser(email, data.public_id || (data.user && data.user.public_id));
           return;
+        } else {
+          // Real backend error — show actual message
+          let errDetail = 'Incorrect email or password.';
+          try { const errData = await r.json(); errDetail = errData.detail || errDetail; } catch(_) {}
+          btn.disabled = false;
+          btn.innerHTML = 'Sign In';
+          return setMsg('error', '❌ ' + errDetail);
         }
-      } catch (_) {}
-
-      // Fallback
-      saveUser(email);
+      } catch (err) {
+        // Network error or timeout — do NOT fall through to local token
+        btn.disabled = false;
+        btn.innerHTML = 'Sign In';
+        const isTimeout = err && (err.name === 'TimeoutError' || err.name === 'AbortError');
+        return setMsg('error', isTimeout
+          ? '⏱️ Server is starting up. Please wait 30 seconds and try again.'
+          : '❌ Cannot reach server. Check your connection and try again.');
+      }
     }
 
     function saveUser(email, publicId) {
@@ -602,9 +623,17 @@
         .replace(/[._-]/g, ' ')
         .replace(/\b\w/g, c => c.toUpperCase());
       localStorage.setItem('mv_user', JSON.stringify({ email, name, public_id: publicId || '' }));
+      // Only store a real JWT — never store a local fallback token for real logins
       const existingToken = localStorage.getItem('access_token');
       if (!existingToken || existingToken.startsWith('mv-local-') || existingToken.startsWith('mail-')) {
-        localStorage.setItem('access_token', 'mv-local-token:' + email);
+        // This should not happen after removing the fallback, but guard just in case
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('mv_user');
+        setMsg('error', '❌ Sign-in failed: could not obtain a session token. Please try again.');
+        const btn = document.getElementById('submit-btn');
+        if (btn) { btn.disabled = false; btn.innerHTML = 'Sign In'; }
+        return;
       }
       setMsg('success', '✅ Signed in! Redirecting…');
       setTimeout(() => { window.location.href = 'index.html'; }, 800);
@@ -614,6 +643,7 @@
       const el = document.getElementById('msg');
       el.className = 'msg ' + type;
       el.textContent = text;
+      el.style.padding = text ? '10px 14px' : '0';
     }
   </script>
 </body>
