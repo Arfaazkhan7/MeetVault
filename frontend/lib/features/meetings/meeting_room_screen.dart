@@ -34,6 +34,13 @@ class MeetingRoomScreen extends StatefulWidget {
   State<MeetingRoomScreen> createState() => _MeetingRoomScreenState();
 }
 
+class _DeviceErrorInfo {
+  final String state;
+  final String userMessage;
+
+  const _DeviceErrorInfo({required this.state, required this.userMessage});
+}
+
 class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
   Room? _room;
   EventsListener<RoomEvent>? _listener;
@@ -42,13 +49,22 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
   DateTime? _joinedAt;
   bool _isConnecting = true;
   bool _isLeaving = false;
-  bool _microphoneEnabled = true;
-  bool _cameraEnabled = true;
+
+  // Real media track booleans synchronized with published tracks
+  bool _microphoneEnabled = false;
+  bool _cameraEnabled = false;
   bool _screenShareEnabled = false;
-  Participant? _pinnedParticipant;
+
+  // Granular device & connection status tracking
   String _connectionStatus = 'Connecting';
+  String _cameraState = 'Off'; // 'Off', 'Enabling', 'On', 'Permission Denied', 'No Device', 'In Use', 'Failed'
+  String _microphoneState = 'Off'; // 'Off', 'Enabling', 'On', 'Permission Denied', 'No Device', 'In Use', 'Failed'
+
+  String? _cameraErrorMessage;
+  String? _microphoneErrorMessage;
   String? _errorMessage;
   String? _inviteCode;
+  Participant? _pinnedParticipant;
 
   @override
   void initState() {
@@ -70,6 +86,12 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
       _isConnecting = true;
       _errorMessage = null;
       _connectionStatus = 'Requesting access';
+      _microphoneEnabled = false;
+      _cameraEnabled = false;
+      _microphoneState = 'Off';
+      _cameraState = 'Off';
+      _cameraErrorMessage = null;
+      _microphoneErrorMessage = null;
     });
 
     try {
@@ -103,8 +125,22 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
         ..on<ParticipantDisconnectedEvent>((event) => _refresh())
         ..on<TrackSubscribedEvent>((event) => _refresh())
         ..on<TrackUnsubscribedEvent>((event) => _refresh())
-        ..on<LocalTrackPublishedEvent>((event) => _refresh())
-        ..on<LocalTrackUnpublishedEvent>((event) => _refresh());
+        ..on<LocalTrackPublishedEvent>((event) {
+          _syncLocalMediaStates();
+          _refresh();
+        })
+        ..on<LocalTrackUnpublishedEvent>((event) {
+          _syncLocalMediaStates();
+          _refresh();
+        })
+        ..on<TrackMutedEvent>((event) {
+          _syncLocalMediaStates();
+          _refresh();
+        })
+        ..on<TrackUnmutedEvent>((event) {
+          _syncLocalMediaStates();
+          _refresh();
+        });
 
       setState(() => _connectionStatus = 'Connecting to server');
 
@@ -116,8 +152,6 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
           dynacast: true,
         ),
       );
-      await room.localParticipant?.setMicrophoneEnabled(true);
-      await room.localParticipant?.setCameraEnabled(true);
 
       _joinedAt = DateTime.now();
       _timer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -131,9 +165,12 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
         _isConnecting = false;
         _connectionStatus = 'Connected';
       });
+
+      // Initialize microphone and camera independently
+      await _initMicrophone();
+      await _initCamera();
     } catch (error) {
       String msg = error.toString();
-      // Make LiveKit errors more human-friendly
       if (msg.contains('LIVEKIT_URL is not configured') || msg.contains('LIVEKIT_API_KEY is not configured')) {
         msg = 'LiveKit is not configured on the server. Please contact your administrator.';
       } else if (msg.contains('SocketException') || msg.contains('Failed to fetch')) {
@@ -165,9 +202,7 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
         Uri.parse('${widget.apiBaseUrl}/meetings/${widget.meetingId}/room/join'),
         headers: _headers,
       );
-    } catch (_) {
-      // Non-critical: don't block room entry
-    }
+    } catch (_) {}
   }
 
   Future<void> _recordLeave() async {
@@ -184,22 +219,246 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
     'Content-Type': 'application/json',
   };
 
+  Future<void> _initMicrophone() async {
+    final room = _room;
+    if (room == null || room.localParticipant == null) return;
+
+    setState(() {
+      _microphoneState = 'Enabling';
+      _microphoneErrorMessage = null;
+    });
+
+    try {
+      await room.localParticipant!.setMicrophoneEnabled(true);
+      _syncLocalMediaStates();
+
+      if (!_microphoneEnabled) {
+        setState(() {
+          _microphoneState = 'Failed';
+          _microphoneErrorMessage = 'Microphone could not be published.';
+        });
+      } else {
+        setState(() {
+          _microphoneState = 'On';
+          _microphoneErrorMessage = null;
+        });
+      }
+    } catch (e) {
+      debugPrint('[MeetingRoomScreen] Microphone error: $e');
+      final err = _classifyDeviceError(e, 'Microphone');
+      setState(() {
+        _microphoneEnabled = false;
+        _microphoneState = err.state;
+        _microphoneErrorMessage = err.userMessage;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(err.userMessage),
+            backgroundColor: const Color(0xFFDC2626),
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: _initMicrophone,
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _initCamera() async {
+    final room = _room;
+    if (room == null || room.localParticipant == null) return;
+
+    setState(() {
+      _cameraState = 'Enabling';
+      _cameraErrorMessage = null;
+    });
+
+    try {
+      await room.localParticipant!.setCameraEnabled(true);
+      _syncLocalMediaStates();
+
+      if (!_cameraEnabled) {
+        setState(() {
+          _cameraState = 'Failed';
+          _cameraErrorMessage = 'Camera could not be published.';
+        });
+      } else {
+        setState(() {
+          _cameraState = 'On';
+          _cameraErrorMessage = null;
+        });
+      }
+    } catch (e) {
+      debugPrint('[MeetingRoomScreen] Camera error: $e');
+      final err = _classifyDeviceError(e, 'Camera');
+      setState(() {
+        _cameraEnabled = false;
+        _cameraState = err.state;
+        _cameraErrorMessage = err.userMessage;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(err.userMessage),
+            backgroundColor: const Color(0xFFDC2626),
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: _initCamera,
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  void _syncLocalMediaStates() {
+    final participant = _room?.localParticipant;
+    if (participant == null) {
+      _microphoneEnabled = false;
+      _cameraEnabled = false;
+      return;
+    }
+
+    bool hasAudio = false;
+    for (final pub in participant.audioTrackPublications) {
+      if (pub.kind == TrackType.AUDIO && !pub.muted && pub.track != null) {
+        hasAudio = true;
+        break;
+      }
+    }
+
+    bool hasVideo = false;
+    for (final pub in participant.videoTrackPublications) {
+      if (pub.kind == TrackType.VIDEO && !pub.muted && pub.track != null && pub.source != TrackSource.screenShareVideo) {
+        hasVideo = true;
+        break;
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _microphoneEnabled = hasAudio;
+        if (hasAudio) {
+          _microphoneState = 'On';
+          _microphoneErrorMessage = null;
+        } else if (_microphoneState == 'Enabling' || _microphoneState == 'On') {
+          _microphoneState = 'Off';
+        }
+
+        _cameraEnabled = hasVideo;
+        if (hasVideo) {
+          _cameraState = 'On';
+          _cameraErrorMessage = null;
+        } else if (_cameraState == 'Enabling' || _cameraState == 'On') {
+          _cameraState = 'Off';
+        }
+      });
+    }
+  }
+
+  _DeviceErrorInfo _classifyDeviceError(dynamic error, String deviceType) {
+    final str = error.toString().toLowerCase();
+
+    if (str.contains('notallowederror') ||
+        str.contains('permissiondenied') ||
+        str.contains('permission denied') ||
+        str.contains('notallowed') ||
+        str.contains('blocked')) {
+      return _DeviceErrorInfo(
+        state: 'Permission Denied',
+        userMessage: '$deviceType access is blocked. Please allow $deviceType access in your browser settings and try again.',
+      );
+    }
+
+    if (str.contains('notfounderror') ||
+        str.contains('devicesnotfounderror') ||
+        str.contains('no camera') ||
+        str.contains('no microphone') ||
+        str.contains('notfound')) {
+      return _DeviceErrorInfo(
+        state: 'No Device',
+        userMessage: 'No $deviceType was found on this device.',
+      );
+    }
+
+    if (str.contains('notreadableerror') ||
+        str.contains('trackstarterror') ||
+        str.contains('in use') ||
+        str.contains('already in use') ||
+        str.contains('notreadable')) {
+      return _DeviceErrorInfo(
+        state: 'In Use',
+        userMessage: '$deviceType is currently being used by another application. Close the other application and try again.',
+      );
+    }
+
+    final cleanMsg = error.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '');
+    return _DeviceErrorInfo(
+      state: 'Failed',
+      userMessage: '$deviceType unavailable: $cleanMsg',
+    );
+  }
+
   Future<void> _toggleMicrophone() async {
-    final next = !_microphoneEnabled;
-    await _room?.localParticipant?.setMicrophoneEnabled(next);
-    setState(() => _microphoneEnabled = next);
+    final room = _room;
+    if (room == null || room.localParticipant == null) return;
+
+    if (_microphoneEnabled) {
+      try {
+        await room.localParticipant!.setMicrophoneEnabled(false);
+        setState(() {
+          _microphoneEnabled = false;
+          _microphoneState = 'Off';
+        });
+      } catch (e) {
+        debugPrint('[MeetingRoomScreen] Failed to disable microphone: $e');
+      }
+    } else {
+      await _initMicrophone();
+    }
   }
 
   Future<void> _toggleCamera() async {
-    final next = !_cameraEnabled;
-    await _room?.localParticipant?.setCameraEnabled(next);
-    setState(() => _cameraEnabled = next);
+    final room = _room;
+    if (room == null || room.localParticipant == null) return;
+
+    if (_cameraEnabled) {
+      try {
+        await room.localParticipant!.setCameraEnabled(false);
+        setState(() {
+          _cameraEnabled = false;
+          _cameraState = 'Off';
+        });
+      } catch (e) {
+        debugPrint('[MeetingRoomScreen] Failed to disable camera: $e');
+      }
+    } else {
+      await _initCamera();
+    }
   }
 
   Future<void> _toggleScreenShare() async {
     final next = !_screenShareEnabled;
-    await _room?.localParticipant?.setScreenShareEnabled(next);
-    setState(() => _screenShareEnabled = next);
+    try {
+      await _room?.localParticipant?.setScreenShareEnabled(next);
+      setState(() => _screenShareEnabled = next);
+    } catch (e) {
+      debugPrint('[MeetingRoomScreen] Screen share error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Screen sharing failed: ${e.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '')}'),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _leaveMeeting() async {
@@ -223,6 +482,54 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
     ];
   }
 
+  Widget _buildDeviceWarningBanner() {
+    final messages = <String>[];
+    if (_cameraErrorMessage != null) messages.add(_cameraErrorMessage!);
+    if (_microphoneErrorMessage != null) messages.add(_microphoneErrorMessage!);
+    if (messages.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      color: const Color(0xFF7F1D1D),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          const Icon(Icons.warning_amber_rounded, color: Color(0xFFFCA5A5), size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              messages.join(' '),
+              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (_cameraErrorMessage != null)
+            TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              onPressed: _initCamera,
+              child: const Text('Retry Cam', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            ),
+          if (_microphoneErrorMessage != null)
+            TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              onPressed: _initMicrophone,
+              child: const Text('Retry Mic', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -234,13 +541,15 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
         backgroundColor: const Color(0xFF0F172A),
         body: Column(
           children: [
-            // ── Top bar ──────────────────────────────────────────────
+            // Top bar
             _buildTopBar(),
-            // ── Main content ─────────────────────────────────────────
+            // Device warning banner if permissions/devices failed
+            _buildDeviceWarningBanner(),
+            // Main content
             Expanded(
               child: _isConnecting ? _buildConnecting() : _buildRoom(),
             ),
-            // ── Bottom controls ──────────────────────────────────────
+            // Bottom controls
             _buildControls(),
           ],
         ),
@@ -248,7 +557,6 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
     );
   }
 
-  // ── Top Bar ──────────────────────────────────────────────────────────
   Widget _buildTopBar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -260,7 +568,6 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
         bottom: false,
         child: Row(
           children: [
-            // Meeting title
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -379,7 +686,6 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
     );
   }
 
-  // ── Connecting / Error ────────────────────────────────────────────────
   Widget _buildConnecting() {
     if (_errorMessage != null) {
       return Center(
@@ -460,7 +766,6 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
     );
   }
 
-  // ── Room View (Video Grid & Stage Layout) ────────────────────────────
   Widget _buildRoom() {
     return Column(
       children: [
@@ -522,7 +827,6 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
     );
   }
 
-  // ── Bottom Controls Bar ───────────────────────────────────────────────
   Widget _buildControls() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
@@ -568,7 +872,6 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
               ),
             ],
             const SizedBox(width: 24),
-            // End Meeting button (host) or Leave button
             if (widget.isHost)
               FilledButton.icon(
                 style: FilledButton.styleFrom(
@@ -680,7 +983,6 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
   }
 }
 
-// ── Control Button Widget ─────────────────────────────────────────────────
 class _ControlButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -726,7 +1028,6 @@ class _ControlButton extends StatelessWidget {
   }
 }
 
-// ── Participant Grid / Stage View ─────────────────────────────────────────
 class _ParticipantGrid extends StatelessWidget {
   final List<Participant> participants;
   final bool isScreenSharing;
@@ -768,7 +1069,6 @@ class _ParticipantGrid extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            // Left Stage View (~75%)
             Expanded(
               child: _ParticipantTile(
                 participant: stageParticipant,
@@ -778,7 +1078,6 @@ class _ParticipantGrid extends StatelessWidget {
             ),
             if (sidebarParticipants.isNotEmpty) ...[
               const SizedBox(width: 12),
-              // Right Sidebar (~25%)
               SizedBox(
                 width: 240,
                 child: ListView.separated(
@@ -830,7 +1129,6 @@ class _ParticipantGrid extends StatelessWidget {
   }
 }
 
-// ── Participant Tile ──────────────────────────────────────────────────────
 class _ParticipantTile extends StatelessWidget {
   final Participant participant;
   final bool isPinned;
@@ -846,7 +1144,8 @@ class _ParticipantTile extends StatelessWidget {
   Widget build(BuildContext context) {
     TrackPublication? publication;
     for (final candidate in participant.videoTrackPublications) {
-      if (candidate.kind == TrackType.VIDEO && candidate.subscribed && !candidate.muted) {
+      final isLocal = participant is LocalParticipant;
+      if (candidate.kind == TrackType.VIDEO && !candidate.muted && (isLocal || candidate.subscribed)) {
         publication = candidate;
         break;
       }
@@ -854,7 +1153,6 @@ class _ParticipantTile extends StatelessWidget {
     final track = publication?.track;
     final displayName = participant.name.isEmpty ? participant.identity : participant.name;
 
-    // Check mic status
     bool isMuted = true;
     for (final pub in participant.audioTrackPublications) {
       if (pub.kind == TrackType.AUDIO && !pub.muted) {
@@ -893,7 +1191,6 @@ class _ParticipantTile extends StatelessWidget {
                   ),
                 ),
               ),
-            // Pin Overlay Button on top-left
             if (onPinToggle != null)
               Positioned(
                 top: 10,
@@ -914,7 +1211,6 @@ class _ParticipantTile extends StatelessWidget {
                   ),
                 ),
               ),
-            // Name badge at bottom
             Positioned(
               left: 10,
               right: 10,
@@ -980,3 +1276,4 @@ class _MeetingConnection {
     );
   }
 }
+
