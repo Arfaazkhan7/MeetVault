@@ -54,6 +54,9 @@ class MeetingResponse(BaseModel):
     scheduled_start_time: Optional[datetime] = None
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
+    transcription_status: Optional[str] = None
+    analysis_status: Optional[str] = None
+    recording_url: Optional[str] = None
     model_config = {"from_attributes": True}
 
 
