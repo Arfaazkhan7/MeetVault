@@ -68,12 +68,12 @@ services:
         value: supabase
       - key: SUPABASE_STORAGE_BUCKET
         value: meeting-recordings
-      - key: LLM_PROVIDER
-        value: openai
+      # Transcription: uses Hugging Face Inference API (openai/whisper-large-v3)
       - key: TRANSCRIPTION_PROVIDER
-        value: openai
-      - key: ANALYSIS_PROVIDER
-        value: openai
+        value: huggingface
+      # Analysis: backend MeetingAnalysisService uses MockLLMProvider unless OPENAI_API_KEY is set
+      - key: LLM_PROVIDER
+        value: mock
       - key: AI_WORKER_QUEUE
         value: database
       - key: AI_WORKER_POLL_INTERVAL_SECONDS
@@ -84,5 +84,12 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
-      - key: OPENAI_API_KEY
+      # Hugging Face token — required for whisper-large-v3 transcription
+      # Set this in Render dashboard → meetvault-ai-worker → Environment
+      - key: HF_TOKEN
+        sync: false
+      # pyannoteAI API key — required for speaker diarization
+      # Register at https://dashboard.pyannote.ai to obtain this key
+      # NOTE: HF_TOKEN alone does NOT provide pyannote diarization access
+      - key: PYANNOTEAI_API_KEY
         sync: false
