@@ -1771,6 +1771,9 @@ let ROOM_PARTICIPANTS = [];
 let meetingRecorder = null;
 let meetingRecordingChunks = [];
 let meetingRecordingStartedAt = 0;
+let meetingRecordingAudioContext = null;
+let meetingRecordingDestination = null;
+let meetingRecordingSources = new Map();
 let remoteAudioElements = [];
 
 function attachRemoteAudio(audioElement, remoteStream) {
@@ -1781,6 +1784,7 @@ function attachRemoteAudio(audioElement, remoteStream) {
   audioElement.volume = 1;
   audioElement.srcObject = remoteStream;
   remoteStream.getAudioTracks().forEach(track => { track.enabled = true; });
+  includeStreamInMeetingRecording(remoteStream);
   if (!remoteAudioElements.includes(audioElement)) remoteAudioElements.push(audioElement);
   audioElement.play().catch(() => {
     const button = document.getElementById('btn-speaker');
@@ -1801,20 +1805,80 @@ function enableMeetingAudio() {
   showToast('Meeting audio enabled');
 }
 
+function getRecordingStreamKey(mediaStream) {
+  if (!mediaStream) return '';
+  if (mediaStream.id) return mediaStream.id;
+  return mediaStream.getTracks().map(track => track.id).join(':');
+}
+
+function includeStreamInMeetingRecording(mediaStream) {
+  if (!meetingRecordingAudioContext || !meetingRecordingDestination || !mediaStream) return;
+  const audioTracks = mediaStream.getAudioTracks().filter(track => track.readyState !== 'ended');
+  if (!audioTracks.length) return;
+  const streamKey = getRecordingStreamKey(mediaStream);
+  if (!streamKey || meetingRecordingSources.has(streamKey)) return;
+
+  try {
+    const source = meetingRecordingAudioContext.createMediaStreamSource(new MediaStream(audioTracks));
+    source.connect(meetingRecordingDestination);
+    meetingRecordingSources.set(streamKey, source);
+  } catch (error) {
+    console.warn('Could not add stream to meeting recording:', error);
+  }
+}
+
+function cleanupMeetingRecordingAudio() {
+  meetingRecordingSources.forEach(source => {
+    try { source.disconnect(); } catch (e) {}
+  });
+  meetingRecordingSources.clear();
+  meetingRecordingDestination = null;
+  if (meetingRecordingAudioContext) {
+    try { meetingRecordingAudioContext.close(); } catch (e) {}
+    meetingRecordingAudioContext = null;
+  }
+}
+
 function startMeetingRecording() {
-  if (!stream || typeof MediaRecorder === 'undefined') return;
-  const mimeType = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
+  if (typeof MediaRecorder === 'undefined') return;
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus']
     .find(type => MediaRecorder.isTypeSupported(type));
   try {
     meetingRecordingChunks = [];
-    meetingRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    cleanupMeetingRecordingAudio();
+
+    let recordingStream = null;
+    if (AudioContextClass) {
+      meetingRecordingAudioContext = new AudioContextClass();
+      meetingRecordingDestination = meetingRecordingAudioContext.createMediaStreamDestination();
+      if (stream) includeStreamInMeetingRecording(stream);
+      Object.values(activePeerCallsMap || {}).forEach(call => {
+        if (call && call.remoteStream) includeStreamInMeetingRecording(call.remoteStream);
+      });
+      recordingStream = meetingRecordingDestination.stream;
+    } else if (stream && stream.getAudioTracks().length) {
+      recordingStream = new MediaStream(stream.getAudioTracks());
+    }
+
+    if (!recordingStream || !recordingStream.getAudioTracks().length) {
+      console.warn('Recording skipped because no audio track is available.');
+      cleanupMeetingRecordingAudio();
+      return;
+    }
+
+    const options = mimeType
+      ? { mimeType, audioBitsPerSecond: 24000 }
+      : { audioBitsPerSecond: 24000 };
+    meetingRecorder = new MediaRecorder(recordingStream, options);
     meetingRecordingStartedAt = Date.now();
     meetingRecorder.ondataavailable = event => {
       if (event.data && event.data.size) meetingRecordingChunks.push(event.data);
     };
-    meetingRecorder.start(1000);
+    meetingRecorder.start(5000);
   } catch (error) {
     meetingRecorder = null;
+    cleanupMeetingRecordingAudio();
     console.warn('Recording is unavailable in this browser:', error);
   }
 }
@@ -1834,6 +1898,7 @@ function stopMeetingRecording() {
         : null;
       meetingRecorder = null;
       meetingRecordingChunks = [];
+      cleanupMeetingRecordingAudio();
       resolve(blob ? { blob, duration: Math.max(1, Math.round((Date.now() - meetingRecordingStartedAt) / 1000)) } : null);
     };
     recorder.stop();
@@ -1844,7 +1909,7 @@ async function uploadMeetingRecording(recording) {
   if (!recording || !currentMeetingId) return;
   const form = new FormData();
   form.append('duration_seconds', String(recording.duration));
-  form.append('file', recording.blob, `meeting-${currentRoomCode}.webm`);
+  form.append('file', recording.blob, `meeting-${currentRoomCode}-audio.webm`);
   const response = await apiFetch(`/meetings/${currentMeetingId}/recordings`, {
     method: 'POST',
     body: form
@@ -2468,6 +2533,7 @@ function attachRemoteCallStream(call) {
 
   call.on('stream', (remoteStream) => {
     call.remoteStream = remoteStream;
+    includeStreamInMeetingRecording(remoteStream);
     activePeerCallsMap[peerId] = call;
     updateRoomParticipants();
     showToast('Participant connected to live video!');
@@ -2514,6 +2580,7 @@ function stopStream(){
     });
     activePeerCallsMap = {};
   }
+  cleanupMeetingRecordingAudio();
   if(peer){ try{ peer.destroy(); }catch(e){} peer=null; }
   ROOM_PARTICIPANTS = [];
   remoteAudioElements = [];

@@ -68,6 +68,9 @@ def get_cloudflare_job_context(
     db.commit()
 
     storage = get_storage_service()
+    # Workers AI and optional diarization both download this object. Keep the
+    # signed URL alive long enough for model warmup and provider-side fetching.
+    recording_url_expiry = max(settings.RECORDING_SIGNED_URL_EXPIRE_SECONDS, 3600)
     return {
         "job_id": job.public_id,
         "meeting_id": meeting.public_id,
@@ -75,7 +78,7 @@ def get_cloudflare_job_context(
         "recording_id": str(recording.id),
         "recording_url": storage.create_signed_url(
             path=recording.storage_path,
-            expires_in_seconds=settings.RECORDING_SIGNED_URL_EXPIRE_SECONDS,
+            expires_in_seconds=recording_url_expiry,
         ),
         "file_type": recording.file_type,
         "duration_seconds": recording.duration_seconds,

@@ -116,6 +116,27 @@ def test_host_can_upload_recording_to_private_storage(client, monkeypatch):
     assert jobs.json()[0]["status"] == "QUEUED"
 
 
+def test_host_can_upload_low_bitrate_audio_webm_recording(client, monkeypatch):
+    monkeypatch.setattr("app.services.recording_service._enqueue_ai_job", lambda _db, _job_id: None)
+    client.app.dependency_overrides[get_storage_service] = lambda: fake_storage
+    data = setup_recording_scenario(client)
+    response = client.post(
+        f"/api/v1/meetings/{data['meeting']['public_id']}/recordings",
+        headers=auth_headers(data["admin_token"]),
+        data={"duration_seconds": "3600"},
+        files={"file": ("meeting-audio.webm", b"opus-audio-bytes", "audio/webm")},
+    )
+    client.app.dependency_overrides.pop(get_storage_service, None)
+
+    body = response.json()
+    assert response.status_code == 201, response.text
+    assert body["file_type"] == "audio/webm"
+    assert body["original_filename"] == "meeting-audio.webm"
+    assert body["duration_seconds"] == 3600
+    assert body["processing_status"] == "QUEUED"
+    assert body["storage_path"] in fake_storage.objects
+
+
 def test_non_host_cannot_upload_recording(client):
     client.app.dependency_overrides[get_storage_service] = lambda: fake_storage
     data = setup_recording_scenario(client)

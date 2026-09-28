@@ -16,6 +16,9 @@ from app.services.storage_service import StorageService
 
 
 ALLOWED_RECORDING_TYPES = {
+    "audio/webm": ".webm",
+    "audio/ogg": ".ogg",
+    "audio/opus": ".opus",
     "audio/mpeg": ".mp3",
     "audio/mp3": ".mp3",
     "audio/wav": ".wav",

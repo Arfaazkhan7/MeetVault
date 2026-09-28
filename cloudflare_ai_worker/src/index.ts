@@ -4,6 +4,8 @@ export interface Env {
   BACKEND_API_BASE_URL: string;
   MEETVAULT_WORKER_SECRET: string;
   BACKEND_WORKER_CALLBACK_SECRET: string;
+  PYANNOTEAI_API_KEY?: string;
+  PYANNOTEAI_API_URL?: string;
 }
 
 interface AiJobMessage {
@@ -24,6 +26,13 @@ interface JobContext {
   meeting_title: string;
   recording_url: string;
   file_type: string;
+  duration_seconds?: number;
+}
+
+interface SpeakerTurn {
+  start: number;
+  end: number;
+  speaker: string;
 }
 
 function jsonResponse(payload: unknown, status = 200): Response {
@@ -91,6 +100,10 @@ async function processJob(jobId: string, env: Env): Promise<void> {
       vad_filter: true,
     } as never) as unknown as Record<string, unknown>;
 
+    const parsedSegments = parseSegments(transcription, Number(context.duration_seconds || 0));
+    const speakerTurns = await diarizeRecording(context.recording_url, env);
+    const mappedSegments = alignSpeakers(parsedSegments, speakerTurns);
+
     const resultResponse = await fetch(
       `${env.BACKEND_API_BASE_URL}/ai-jobs/${encodeURIComponent(jobId)}/cloudflare/result`,
       {
@@ -102,7 +115,7 @@ async function processJob(jobId: string, env: Env): Promise<void> {
         body: JSON.stringify({
           provider: "cloudflare-workers-ai",
           transcription_text: String(transcription.text || ""),
-          segments: parseSegments(transcription),
+          segments: mappedSegments,
           raw_result: transcription,
         }),
       },
@@ -124,7 +137,7 @@ async function processJob(jobId: string, env: Env): Promise<void> {
   }
 }
 
-function parseSegments(transcription: Record<string, unknown>): WorkerAiSegment[] {
+function parseSegments(transcription: Record<string, unknown>, durationSeconds = 0): WorkerAiSegment[] {
   const rawSegments = Array.isArray(transcription.segments) ? transcription.segments : [];
   const segments = rawSegments
     .map((item): WorkerAiSegment | null => {
@@ -135,7 +148,7 @@ function parseSegments(transcription: Record<string, unknown>): WorkerAiSegment[
       return {
         text,
         start_time: Number(value.start ?? value.start_time ?? 0),
-        end_time: Number(value.end ?? value.end_time ?? 0),
+        end_time: Number(value.end ?? value.end_time ?? 0) || durationSeconds,
         speaker_label: "SPEAKER_0",
         confidence: typeof value.avg_logprob === "number" ? value.avg_logprob : undefined,
       };
@@ -145,5 +158,78 @@ function parseSegments(transcription: Record<string, unknown>): WorkerAiSegment[
   if (segments.length) return segments;
 
   const text = String(transcription.text || "").trim();
-  return text ? [{ text, start_time: 0, end_time: 0, speaker_label: "SPEAKER_0" }] : [];
+  return text ? [{ text, start_time: 0, end_time: durationSeconds, speaker_label: "SPEAKER_0" }] : [];
+}
+
+async function diarizeRecording(recordingUrl: string, env: Env): Promise<SpeakerTurn[]> {
+  if (!env.PYANNOTEAI_API_KEY) return [];
+
+  const endpoint = env.PYANNOTEAI_API_URL || "https://api.pyannote.ai/v1/diarize";
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "authorization": `Bearer ${env.PYANNOTEAI_API_KEY}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ url: recordingUrl }),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    console.warn("pyannoteAI diarization skipped", response.status, detail.slice(0, 300));
+    return [];
+  }
+
+  const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
+  return parseSpeakerTurns(payload);
+}
+
+function parseSpeakerTurns(payload: Record<string, unknown> | null): SpeakerTurn[] {
+  if (!payload) return [];
+  const output = payload.output && typeof payload.output === "object"
+    ? payload.output as Record<string, unknown>
+    : {};
+  const rawTurns = Array.isArray(output.diarization)
+    ? output.diarization
+    : Array.isArray(payload.diarization)
+      ? payload.diarization
+      : Array.isArray(payload)
+        ? payload
+        : [];
+
+  return rawTurns
+    .map((item): SpeakerTurn | null => {
+      if (!item || typeof item !== "object") return null;
+      const value = item as Record<string, unknown>;
+      const start = Number(value.start ?? 0);
+      const end = Number(value.end ?? 0);
+      const speaker = String(value.speaker || value.label || "SPEAKER_UNKNOWN");
+      return end > start ? { start, end, speaker } : null;
+    })
+    .filter((item): item is SpeakerTurn => Boolean(item));
+}
+
+function alignSpeakers(segments: WorkerAiSegment[], speakerTurns: SpeakerTurn[]): WorkerAiSegment[] {
+  if (!segments.length || !speakerTurns.length) return segments;
+
+  return segments.map((segment) => {
+    let bestTurn: SpeakerTurn | null = null;
+    let bestOverlap = 0;
+    for (const turn of speakerTurns) {
+      const overlap = Math.max(0, Math.min(segment.end_time, turn.end) - Math.max(segment.start_time, turn.start));
+      if (overlap > bestOverlap) {
+        bestOverlap = overlap;
+        bestTurn = turn;
+      }
+    }
+
+    if (!bestTurn && segment.end_time <= segment.start_time) {
+      bestTurn = speakerTurns.find((turn) => turn.start <= segment.start_time && turn.end >= segment.start_time) || null;
+    }
+
+    return {
+      ...segment,
+      speaker_label: bestTurn?.speaker || segment.speaker_label || "SPEAKER_0",
+    };
+  });
 }
