@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     AI_WORKER_QUEUE: str = "database"
     AI_WORKER_POLL_INTERVAL_SECONDS: float = 5.0
+    CLOUDFLARE_AI_QUEUE_URL: str = ""
+    CLOUDFLARE_AI_QUEUE_SECRET: str = ""
+    CLOUDFLARE_AI_CALLBACK_SECRET: str = ""
 
     # JWT
     JWT_SECRET: str = "change-this-to-a-very-long-random-secret-in-production"
@@ -103,6 +106,9 @@ class Settings(BaseSettings):
         "EMBEDDING_MODEL",
         "OPENAI_API_KEY",
         "AI_WORKER_QUEUE",
+        "CLOUDFLARE_AI_QUEUE_URL",
+        "CLOUDFLARE_AI_QUEUE_SECRET",
+        "CLOUDFLARE_AI_CALLBACK_SECRET",
         mode="before",
     )
     @classmethod

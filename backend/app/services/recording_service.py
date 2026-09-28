@@ -3,6 +3,7 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, UploadFile, status
+import httpx
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -115,9 +116,22 @@ async def create_recording_from_upload(
 
 
 def _enqueue_ai_job(db: Session, job_id: str) -> None:
-    if settings.AI_WORKER_QUEUE.lower() == "database":
+    queue_backend = settings.AI_WORKER_QUEUE.lower()
+    if queue_backend == "database":
         return
     try:
+        if queue_backend == "cloudflare":
+            if not settings.CLOUDFLARE_AI_QUEUE_URL or not settings.CLOUDFLARE_AI_QUEUE_SECRET:
+                raise RuntimeError("Cloudflare AI queue URL/secret is not configured")
+            response = httpx.post(
+                settings.CLOUDFLARE_AI_QUEUE_URL,
+                json={"job_id": job_id},
+                headers={"x-meetvault-worker-secret": settings.CLOUDFLARE_AI_QUEUE_SECRET},
+                timeout=10,
+            )
+            response.raise_for_status()
+            return
+
         from celery import Celery
 
         celery = Celery("meetvault_api", broker=settings.REDIS_URL, backend=settings.REDIS_URL)

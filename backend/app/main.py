@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.api.v1 import health, auth, admin, companies, users, projects, meetings, recordings, transcripts, diarization, analytics, documents, project_memory, cross_meeting, search, rag, analysis, ai_jobs
+from app.api.v1 import health, auth, admin, companies, users, projects, meetings, recordings, transcripts, diarization, analytics, documents, project_memory, cross_meeting, search, rag, analysis, ai_jobs, cloudflare_ai
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -36,6 +36,7 @@ app.include_router(search.router,          prefix=settings.API_V1_PREFIX)
 app.include_router(rag.router,             prefix=settings.API_V1_PREFIX)
 app.include_router(analysis.router,        prefix=settings.API_V1_PREFIX)
 app.include_router(ai_jobs.router,         prefix=settings.API_V1_PREFIX)
+app.include_router(cloudflare_ai.router,   prefix=settings.API_V1_PREFIX)
 
 # ── Serve Web UI at root / ───────────────────────────────────────────────
 import os

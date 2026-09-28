@@ -21,6 +21,12 @@ services:
         value: https://ai-meet-f8fd0.web.app
       - key: AI_WORKER_QUEUE
         value: database
+      - key: CLOUDFLARE_AI_QUEUE_URL
+        sync: false
+      - key: CLOUDFLARE_AI_QUEUE_SECRET
+        sync: false
+      - key: CLOUDFLARE_AI_CALLBACK_SECRET
+        sync: false
       - key: LIVEKIT_TOKEN_EXPIRE_MINUTES
         value: "120"
       - key: STORAGE_BACKEND
