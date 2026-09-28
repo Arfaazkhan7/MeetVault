@@ -25,7 +25,7 @@ Render FastAPI
           MeetVault Analytics
 ```
 
-Cloudflare replaces the always-on Render background worker. It does not replace Firebase Hosting, Render FastAPI, Supabase Postgres, or LiveKit.
+Cloudflare replaces the always-on Render background worker. It does not replace Firebase Hosting, Render FastAPI, Supabase Postgres, Supabase Storage, or LiveKit.
 
 ## What Was Added
 
@@ -48,7 +48,6 @@ cd C:\Users\gokul\Downloads\meetvault\cloudflare_ai_worker
 npm install
 npx wrangler login
 npx wrangler queues create meetvault-ai-jobs
-npx wrangler r2 bucket create meetvault-recordings
 copy wrangler.toml.example wrangler.toml
 ```
 

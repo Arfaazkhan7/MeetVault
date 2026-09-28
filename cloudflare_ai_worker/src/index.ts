@@ -1,7 +1,6 @@
 export interface Env {
   AI_JOBS: Queue<AiJobMessage>;
   AI: Ai;
-  RECORDINGS: R2Bucket;
   BACKEND_API_BASE_URL: string;
   MEETVAULT_WORKER_SECRET: string;
   BACKEND_WORKER_CALLBACK_SECRET: string;

@@ -11,10 +11,6 @@ queue = "meetvault-ai-jobs"
 max_batch_size = 1
 max_batch_timeout = 30
 
-[[r2_buckets]]
-binding = "RECORDINGS"
-bucket_name = "meetvault-recordings"
-
 [ai]
 binding = "AI"
 
