@@ -60,6 +60,19 @@ def _claim_next_job() -> str | None:
         db.close()
 
 
+def process_one_queued_job() -> str | None:
+    """Claim and process one queued database AI job."""
+    job_id = _claim_next_job()
+    if not job_id:
+        return None
+    logger.info("Processing AI job %s", job_id)
+    try:
+        process_recording.run(job_id)
+    except Exception:
+        logger.exception("AI job %s failed", job_id)
+    return job_id
+
+
 def run_database_worker() -> None:
     global _running
     signal.signal(signal.SIGTERM, _stop)
@@ -68,15 +81,9 @@ def run_database_worker() -> None:
     retry_delay = max(1.0, settings.poll_interval_seconds)
     while _running:
         try:
-            job_id = _claim_next_job()
+            job_id = process_one_queued_job()
             retry_delay = max(1.0, settings.poll_interval_seconds)
-            if job_id:
-                logger.info("Processing AI job %s", job_id)
-                try:
-                    process_recording.run(job_id)
-                except Exception:
-                    logger.exception("AI job %s failed", job_id)
-            else:
+            if not job_id:
                 time.sleep(settings.poll_interval_seconds)
         except Exception:
             logger.exception("AI worker database poll failed; retrying in %.1fs", retry_delay)
