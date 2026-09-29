@@ -703,6 +703,7 @@
     }
     .meet-btn-circle:hover { background: #474B4E; }
     .meet-btn-circle.off { background: #EA4335; }
+    .meet-btn-circle.active-caption { background: #2563EB; box-shadow: 0 0 0 3px rgba(37,99,235,0.28); }
     .meet-btn-circle svg { width: 20px; height: 20px; fill: #FFFFFF; }
     .meet-btn-end {
       width: 56px; height: 44px; border-radius: 22px; background: #EA4335;
@@ -846,6 +847,69 @@
     }
     .pin-btn:hover { background: rgba(37, 99, 235, 0.85); }
     .pin-btn.pinned { opacity: 1; background: #2563EB; }
+
+    .live-caption-overlay {
+      position: absolute;
+      left: 50%;
+      bottom: 24px;
+      transform: translateX(-50%);
+      width: min(760px, calc(100% - 36px));
+      max-height: 132px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 45;
+      pointer-events: none;
+    }
+    .live-caption-line {
+      align-self: center;
+      max-width: 100%;
+      background: rgba(15, 23, 42, 0.86);
+      color: #F8FAFC;
+      border: 1px solid rgba(255,255,255,0.14);
+      box-shadow: 0 16px 38px rgba(0,0,0,0.28);
+      backdrop-filter: blur(12px);
+      border-radius: 10px;
+      padding: 9px 13px;
+      font-size: 0.95rem;
+      line-height: 1.45;
+      font-weight: 650;
+      text-align: center;
+    }
+    .live-caption-speaker {
+      color: #93C5FD;
+      font-size: 0.78rem;
+      font-weight: 800;
+      margin-right: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+    .live-caption-status {
+      position: absolute;
+      top: 20px;
+      right: 24px;
+      z-index: 35;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 11px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.78);
+      color: #E2E8F0;
+      border: 1px solid rgba(255,255,255,0.14);
+      font-size: 0.78rem;
+      font-weight: 800;
+      pointer-events: none;
+    }
+    .live-caption-status.active { display: flex; }
+    .live-caption-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22C55E;
+      box-shadow: 0 0 0 4px rgba(34,197,94,0.18);
+    }
 
     .google-account-item:hover { background: #F8FAFC; border-color: #CBD5E1; }
     
@@ -1173,11 +1237,16 @@
                 <span id="room-badge-text">MTG-DA22D7</span>
                 <button onclick="copyCurrentRoomLink()">Copy Link</button>
               </div>
+              <div class="live-caption-status" id="caption-status">
+                <span class="live-caption-dot"></span>
+                <span>Live captions</span>
+              </div>
 
               <!-- DYNAMIC AUTO-ALIGNED VIDEO GRID -->
               <div class="meet-video-grid grid-12" id="meet-grid">
                 <!-- Grid tiles dynamically populated by JavaScript -->
               </div>
+              <div class="live-caption-overlay" id="live-caption-overlay" aria-live="polite"></div>
             </div>
 
             <!-- BOTTOM CONTROL BAR MATCHING SCREENSHOT EXACTLY -->
@@ -1200,7 +1269,7 @@
                 <button class="meet-btn-circle" id="btn-speaker" onclick="enableMeetingAudio()" title="Enable meeting audio" aria-label="Enable meeting audio">
                   <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm11 0v6c1.2-.56 2-1.73 2-3s-.8-2.44-2-3zm0-5v2.06c2.89.86 5 3.54 5 6.94s-2.11 6.08-5 6.94V21c4.01-.91 7-4.49 7-8s-2.99-7.09-7-8z"/></svg>
                 </button>
-                <button class="meet-btn-circle" onclick="showToast('Captions enabled')" title="Turn on captions">
+                <button class="meet-btn-circle" id="btn-captions" onclick="toggleLiveCaptions()" title="Turn on captions" aria-label="Turn on captions">
                   <svg viewBox="0 0 24 24"><path d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-8 7H9.5v-.5h-2v3h2V13H11v1c0 .55-.45 1-1 1H7c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1zm7 0h-1.5v-.5h-2v3h2V13H18v1c0 .55-.45 1-1 1h-3c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1h3c.55 0 1 .45 1 1v1z"/></svg>
                 </button>
                 <button class="meet-btn-circle" onclick="showToast('Hand raised ✋')" title="Raise hand">
@@ -1775,6 +1844,32 @@ let meetingRecordingAudioContext = null;
 let meetingRecordingDestination = null;
 let meetingRecordingSources = new Map();
 let remoteAudioElements = [];
+let liveCaptionRecognition = null;
+let liveCaptionsOn = false;
+let liveCaptionRestarting = false;
+let liveCaptionSeq = 0;
+let liveCaptionClearTimer = null;
+let liveCaptionLines = new Map();
+
+function getCurrentDisplayName() {
+  const userStr = localStorage.getItem('mv_user');
+  if (userStr) {
+    try {
+      const u = JSON.parse(userStr);
+      return u.name || (u.email ? u.email.split('@')[0] : 'Participant');
+    } catch(e){}
+  }
+  return 'Participant';
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
 function attachRemoteAudio(audioElement, remoteStream) {
   if (!audioElement || !remoteStream) return;
@@ -1803,6 +1898,170 @@ function enableMeetingAudio() {
   const button = document.getElementById('btn-speaker');
   if (button) button.classList.remove('needs-gesture');
   showToast('Meeting audio enabled');
+}
+
+function getSpeechRecognitionClass() {
+  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+}
+
+function setCaptionControlState(active) {
+  const btn = document.getElementById('btn-captions');
+  if (btn) {
+    btn.classList.toggle('active-caption', active);
+    btn.title = active ? 'Turn off captions' : 'Turn on captions';
+    btn.setAttribute('aria-label', active ? 'Turn off captions' : 'Turn on captions');
+  }
+  const status = document.getElementById('caption-status');
+  if (status) status.classList.toggle('active', active);
+}
+
+function toggleLiveCaptions() {
+  if (liveCaptionsOn) {
+    stopLiveCaptions();
+  } else {
+    startLiveCaptions();
+  }
+}
+
+function startLiveCaptions() {
+  const Recognition = getSpeechRecognitionClass();
+  if (!Recognition) {
+    showToast('Live captions need Chrome or Edge speech recognition');
+    return;
+  }
+  if (!micOn) {
+    showToast('Turn on microphone before captions');
+    return;
+  }
+
+  stopLiveCaptions({ silent: true });
+  liveCaptionsOn = true;
+  liveCaptionRestarting = false;
+  setCaptionControlState(true);
+
+  const recognition = new Recognition();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = navigator.language || 'en-US';
+  liveCaptionRecognition = recognition;
+
+  recognition.onresult = event => {
+    let interim = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const result = event.results[i];
+      const text = (result[0] && result[0].transcript ? result[0].transcript : '').trim();
+      if (!text) continue;
+      if (result.isFinal) {
+        publishLiveCaption(text, true);
+      } else {
+        interim += (interim ? ' ' : '') + text;
+      }
+    }
+    if (interim) publishLiveCaption(interim, false);
+  };
+
+  recognition.onerror = event => {
+    console.warn('Live captions error:', event.error);
+    if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+      stopLiveCaptions({ silent: true });
+      showToast('Caption microphone permission blocked');
+    }
+  };
+
+  recognition.onend = () => {
+    if (liveCaptionsOn && !liveCaptionRestarting) {
+      liveCaptionRestarting = true;
+      setTimeout(() => {
+        liveCaptionRestarting = false;
+        if (liveCaptionsOn && liveCaptionRecognition) {
+          try { liveCaptionRecognition.start(); } catch(e) {}
+        }
+      }, 450);
+    }
+  };
+
+  try {
+    recognition.start();
+    showToast('Live captions started');
+  } catch (error) {
+    console.warn('Live captions start failed:', error);
+    stopLiveCaptions({ silent: true });
+    showToast('Could not start live captions');
+  }
+}
+
+function stopLiveCaptions(options = {}) {
+  liveCaptionsOn = false;
+  liveCaptionRestarting = false;
+  setCaptionControlState(false);
+  if (liveCaptionRecognition) {
+    try {
+      liveCaptionRecognition.onend = null;
+      liveCaptionRecognition.stop();
+    } catch(e) {}
+    liveCaptionRecognition = null;
+  }
+  if (!options.silent) showToast('Live captions stopped');
+}
+
+function publishLiveCaption(text, isFinal) {
+  const caption = {
+    type: 'live_caption',
+    caption_id: `${peer && peer.id ? peer.id : 'local'}-${++liveCaptionSeq}`,
+    speaker: getCurrentDisplayName(),
+    text,
+    final: Boolean(isFinal),
+    ts: Date.now(),
+  };
+  renderLiveCaption(caption);
+  broadcastLiveCaption(caption);
+}
+
+function broadcastLiveCaption(caption, exceptPeerId = '') {
+  const payload = { ...caption, type: 'live_caption' };
+  meetingConnections.forEach(conn => {
+    if (!conn || !conn.open || conn.peer === exceptPeerId) return;
+    try { conn.send(payload); } catch(e) {}
+  });
+}
+
+function handleLiveCaption(data, fromPeerId = '') {
+  if (!data || !data.text) return;
+  const caption = {
+    caption_id: data.caption_id || `${fromPeerId || 'remote'}-${Date.now()}`,
+    speaker: data.speaker || 'Participant',
+    text: String(data.text || '').trim(),
+    final: Boolean(data.final),
+    ts: Number(data.ts || Date.now()),
+  };
+  if (!caption.text) return;
+  renderLiveCaption(caption);
+  if (isMeetingHost && !data.relayed) {
+    broadcastLiveCaption({ ...caption, relayed: true }, fromPeerId);
+  }
+}
+
+function renderLiveCaption(caption) {
+  const overlay = document.getElementById('live-caption-overlay');
+  if (!overlay) return;
+  const key = caption.final ? caption.caption_id : `${caption.speaker}-interim`;
+  if (caption.final) liveCaptionLines.delete(`${caption.speaker}-interim`);
+  liveCaptionLines.set(key, caption);
+
+  const ordered = Array.from(liveCaptionLines.values())
+    .sort((a, b) => a.ts - b.ts)
+    .slice(-3);
+  overlay.innerHTML = ordered.map(item => `
+    <div class="live-caption-line">
+      <span class="live-caption-speaker">${escapeHtml(item.speaker)}</span>${escapeHtml(item.text)}
+    </div>
+  `).join('');
+
+  clearTimeout(liveCaptionClearTimer);
+  liveCaptionClearTimer = setTimeout(() => {
+    liveCaptionLines.clear();
+    overlay.innerHTML = '';
+  }, caption.final ? 6500 : 3500);
 }
 
 function getRecordingStreamKey(mediaStream) {
@@ -2439,6 +2698,10 @@ function initP2PCall(roomCode) {
         }
         return;
       }
+      if (data && data.type === 'live_caption') {
+        handleLiveCaption(data, conn.peer);
+        return;
+      }
       if (data && data.type === 'user_info' && data.name) {
         if (conn.peer && activePeerCallsMap[conn.peer]) {
           activePeerCallsMap[conn.peer].remoteName = data.name;
@@ -2485,6 +2748,7 @@ function initP2PCall(roomCode) {
 
         const conn = peer.connect(hostPeerId, { metadata: { name: myName } });
         if (conn) {
+          meetingConnections.push(conn);
           conn.on('open', () => {
             conn.send({ type: 'user_info', name: myName });
           });
@@ -2492,6 +2756,10 @@ function initP2PCall(roomCode) {
             if (data && data.type === 'room_ended') {
               showToast('The host ended this meeting');
               endCall(false);
+              return;
+            }
+            if (data && data.type === 'live_caption') {
+              handleLiveCaption(data, conn.peer);
               return;
             }
             if (data && data.type === 'user_info' && data.name) {
@@ -2555,6 +2823,7 @@ function attachRemoteCallStream(call) {
 }
 
 function stopStream(){
+  stopLiveCaptions({ silent: true });
   if(screenStream){ try{ screenStream.getTracks().forEach(t=>t.stop()); }catch(e){} screenStream=null; }
   isScreenSharing = false;
   pinnedParticipantId = null;
@@ -2589,6 +2858,7 @@ function stopStream(){
 function toggleMic(){
   micOn = !micOn;
   if(stream) stream.getAudioTracks().forEach(t=>t.enabled = micOn);
+  if (!micOn && liveCaptionsOn) stopLiveCaptions({ silent: true });
   const btnMic = document.getElementById('btn-mic');
   if(btnMic) btnMic.classList.toggle('off', !micOn);
   updateRoomParticipants();
