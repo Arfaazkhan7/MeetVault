@@ -87,6 +87,7 @@ class Settings(BaseSettings):
     RAG_MIN_SCORE: float = 0.15          # Min similarity score to include evidence
 
     @field_validator(
+        "DATABASE_URL",
         "BACKEND_CORS_ORIGINS",
         "API_BASE_URL",
         "FRONTEND_PUBLIC_URL",

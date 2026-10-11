@@ -82,6 +82,8 @@ The application SQL data and recording files use two different Supabase connecti
 3. Set `SUPABASE_URL` to the project API URL (`https://<project-ref>.supabase.co`) and set `SUPABASE_SERVICE_ROLE_KEY` only in Render. Keep the `meeting-recordings` bucket private.
 4. Redeploy the API. Its startup creates the complete current ORM schema and seeds the application. Refresh Supabase **Database > Tables** and confirm tables appear.
 
+If Render logs show `FATAL: (ENOTFOUND) tenant/user postgres.<project-ref> not found`, do not reset the database password first. Supabase could not match the shared pooler host and username. Reopen Supabase **Connect**, choose **Session pooler** or **Transaction pooler**, copy the whole URI exactly, replace only the password placeholder, and paste that exact value into Render. Do not compose the `aws-...pooler.supabase.com` host manually.
+
 The committed `supabase_schema_and_rls.sql` is not the application bootstrap and should not be used as a substitute for the backend schema. The FastAPI service owns schema creation through SQLAlchemy/Alembic and uses its server-side database credentials.
 
 For recordings, the existing bucket currently has a 50 MB limit. Either raise that bucket limit to at least 500 MB or set `MAX_RECORDING_UPLOAD_BYTES=52428800` in Render so the application limit matches the bucket. Storage policies are not required for the server upload because the service-role key is server-side; do not make recordings public.

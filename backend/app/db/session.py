@@ -1,9 +1,24 @@
 import logging
 from sqlalchemy import create_engine
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
 
 from app.core.config import settings
+
+
+def _raise_database_connection_error(exc: Exception) -> None:
+    message = str(exc)
+    if "tenant/user" in message and "pooler.supabase.com" in message:
+        raise RuntimeError(
+            "Supabase pooler rejected DATABASE_URL: tenant/user was not found. "
+            "Open Supabase Dashboard -> Connect -> Session pooler or Transaction pooler, "
+            "copy the entire PostgreSQL URI exactly, replace only the password, and set that "
+            "same value as DATABASE_URL on Render for meetvault-api. Shared pooler URLs must "
+            "use the copied pooler host and username like postgres.<project-ref>; direct URLs "
+            "use host db.<project-ref>.supabase.co with username postgres."
+        ) from exc
+    raise exc
 
 # Engine creation with PostgreSQL / SQLite fallback
 try:
@@ -21,8 +36,11 @@ try:
         )
         # Test the connection. Production schema creation is handled by
         # scripts/bootstrap_db.py so extension fallbacks run first.
-        with engine.connect() as conn:
-            pass
+        try:
+            with engine.connect() as conn:
+                pass
+        except OperationalError as exc:
+            _raise_database_connection_error(exc)
         if settings.ENVIRONMENT != "production":
             from app.models.base import Base
             import app.models  # noqa: F401
