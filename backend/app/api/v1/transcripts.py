@@ -6,10 +6,11 @@ import tempfile
 
 from app.db.session import get_db
 from app.core.dependencies import get_current_user
+from app.core.meeting_dependencies import get_meeting_and_authorize, require_meeting_host
 from app.models.user import User
+from app.models.meeting import Meeting
 from app.models.transcript import TranscriptSegment
 from app.services.transcription_service import TranscriptionService
-from app.services.meeting_service import get_meeting_by_public_id
 from app.workers import submit_transcription_job
 
 router = APIRouter(prefix="/transcripts", tags=["transcripts"])
@@ -18,11 +19,12 @@ router = APIRouter(prefix="/transcripts", tags=["transcripts"])
 @router.get("/meetings/{meeting_id}")
 def get_transcript(
     meeting_id: str,
+    meeting: Meeting = Depends(get_meeting_and_authorize),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
-    Get transcript segments for a meeting.
+    Get transcript segments for an authorized meeting.
     
     Returns timestamped transcript segments ordered by start time with speaker mapping.
     """
@@ -32,22 +34,26 @@ def get_transcript(
     mapping_service = SpeakerMappingService()
     
     try:
-        segments = transcription_service.get_transcript_segments(db, meeting_id)
+        segments = transcription_service.get_transcript_segments(db, meeting.public_id)
         
         # Get speaker mappings
-        speaker_mappings = mapping_service.get_speaker_mappings(db, meeting_id)
+        speaker_mappings = mapping_service.get_speaker_mappings(db, meeting.public_id)
         speaker_map = {m["speaker_label"]: m["user_name"] for m in speaker_mappings}
         
         return {
-            "meeting_id": meeting_id,
+            "meeting_id": meeting.public_id,
             "segments": [
                 {
+                    "segment_id": getattr(seg, "segment_id", None),
+                    "recording_id": getattr(seg, "recording_id", None),
                     "speaker_label": seg.speaker_label,
                     "start_time": seg.start_time,
                     "end_time": seg.end_time,
                     "text": seg.text,
+                    "translated_text": getattr(seg, "translated_text", None),
                     "language": seg.language,
                     "confidence": seg.confidence,
+                    "words": getattr(seg, "words", None),
                     "user_name": speaker_map.get(seg.speaker_label),
                     "speaker_confirmed": seg.speaker_confirmed,
                 }
@@ -63,18 +69,19 @@ def get_transcript(
 @router.get("/meetings/{meeting_id}/status")
 def get_transcription_status(
     meeting_id: str,
+    meeting: Meeting = Depends(get_meeting_and_authorize),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
-    Get transcription status for a meeting.
+    Get transcription status for an authorized meeting.
     
     Returns processing status, error information, and segment count.
     """
     transcription_service = TranscriptionService()
     
     try:
-        status_info = transcription_service.get_transcription_status(db, meeting_id)
+        status_info = transcription_service.get_transcription_status(db, meeting.public_id)
         return status_info
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -87,6 +94,7 @@ async def upload_recording(
     meeting_id: str,
     file: UploadFile = File(...),
     language: Optional[str] = None,
+    meeting: Meeting = Depends(get_meeting_and_authorize),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -96,11 +104,6 @@ async def upload_recording(
     Accepts audio file and submits it for async transcription processing.
     Supported formats: wav, mp3, m4a, flac, ogg
     """
-    # Validate meeting exists
-    meeting = get_meeting_by_public_id(db, meeting_id)
-    if not meeting:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
-    
     # Validate file type
     allowed_extensions = {".wav", ".mp3", ".m4a", ".flac", ".ogg"}
     file_ext = os.path.splitext(file.filename)[1].lower()
@@ -115,7 +118,7 @@ async def upload_recording(
     try:
         # Create temp directory if it doesn't exist
         temp_dir = tempfile.gettempdir()
-        temp_file_path = os.path.join(temp_dir, f"recording_{meeting_id}_{file.filename}")
+        temp_file_path = os.path.join(temp_dir, f"recording_{meeting.public_id}_{file.filename}")
         
         # Write uploaded file
         with open(temp_file_path, "wb") as buffer:
@@ -130,7 +133,7 @@ async def upload_recording(
         
         # Submit to transcription worker
         job_submitted = submit_transcription_job(
-            meeting_id=meeting_id,
+            meeting_id=meeting.public_id,
             audio_path=temp_file_path,
             language=language
         )
@@ -143,7 +146,7 @@ async def upload_recording(
         
         return {
             "message": "Recording uploaded and queued for transcription",
-            "meeting_id": meeting_id,
+            "meeting_id": meeting.public_id,
             "status": "queued"
         }
         
@@ -159,23 +162,20 @@ async def upload_recording(
 @router.delete("/meetings/{meeting_id}")
 def delete_transcript(
     meeting_id: str,
+    meeting: Meeting = Depends(require_meeting_host),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
-    Delete transcript segments for a meeting.
+    Delete transcript segments for a meeting (host only).
     
     This does not delete the meeting itself, only the transcript data.
     """
-    meeting = get_meeting_by_public_id(db, meeting_id)
-    if not meeting:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
-    
     try:
         # Delete all transcript segments for this meeting
         deleted_count = db.query(TranscriptSegment).filter(
-            TranscriptSegment.meeting_id == meeting.id
-        ).delete()
+            (TranscriptSegment.meeting_id == meeting.public_id) | (TranscriptSegment.meeting_id == str(meeting.id))
+        ).delete(synchronize_session=False)
         
         # Reset transcription status
         meeting.transcription_status = "pending"
@@ -184,7 +184,7 @@ def delete_transcript(
         
         return {
             "message": f"Deleted {deleted_count} transcript segments",
-            "meeting_id": meeting_id
+            "meeting_id": meeting.public_id
         }
         
     except Exception as e:
@@ -192,4 +192,4 @@ def delete_transcript(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
-        )
+        )

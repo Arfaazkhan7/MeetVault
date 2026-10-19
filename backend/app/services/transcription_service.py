@@ -77,13 +77,31 @@ class WhisperTranscriptionEngine(TranscriptionEngine):
             
             # Extract segments with required information
             segments = []
-            for segment in result["segments"]:
+            for segment in result.get("segments", []):
+                text = segment.get("text", "").strip()
+                if not text:
+                    continue
+                raw_logprob = segment.get("avg_logprob")
+                # Genuine confidence from avg_logprob: exp(avg_logprob)
+                conf = None
+                if raw_logprob is not None:
+                    try:
+                        import math
+                        val = float(raw_logprob)
+                        if val <= 0.0:
+                            conf = round(math.exp(val), 4) if val >= -10.0 else 0.0
+                        elif 0.0 < val <= 1.0:
+                            conf = round(val, 4)
+                    except (ValueError, TypeError):
+                        pass
+
                 segments.append({
                     "start_time": segment["start"],
                     "end_time": segment["end"],
-                    "text": segment["text"].strip(),
+                    "text": text,
                     "language": result.get("language"),
-                    "confidence": segment.get("avg_logprob")
+                    "confidence": conf,
+                    "words": segment.get("words"),
                 })
             
             return {
@@ -129,19 +147,22 @@ class TranscriptionService:
         db: Session,
         meeting: Meeting,
         audio_path: str,
-        language: Optional[str] = None
+        language: Optional[str] = None,
+        recording_id: Optional[str] = None,
     ) -> List[TranscriptSegment]:
         """
-        Transcribe meeting audio and save segments to database.
+        Transcribe meeting audio and save segments to database idempotently,
+        preserving confirmed speaker mappings.
         
         Args:
             db: Database session
             meeting: Meeting instance
             audio_path: Path to audio file
             language: Optional language code
+            recording_id: Optional recording ID
         
         Returns:
-            List of created TranscriptSegment instances
+            List of created or updated TranscriptSegment instances
         """
         # Update meeting status to processing
         meeting.transcription_status = "processing"
@@ -152,31 +173,71 @@ class TranscriptionService:
             # Transcribe with retry logic
             result = self._transcribe_with_retry(audio_path, language)
             
-            # Clear existing transcripts for this meeting
-            db.query(TranscriptSegment).filter(
+            # Idempotently update or insert segments, preserving user-confirmed mappings
+            existing_segments = db.query(TranscriptSegment).filter(
                 TranscriptSegment.meeting_id == meeting.public_id
-            ).delete()
-            
-            # Create transcript segments
+            ).all()
+            existing_by_seg_id = {s.segment_id: s for s in existing_segments if s.segment_id}
+
             segments = []
-            for segment_data in result["segments"]:
-                segment = TranscriptSegment(
-                    meeting_id=meeting.public_id,
-                    speaker_label="SPEAKER_0",  # Default until diarization is implemented
-                    start_time=segment_data["start_time"],
-                    end_time=segment_data["end_time"],
-                    text=segment_data["text"],
-                    language=segment_data["language"],
-                    confidence=segment_data["confidence"]
-                )
-                db.add(segment)
-                segments.append(segment)
-            
+            active_ids = set()
+            for idx, segment_data in enumerate(result.get("segments", [])):
+                stable_id = f"{meeting.public_id}:{idx:04d}"
+                active_ids.add(stable_id)
+                existing_seg = existing_by_seg_id.get(stable_id)
+                if existing_seg is None and idx < len(existing_segments):
+                    existing_seg = existing_segments[idx]
+
+                spk = "SPEAKER_0"
+                uid = None
+                confirmed = False
+                if existing_seg and existing_seg.speaker_confirmed:
+                    spk = existing_seg.speaker_label
+                    uid = existing_seg.user_id
+                    confirmed = True
+
+                if existing_seg:
+                    existing_seg.recording_id = recording_id or existing_seg.recording_id
+                    existing_seg.segment_id = stable_id
+                    existing_seg.start_time = segment_data["start_time"]
+                    existing_seg.end_time = segment_data["end_time"]
+                    existing_seg.text = segment_data["text"]
+                    existing_seg.language = segment_data.get("language") or existing_seg.language
+                    existing_seg.confidence = segment_data.get("confidence")
+                    existing_seg.words = segment_data.get("words")
+                    if not existing_seg.speaker_confirmed:
+                        existing_seg.speaker_label = spk
+                        existing_seg.user_id = uid
+                        existing_seg.speaker_confirmed = confirmed
+                    segments.append(existing_seg)
+                else:
+                    new_seg = TranscriptSegment(
+                        meeting_id=meeting.public_id,
+                        recording_id=recording_id,
+                        segment_id=stable_id,
+                        speaker_label=spk,
+                        user_id=uid,
+                        speaker_confirmed=confirmed,
+                        start_time=segment_data["start_time"],
+                        end_time=segment_data["end_time"],
+                        text=segment_data["text"],
+                        language=segment_data.get("language"),
+                        confidence=segment_data.get("confidence"),
+                        words=segment_data.get("words"),
+                    )
+                    db.add(new_seg)
+                    segments.append(new_seg)
+
+            # Delete old stale unconfirmed segments that are no longer part of current transcription
+            for old in existing_segments:
+                if (old.segment_id not in active_ids) and not old.speaker_confirmed:
+                    db.delete(old)
+
             # Update meeting status
             meeting.transcription_status = "completed"
             db.commit()
             
-            logger.info(f"Created {len(segments)} transcript segments for meeting {meeting.public_id}")
+            logger.info(f"Persisted {len(segments)} transcript segments for meeting {meeting.public_id}")
             return segments
             
         except Exception as e:

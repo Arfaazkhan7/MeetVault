@@ -184,15 +184,236 @@ class TestTranscriptionService:
 
 
 class TestTranscriptionAPI:
-    """Tests for transcription API endpoints."""
+    """Tests for transcription and meeting history API endpoints."""
     
     def test_get_transcript_nonexistent_meeting(self, client):
-        """Test getting transcript for non-existent meeting."""
+        """Test getting transcript without token returns 401."""
         response = client.get("/api/v1/transcripts/meetings/nonexistent-meeting")
-        
-        # Transcript routes are protected; authentication is evaluated before
-        # looking up the meeting identifier.
         assert response.status_code == 401
+
+    def test_get_transcript_nonexistent_when_authenticated(self, client):
+        """Test authenticated user gets 404 for nonexistent meeting."""
+        from app.models.user import User
+        from app.core.tokens import create_token
+
+        db = TestingSessionLocal()
+        user = User(
+            email="history_test@meetvault.com",
+            full_name="History User",
+            hashed_password="fakehash",
+            public_id="usr_hist_1",
+            account_type="personal",
+        )
+        db.add(user)
+        db.commit()
+
+        token = create_token(subject=user.public_id, token_type="access")
+        resp = client.get(
+            "/api/v1/transcripts/meetings/nonexistent-meeting-id",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 404
+        db.close()
+
+    def test_transcript_access_authorization_isolated_between_users(self, client):
+        """Test user B receives 403 Forbidden when trying to access user A's private meeting transcript."""
+        from app.models.user import User
+        from app.models.meeting import Meeting, MeetingParticipant
+        from app.models.transcript import TranscriptSegment
+        from app.core.tokens import create_token
+
+        db = TestingSessionLocal()
+        user_a = User(email="owner@mv.com", full_name="Owner A", hashed_password="hash", public_id="usr_a", account_type="personal")
+        user_b = User(email="intruder@mv.com", full_name="User B", hashed_password="hash", public_id="usr_b", account_type="personal")
+        db.add_all([user_a, user_b])
+        db.commit()
+
+        # User A owns meeting
+        meeting = Meeting(
+            public_id="mtg_private_a",
+            owner_id=user_a.public_id,
+            title="Confidential Executive Review",
+            meeting_type="PERSONAL",
+            status="COMPLETED",
+            transcription_status="completed",
+        )
+        db.add(meeting)
+        db.commit()
+
+        seg = TranscriptSegment(
+            meeting_id=meeting.public_id,
+            speaker_label="SPEAKER_00",
+            start_time=1.0,
+            end_time=4.0,
+            text="Confidential revenue projections for Q4.",
+            confidence=0.95,
+        )
+        db.add(seg)
+        db.commit()
+
+        token_a = create_token(subject=user_a.public_id, token_type="access")
+        token_b = create_token(subject=user_b.public_id, token_type="access")
+
+        # User B cannot access User A's transcript -> 403 Forbidden
+        resp_b = client.get(
+            f"/api/v1/transcripts/meetings/{meeting.public_id}",
+            headers={"Authorization": f"Bearer {token_b}"},
+        )
+        assert resp_b.status_code == 403
+        assert "not authorized" in resp_b.json()["detail"].lower()
+
+        # User B cannot view transcription status either -> 403 Forbidden
+        status_b = client.get(
+            f"/api/v1/transcripts/meetings/{meeting.public_id}/status",
+            headers={"Authorization": f"Bearer {token_b}"},
+        )
+        assert status_b.status_code == 403
+
+        # User A (owner) can access transcript -> 200 OK
+        resp_a = client.get(
+            f"/api/v1/transcripts/meetings/{meeting.public_id}",
+            headers={"Authorization": f"Bearer {token_a}"},
+        )
+        assert resp_a.status_code == 200
+        data_a = resp_a.json()
+        assert data_a["meeting_id"] == meeting.public_id
+        assert len(data_a["segments"]) == 1
+        assert data_a["segments"][0]["text"] == "Confidential revenue projections for Q4."
+        assert data_a["segments"][0]["confidence"] == 0.95
+
+        # If User B is added as a participant, they can now access it
+        part_b = MeetingParticipant(
+            meeting_id=meeting.public_id,
+            user_id=user_b.public_id,
+            role="ATTENDEE",
+            status="JOINED",
+        )
+        db.add(part_b)
+        db.commit()
+
+        resp_b_allowed = client.get(
+            f"/api/v1/transcripts/meetings/{meeting.public_id}",
+            headers={"Authorization": f"Bearer {token_b}"},
+        )
+        assert resp_b_allowed.status_code == 200
+        assert len(resp_b_allowed.json()["segments"]) == 1
+
+        db.close()
+
+    def test_delete_transcript_requires_meeting_host(self, client):
+        """Test non-host cannot delete transcript segments, but host can."""
+        from app.models.user import User
+        from app.models.meeting import Meeting, MeetingParticipant
+        from app.models.transcript import TranscriptSegment
+        from app.core.tokens import create_token
+
+        db = TestingSessionLocal()
+        host = User(email="host@mv.com", full_name="Meeting Host", hashed_password="hash", public_id="usr_host", account_type="personal")
+        attendee = User(email="attendee@mv.com", full_name="Attendee User", hashed_password="hash", public_id="usr_att", account_type="personal")
+        db.add_all([host, attendee])
+        db.commit()
+
+        meeting = Meeting(
+            public_id="mtg_delete_test",
+            owner_id=host.public_id,
+            title="Standup",
+            meeting_type="PERSONAL",
+            status="COMPLETED",
+            transcription_status="completed",
+        )
+        db.add(meeting)
+        db.commit()
+
+        # Attendee joins
+        part_att = MeetingParticipant(
+            meeting_id=meeting.public_id,
+            user_id=attendee.public_id,
+            role="ATTENDEE",
+            status="JOINED",
+        )
+        seg = TranscriptSegment(
+            meeting_id=meeting.public_id,
+            speaker_label="SPEAKER_00",
+            start_time=0.0,
+            end_time=2.0,
+            text="Hello everyone",
+        )
+        db.add_all([part_att, seg])
+        db.commit()
+
+        token_host = create_token(subject=host.public_id, token_type="access")
+        token_att = create_token(subject=attendee.public_id, token_type="access")
+
+        # Attendee attempts delete -> 403 Forbidden
+        del_resp = client.delete(
+            f"/api/v1/transcripts/meetings/{meeting.public_id}",
+            headers={"Authorization": f"Bearer {token_att}"},
+        )
+        assert del_resp.status_code == 403
+        assert "host" in del_resp.json()["detail"].lower()
+
+        # Host deletes -> 200 OK
+        del_host_resp = client.delete(
+            f"/api/v1/transcripts/meetings/{meeting.public_id}",
+            headers={"Authorization": f"Bearer {token_host}"},
+        )
+        assert del_host_resp.status_code == 200
+        assert "Deleted 1 transcript segments" in del_host_resp.json()["message"]
+
+        db.close()
+
+    def test_meeting_history_endpoint_and_transcription_metadata(self, client):
+        """Test GET /meetings/history returns real persisted meetings with transcription fields and tenant scoping."""
+        from app.models.user import User
+        from app.models.meeting import Meeting
+        from app.core.tokens import create_token
+        from datetime import datetime, timezone
+
+        db = TestingSessionLocal()
+        u1 = User(email="user1@mv.com", full_name="User One", hashed_password="hash", public_id="usr_h1", account_type="personal")
+        u2 = User(email="user2@mv.com", full_name="User Two", hashed_password="hash", public_id="usr_h2", account_type="personal")
+        db.add_all([u1, u2])
+        db.commit()
+
+        m1 = Meeting(
+            public_id="mtg_hist_1",
+            owner_id=u1.public_id,
+            title="Q3 Strategy Meeting",
+            meeting_type="PERSONAL",
+            status="COMPLETED",
+            duration_seconds=1800,
+            start_time=datetime(2026, 10, 19, 10, 0, tzinfo=timezone.utc),
+            end_time=datetime(2026, 10, 19, 10, 30, tzinfo=timezone.utc),
+            transcription_status="completed",
+            recording_url="storage/recordings/mtg_hist_1.wav",
+        )
+        m2 = Meeting(
+            public_id="mtg_hist_2",
+            owner_id=u2.public_id,
+            title="User Two Secret Meeting",
+            meeting_type="PERSONAL",
+            status="SCHEDULED",
+            transcription_status="pending",
+        )
+        db.add_all([m1, m2])
+        db.commit()
+
+        token_1 = create_token(subject=u1.public_id, token_type="access")
+        resp = client.get("/api/v1/meetings/history", headers={"Authorization": f"Bearer {token_1}"})
+        assert resp.status_code == 200
+        history = resp.json()
+
+        assert len(history) == 1
+        item = history[0]
+        assert item["meeting_id"] == "mtg_hist_1"
+        assert item["title"] == "Q3 Strategy Meeting"
+        assert item["status"] == "COMPLETED"
+        assert item["duration_seconds"] == 1800
+        assert item["my_role"] == "HOST"
+        assert item["transcription_status"] == "completed"
+        assert item["recording_url"] == "storage/recordings/mtg_hist_1.wav"
+
+        db.close()
 
 
 @pytest.mark.integration

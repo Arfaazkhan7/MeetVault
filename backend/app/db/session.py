@@ -76,6 +76,10 @@ except Exception as e:
             ("evidence", "risk_id", "VARCHAR"),
             ("evidence", "commitment_id", "VARCHAR"),
             ("evidence", "unresolved_issue_id", "VARCHAR"),
+            ("transcript_segments", "recording_id", "VARCHAR"),
+            ("transcript_segments", "segment_id", "VARCHAR"),
+            ("transcript_segments", "translated_text", "VARCHAR"),
+            ("transcript_segments", "words", "JSON"),
         ):
             columns = {row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({table})")}
             if column not in columns:

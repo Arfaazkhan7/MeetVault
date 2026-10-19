@@ -1850,6 +1850,7 @@ let liveCaptionRestarting = false;
 let liveCaptionSeq = 0;
 let liveCaptionClearTimer = null;
 let liveCaptionLines = new Map();
+let currentRecordingSessionId = null;
 
 function getCurrentDisplayName() {
   const userStr = localStorage.getItem('mv_user');
@@ -1871,6 +1872,10 @@ function escapeHtml(value) {
     .replace(/'/g, '&#039;');
 }
 
+function attachRemoteAudioToMix(remoteStream, streamId) {
+  includeStreamInMeetingRecording(remoteStream);
+}
+
 function attachRemoteAudio(audioElement, remoteStream) {
   if (!audioElement || !remoteStream) return;
   audioElement.autoplay = true;
@@ -1885,6 +1890,9 @@ function attachRemoteAudio(audioElement, remoteStream) {
     const button = document.getElementById('btn-speaker');
     if (button) button.classList.add('needs-gesture');
   });
+
+  // Automatically mix remote participant's voice into the meeting recording
+  attachRemoteAudioToMix(remoteStream, audioElement.id || remoteStream.id);
 }
 
 function enableMeetingAudio() {
@@ -2130,15 +2138,29 @@ function startMeetingRecording() {
       ? { mimeType, audioBitsPerSecond: 24000 }
       : { audioBitsPerSecond: 24000 };
     meetingRecorder = new MediaRecorder(recordingStream, options);
+
     meetingRecordingStartedAt = Date.now();
     meetingRecorder.ondataavailable = event => {
-      if (event.data && event.data.size) meetingRecordingChunks.push(event.data);
+      if (event.data && event.data.size > 0) {
+        meetingRecordingChunks.push(event.data);
+      }
     };
-    meetingRecorder.start(5000);
+    meetingRecorder.start(1000);
+    console.info('[MeetingRecording] Auto recording started with multi-participant mixed audio.');
+
+    // Signal backend that automatic recording session has started
+    if (currentMeetingId && isMeetingHost) {
+      apiFetch(`/meetings/${currentMeetingId}/recordings/auto/start`, { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.session_id) currentRecordingSessionId = data.session_id;
+        })
+        .catch(() => {});
+    }
   } catch (error) {
     meetingRecorder = null;
     cleanupMeetingRecordingAudio();
-    console.warn('Recording is unavailable in this browser:', error);
+    console.warn('[MeetingRecording] Automatic recording start failed:', error);
   }
 }
 
@@ -2158,23 +2180,51 @@ function stopMeetingRecording() {
       meetingRecorder = null;
       meetingRecordingChunks = [];
       cleanupMeetingRecordingAudio();
-      resolve(blob ? { blob, duration: Math.max(1, Math.round((Date.now() - meetingRecordingStartedAt) / 1000)) } : null);
+      const duration = Math.max(1, Math.round((Date.now() - meetingRecordingStartedAt) / 1000));
+      resolve(blob ? { blob, duration } : null);
     };
-    recorder.stop();
+    try {
+      recorder.stop();
+    } catch (e) {
+      resolve(null);
+    }
   });
 }
 
 async function uploadMeetingRecording(recording) {
-  if (!recording || !currentMeetingId) return;
+  if (!recording || !recording.blob || !currentMeetingId) return;
+
+  // Only host or authorized session uploader finalizes the meeting recording
+  if (!isMeetingHost) {
+    console.info('[MeetingRecording] Participant is attendee; skipping host-only recording upload.');
+    return;
+  }
+
+  showToast('Saving recording to Vault & dispatching AI…');
   const form = new FormData();
   form.append('duration_seconds', String(recording.duration));
-  form.append('file', recording.blob, `meeting-${currentRoomCode}-audio.webm`);
-  const response = await apiFetch(`/meetings/${currentMeetingId}/recordings`, {
-    method: 'POST',
-    body: form
-  });
-  if (!response.ok) throw new Error((await response.text()) || `Recording upload failed (${response.status})`);
-  showToast('Recording saved to Meeting Vault');
+  if (currentRecordingSessionId) {
+    form.append('session_id', currentRecordingSessionId);
+  }
+  const fileExt = (recording.blob.type && recording.blob.type.includes('ogg')) ? 'ogg' : 'webm';
+  form.append('file', recording.blob, `meeting-${currentRoomCode || currentMeetingId}.${fileExt}`);
+
+  try {
+    const response = await apiFetch(`/meetings/${currentMeetingId}/recordings`, {
+      method: 'POST',
+      body: form
+    });
+    if (!response.ok) {
+      const errText = await response.text();
+      console.warn('[MeetingRecording] Upload warning:', errText);
+      return;
+    }
+    const data = await response.json();
+    console.info('[MeetingRecording] Recording finalized successfully. AI Job:', data.ai_job_id);
+    showToast('✅ Meeting recording finalized & intelligence pipeline dispatched!');
+  } catch (err) {
+    console.warn('[MeetingRecording] Finalization request failed:', err);
+  }
 }
 
 function copyHeroCode(){

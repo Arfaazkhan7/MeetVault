@@ -24,7 +24,7 @@ class SpeakerMappingService:
         speaker_labels: List[str]
     ) -> Dict[str, str]:
         """
-        Create initial speaker mappings for a meeting.
+        Create initial speaker mappings for a meeting while preserving existing confirmed mappings.
         
         Args:
             db: Database session
@@ -32,17 +32,21 @@ class SpeakerMappingService:
             speaker_labels: List of speaker labels (SPEAKER_00, SPEAKER_01, etc.)
         
         Returns:
-            Dictionary of speaker labels to empty user IDs (unmapped)
+            Dictionary of speaker labels to user IDs
         """
-        # Clear existing mappings for this meeting
-        db.query(SpeakerMapping).filter(
+        existing = db.query(SpeakerMapping).filter(
             SpeakerMapping.meeting_id == meeting.public_id
-        ).delete()
+        ).all()
+        existing_map = {m.speaker_label: m for m in existing}
         
         mappings = {}
-        
         for speaker_label in speaker_labels:
             if speaker_label == "SPEAKER_UNKNOWN":
+                continue
+            
+            if speaker_label in existing_map:
+                # Preserve existing mapping, especially if user confirmed it
+                mappings[speaker_label] = existing_map[speaker_label].user_id or ""
                 continue
             
             mapping = SpeakerMapping(
@@ -54,6 +58,11 @@ class SpeakerMappingService:
             )
             db.add(mapping)
             mappings[speaker_label] = ""  # Empty = unmapped
+        
+        # Remove orphaned unconfirmed mappings for labels that no longer exist
+        for label, m in existing_map.items():
+            if label not in speaker_labels and not m.is_confirmed:
+                db.delete(m)
         
         db.commit()
         return mappings

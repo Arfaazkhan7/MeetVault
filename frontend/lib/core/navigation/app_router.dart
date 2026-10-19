@@ -202,7 +202,7 @@ class AppRouter {
           builder: (context) => const AskMemoryScreen(),
           settings: settings,
         );
-      case settings:
+      case AppRouter.settings:
         return MaterialPageRoute(
           builder: (context) => const SettingsScreen(),
           settings: settings,
@@ -235,7 +235,15 @@ class AppRouter {
     if (routeName.startsWith('/meetings/')) {
       final parts = routeName.split('/');
       if (parts.length > 2 && parts[2].trim().isNotEmpty) {
-        final meetingId = Uri.decodeComponent(parts[2]);
+        String meetingId = Uri.decodeComponent(parts[2]);
+        if (meetingId == ':id') {
+          final args = settings.arguments;
+          if (args is Map<String, dynamic>) {
+            meetingId = (args['id'] ?? args['meetingId'] ?? '').toString();
+          } else if (args is String) {
+            meetingId = args;
+          }
+        }
         if (parts.length > 3) {
           final sub = parts[3];
           if (sub == 'room') {
@@ -260,8 +268,15 @@ class AppRouter {
               settings: settings,
             );
           } else if (sub == 'transcript') {
+            final args = settings.arguments is Map<String, dynamic>
+                ? settings.arguments as Map<String, dynamic>
+                : null;
+            final title = args?['title'] as String?;
             return MaterialPageRoute(
-              builder: (context) => TranscriptScreen(meetingId: meetingId),
+              builder: (context) => TranscriptScreen(
+                meetingId: meetingId,
+                meetingTitle: title,
+              ),
               settings: settings,
             );
           } else if (sub == 'summary') {

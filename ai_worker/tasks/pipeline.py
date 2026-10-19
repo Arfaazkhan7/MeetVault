@@ -88,6 +88,11 @@ def process_meeting_intelligence(ai_job_id: str):
                 "not found in database."
             )
 
+        if not recording.storage_path:
+            raise RuntimeError(
+                f"Recording (id={job.recording_id}) has not been finalized (storage_path is empty)."
+            )
+
         recording.processing_status = "PROCESSING"
         meeting.transcription_status = "processing"
         meeting.analysis_status = "processing"
@@ -122,34 +127,55 @@ def process_meeting_intelligence(ai_job_id: str):
                 raise RuntimeError(f"Transcription failed: {exc}") from exc
 
             if not segments:
-                raise RuntimeError(
-                    "Transcription produced 0 segments. "
-                    "The audio may be empty or in an unsupported format."
+                logger.info(
+                    "Transcription produced 0 segments (empty audio or silence) for meeting %s.",
+                    meeting.public_id,
                 )
+                # Clean up any stale unconfirmed segments from previous runs
+                stale_unconfirmed = (
+                    db.query(DbTranscriptSegment)
+                    .filter(
+                        DbTranscriptSegment.meeting_id == meeting.public_id,
+                        DbTranscriptSegment.speaker_confirmed == False,
+                    )
+                    .all()
+                )
+                for old in stale_unconfirmed:
+                    db.delete(old)
+
+                meeting.transcription_status = "completed"
+                meeting.transcription_error = None
+                meeting.analysis_status = "completed"
+                meeting.analysis_error = None
+                recording.processing_status = "COMPLETED"
+                recording.processing_error = None
+                db.commit()
+                manager.mark_completed(job)
+                logger.info("Pipeline completed cleanly for silent/empty recording (job %s).", ai_job_id)
+                return
+
             logger.info("Transcription produced %d segment(s).", len(segments))
 
             # ── Stage 3: Diarization via pyannoteAI ──────────────────────────
             manager.update_stage(job, "DIARIZING")
             from ai_worker.diarization.diarization import diarize, DiarizationError
 
-            # Create a time-limited signed URL so pyannoteAI can download the audio
+            speaker_turns = []
             try:
+                # Create a time-limited signed URL so pyannoteAI can download the audio
                 audio_url = storage.create_signed_url(
                     path=recording.storage_path,
                     expires_in_seconds=_SIGNED_URL_EXPIRE_SECONDS,
                 )
                 logger.info("Created signed URL for diarization (expires in %ds).", _SIGNED_URL_EXPIRE_SECONDS)
-            except Exception as exc:
-                raise RuntimeError(
-                    f"Failed to create signed URL for diarization: {exc}"
-                ) from exc
-
-            try:
                 speaker_turns = diarize(audio_url)
-            except DiarizationError as exc:
-                raise RuntimeError(f"Diarization failed: {exc}") from exc
-
-            logger.info("Diarization returned %d speaker turn(s).", len(speaker_turns))
+                logger.info("Diarization returned %d speaker turn(s).", len(speaker_turns))
+            except Exception as exc:
+                logger.warning(
+                    "Diarization skipped or encountered an error (%s); falling back to single-speaker labeling.",
+                    exc,
+                )
+                speaker_turns = []
 
         finally:
             # Always clean up the temp file
@@ -170,22 +196,93 @@ def process_meeting_intelligence(ai_job_id: str):
             len(mapped_segments), len(unique_speakers), sorted(unique_speakers)
         )
 
-        # Persist transcript segments
-        db.query(DbTranscriptSegment).filter(
-            DbTranscriptSegment.meeting_id == meeting.public_id
-        ).delete()
+        # ── Idempotent Transactional Persistence ──────────────────────────────
+        # Load existing segments to preserve user-confirmed mappings and avoid stale/duplicate state
+        existing_segments = (
+            db.query(DbTranscriptSegment)
+            .filter(DbTranscriptSegment.meeting_id == meeting.public_id)
+            .order_by(DbTranscriptSegment.start_time)
+            .all()
+        )
+        existing_by_seg_id = {s.segment_id: s for s in existing_segments if s.segment_id}
+        confirmed_by_spk = {
+            s.speaker_label: (s.user_id, s.speaker_confirmed)
+            for s in existing_segments
+            if s.speaker_confirmed
+        }
 
-        for segment in mapped_segments:
-            db.add(DbTranscriptSegment(
-                meeting_id=meeting.public_id,
-                speaker_label=segment.speaker_label or "SPEAKER_UNKNOWN",
-                start_time=segment.start_time,
-                end_time=segment.end_time,
-                text=segment.text,
-                language=None,
-            ))
+        active_segment_ids = set()
+
+        for idx, segment in enumerate(mapped_segments):
+            # Validate timestamps
+            start_ts = max(0.0, float(segment.start_time))
+            end_ts = max(start_ts, float(segment.end_time))
+
+            # Deterministic stable segment identifier: <meeting_public_id>:<index:04d>
+            stable_id = segment.segment_id or f"{meeting.public_id}:{idx:04d}"
+            active_segment_ids.add(stable_id)
+
+            existing_seg = existing_by_seg_id.get(stable_id)
+            if existing_seg is None and idx < len(existing_segments):
+                existing_seg = existing_segments[idx]
+
+            speaker_label = segment.speaker_label or "SPEAKER_UNKNOWN"
+            user_id = None
+            is_confirmed = False
+
+            if existing_seg and existing_seg.speaker_confirmed:
+                # User has confirmed this segment's speaker mapping; PRESERVE IT!
+                speaker_label = existing_seg.speaker_label
+                user_id = existing_seg.user_id
+                is_confirmed = True
+            elif speaker_label in confirmed_by_spk:
+                # User previously confirmed this speaker label across the meeting
+                user_id, is_confirmed = confirmed_by_spk[speaker_label]
+
+            if existing_seg:
+                # Update existing segment in place
+                existing_seg.recording_id = str(recording.id)
+                existing_seg.segment_id = stable_id
+                existing_seg.start_time = start_ts
+                existing_seg.end_time = end_ts
+                existing_seg.text = segment.text
+                existing_seg.language = segment.language or existing_seg.language
+                existing_seg.confidence = segment.confidence
+                existing_seg.translated_text = segment.translated_text or existing_seg.translated_text
+                existing_seg.words = segment.words
+                if not existing_seg.speaker_confirmed:
+                    existing_seg.speaker_label = speaker_label
+                    existing_seg.user_id = user_id
+                    existing_seg.speaker_confirmed = is_confirmed
+            else:
+                # Insert new segment with stable identity
+                new_seg = DbTranscriptSegment(
+                    meeting_id=meeting.public_id,
+                    recording_id=str(recording.id),
+                    segment_id=stable_id,
+                    speaker_label=speaker_label,
+                    user_id=user_id,
+                    speaker_confirmed=is_confirmed,
+                    start_time=start_ts,
+                    end_time=end_ts,
+                    text=segment.text,
+                    language=segment.language,
+                    confidence=segment.confidence,
+                    translated_text=segment.translated_text,
+                    words=segment.words,
+                )
+                db.add(new_seg)
+
+        # Remove stale unconfirmed segments from previous runs that are beyond current count
+        for old in existing_segments:
+            if (old.segment_id not in active_segment_ids) and not old.speaker_confirmed:
+                db.delete(old)
+
         db.commit()
-        logger.info("Saved %d transcript segment(s) to database.", len(mapped_segments))
+        logger.info(
+            "Idempotently persisted %d transcript segment(s) to database (protected confirmed mappings).",
+            len(mapped_segments),
+        )
 
         # Create speaker mappings (SPEAKER_00 → unmapped, available for UI assignment)
         from app.services.speaker_mapping_service import SpeakerMappingService

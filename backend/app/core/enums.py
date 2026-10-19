@@ -21,8 +21,11 @@ class MeetingRole(str, Enum):
     ATTENDEE = "ATTENDEE"
 
 class RecordingProcessingStatus(str, Enum):
-    UPLOADED = "UPLOADED"
-    QUEUED = "QUEUED"
+    STARTING   = "STARTING"
+    RECORDING  = "RECORDING"
+    FINALIZING = "FINALIZING"
+    UPLOADED   = "UPLOADED"
+    QUEUED     = "QUEUED"
     PROCESSING = "PROCESSING"
-    COMPLETED = "COMPLETED"
-    FAILED = "FAILED"
+    COMPLETED  = "COMPLETED"
+    FAILED     = "FAILED"

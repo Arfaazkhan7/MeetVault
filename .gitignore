@@ -1,4 +1,4 @@
-﻿# Environment / secrets
+# Environment / secrets
 .env
 .env.*
 !.env.example
@@ -59,3 +59,12 @@ storage/
 *.pem *.key
 credentials.json
 service-account*.json
+
+# Flutter
+.flutter-plugins
+.flutter-plugins-dependencies
+.dart_tool/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/.dart_tool/
+

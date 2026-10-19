@@ -8,6 +8,11 @@ class TranscriptSegment:
     end_time: float
     text: str
     speaker_label: Optional[str] = None
+    language: Optional[str] = None
+    confidence: Optional[float] = None
+    translated_text: Optional[str] = None
+    segment_id: Optional[str] = None
+    words: Optional[List[Dict[str, Any]]] = None
 
     def as_dict(self) -> Dict[str, Any]:
         return asdict(self)

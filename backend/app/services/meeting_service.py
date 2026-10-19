@@ -435,9 +435,13 @@ def end_meeting(db: Session, meeting: Meeting, user: User) -> Meeting:
 def get_user_meeting_history(db: Session, user_public_id: str) -> list[dict]:
     """
     Fetch complete cloud meeting history for the authenticated user.
-    Returns meetings where the user was HOST or ATTENDEE, including start/end times,
-    meeting codes, total duration, my role, and real participant lists.
+    Returns meetings where the user was HOST or ATTENDEE, or member of workspace company,
+    including start/end times, meeting codes, total duration, my role, real participant lists,
+    and transcription/recording status.
     """
+    from app.models.company import CompanyMember
+    from sqlalchemy import or_
+
     part_records = (
         db.query(MeetingParticipant)
         .filter(MeetingParticipant.user_id == user_public_id)
@@ -445,10 +449,21 @@ def get_user_meeting_history(db: Session, user_public_id: str) -> list[dict]:
     )
     part_map = {p.meeting_id: p for p in part_records}
 
+    user_companies = db.query(CompanyMember.company_id).filter(CompanyMember.user_id == user_public_id).all()
+    company_ids = [c[0] for c in user_companies if c[0]]
+
+    access_conditions = [Meeting.owner_id == user_public_id]
+    if part_map:
+        access_conditions.append(Meeting.public_id.in_(list(part_map.keys())))
+    if company_ids:
+        access_conditions.append(
+            (Meeting.company_id.in_(company_ids)) & (Meeting.meeting_type == MeetingType.WORKSPACE.value)
+        )
+
     meetings = (
         db.query(Meeting)
         .filter(
-            (Meeting.owner_id == user_public_id) | (Meeting.public_id.in_(list(part_map.keys())) if part_map else False),
+            or_(*access_conditions),
             Meeting.deleted_at.is_(None),
         )
         .order_by(Meeting.created_at.desc())
@@ -505,6 +520,9 @@ def get_user_meeting_history(db: Session, user_public_id: str) -> list[dict]:
             "my_leave_time": my_part.leave_time if my_part else None,
             "my_duration_seconds": my_dur,
             "participants": participants_data,
+            "transcription_status": m.transcription_status,
+            "transcription_error": m.transcription_error,
+            "recording_url": m.recording_url,
         })
 
     return history

@@ -122,4 +122,7 @@ class MeetingHistoryItemResponse(BaseModel):
     my_leave_time: Optional[datetime] = None
     my_duration_seconds: Optional[int] = None
     participants: list[MeetingParticipantResponse] = []
+    transcription_status: Optional[str] = "pending"
+    transcription_error: Optional[str] = None
+    recording_url: Optional[str] = None
     model_config = {"from_attributes": True}

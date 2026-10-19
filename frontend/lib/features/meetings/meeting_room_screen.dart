@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:livekit_client/livekit_client.dart';
 import '../../core/services/api_service.dart';
 
@@ -198,11 +199,17 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
   Future<void> _recordJoin() async {
     try {
       await _api.post('/meetings/${widget.meetingId}/room/join');
+      if (widget.isHost) {
+        await _api.post('/meetings/${widget.meetingId}/recordings/auto/start');
+      }
     } catch (_) {}
   }
 
   Future<void> _recordLeave() async {
     try {
+      if (widget.isHost) {
+        await _api.post('/meetings/${widget.meetingId}/recordings/auto/stop');
+      }
       await _api.post('/meetings/${widget.meetingId}/room/leave');
     } catch (_) {}
   }
@@ -881,10 +888,7 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
     if (_isLeaving) return;
     setState(() => _isLeaving = true);
     try {
-      final response = await http.post(
-        Uri.parse('${widget.apiBaseUrl}/meetings/${widget.meetingId}/end'),
-        headers: _headers,
-      );
+      final response = await ApiService().post('/meetings/${widget.meetingId}/end');
       if (response.statusCode == 200) {
         await _recordLeave();
         await _room?.disconnect();

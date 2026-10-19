@@ -1,13 +1,11 @@
 import 'dart:convert';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import '../../core/navigation/app_router.dart';
 import '../../core/services/api_service.dart';
+import '../../core/utils/file_upload_helper.dart';
 import '../../core/widgets/enterprise_scaffold.dart';
 
 class MeetingDetailsScreen extends StatefulWidget {
@@ -40,11 +38,14 @@ class _MeetingDetailsScreenState extends State<MeetingDetailsScreen> {
   @override
   void initState() {
     super.initState();
-    if (_isCreateMode) {
-      setState(() => _loading = false);
-    } else {
-      _load();
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_isCreateMode) {
+        setState(() => _loading = false);
+      } else {
+        _load();
+      }
+    });
   }
 
   Future<void> _load() async {
@@ -67,29 +68,16 @@ class _MeetingDetailsScreenState extends State<MeetingDetailsScreen> {
   }
 
   Future<void> _uploadRecording() async {
-    final html.FileUploadInputElement uploadInput = html.FileUploadInputElement();
-    uploadInput.accept = 'audio/*,video/*,.wav,.mp3,.m4a,.flac,.ogg,.webm,.mp4';
-    uploadInput.click();
-
-    uploadInput.onChange.listen((e) async {
-      final files = uploadInput.files;
-      if (files == null || files.isEmpty) return;
-      final file = files[0];
-
-      setState(() {
-        _uploading = true;
-        _uploadStatus = 'Reading file...';
-      });
-
-      final reader = html.FileReader();
-      reader.readAsArrayBuffer(file);
-      reader.onLoadEnd.listen((e) async {
+    pickAndUploadFile(
+      accept: 'audio/*,video/*,.wav,.mp3,.m4a,.flac,.ogg,.webm,.mp4',
+      onFilePicked: (Uint8List bytes, String filename) async {
         try {
-          setState(() => _uploadStatus = 'Uploading ${file.name}...');
+          setState(() {
+            _uploading = true;
+            _uploadStatus = 'Uploading $filename...';
+          });
 
-          final bytes = reader.result as Uint8List;
           final token = _api.token;
-
           final uri = Uri.parse('${ApiService.baseUrl}/meetings/${widget.meetingId}/recordings');
           final request = http.MultipartRequest('POST', uri);
           if (token != null) {
@@ -98,7 +86,7 @@ class _MeetingDetailsScreenState extends State<MeetingDetailsScreen> {
           request.files.add(http.MultipartFile.fromBytes(
             'file',
             bytes,
-            filename: file.name,
+            filename: filename,
           ));
 
           final streamedResponse = await request.send();
@@ -117,7 +105,6 @@ class _MeetingDetailsScreenState extends State<MeetingDetailsScreen> {
                 ),
               );
             }
-            // Reload to show updated status
             _load();
           } else {
             String errorDetail = 'Upload failed (${streamedResponse.statusCode})';
@@ -142,12 +129,12 @@ class _MeetingDetailsScreenState extends State<MeetingDetailsScreen> {
           });
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Upload error: $err'), backgroundColor: Colors.red),
+              SnackBar(content: Text('Error: $err'), backgroundColor: Colors.red),
             );
           }
         }
-      });
-    });
+      },
+    );
   }
 
   Future<void> _createMeeting(String title, String? description) async {
@@ -408,7 +395,7 @@ class _MeetingDetailsScreenState extends State<MeetingDetailsScreen> {
                   childAspectRatio: 2.5,
                   children: [
                     _VaultTile(icon: Icons.groups, label: 'Participants', color: Colors.blue, onTap: () => Navigator.pushNamed(context, AppRouter.participants, arguments: {'id': widget.meetingId})),
-                    _VaultTile(icon: Icons.record_voice_over, label: 'Transcript', color: Colors.teal, subtitle: 'Who said what', onTap: () => Navigator.pushNamed(context, AppRouter.transcript, arguments: {'id': widget.meetingId})),
+                    _VaultTile(icon: Icons.record_voice_over, label: 'Transcript', color: Colors.teal, subtitle: 'Who said what', onTap: () => Navigator.pushNamed(context, AppRouter.transcript, arguments: {'id': widget.meetingId, 'title': meeting['title']})),
                     _VaultTile(icon: Icons.summarize, label: 'AI Summary', color: Colors.purple, onTap: () => Navigator.pushNamed(context, AppRouter.summary, arguments: {'id': widget.meetingId})),
                     _VaultTile(icon: Icons.topic, label: 'Topics', color: Colors.orange, onTap: () => Navigator.pushNamed(context, AppRouter.topics, arguments: {'id': widget.meetingId})),
                     _VaultTile(icon: Icons.gavel, label: 'Decisions', color: Colors.indigo, onTap: () => Navigator.pushNamed(context, AppRouter.decisions, arguments: {'id': widget.meetingId})),

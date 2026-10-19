@@ -11,15 +11,19 @@ class MeetingRecording(Base):
     company_id = Column(String, nullable=True, index=True)
     uploaded_by_user_id = Column(String, nullable=False, index=True)
 
-    storage_backend = Column(String, nullable=False, default="supabase")
-    storage_bucket = Column(String, nullable=False)
-    storage_path = Column(String, nullable=False, unique=True, index=True)
+    session_id = Column(String, nullable=True, index=True)
+    egress_id = Column(String, nullable=True, index=True)
+    source = Column(String, nullable=True, default="client_mixed_audio")
 
-    original_filename = Column(String, nullable=False)
-    file_type = Column(String, nullable=False)
-    file_size_bytes = Column(BigInteger, nullable=False)
+    storage_backend = Column(String, nullable=False, default="supabase")
+    storage_bucket = Column(String, nullable=True)
+    storage_path = Column(String, nullable=True, unique=True, index=True)
+
+    original_filename = Column(String, nullable=True)
+    file_type = Column(String, nullable=True)
+    file_size_bytes = Column(BigInteger, nullable=True, default=0)
     duration_seconds = Column(Integer, nullable=True)
-    processing_status = Column(String, nullable=False, default="UPLOADED", index=True)
+    processing_status = Column(String, nullable=False, default="RECORDING", index=True)
     processing_error = Column(Text, nullable=True)
     deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
 

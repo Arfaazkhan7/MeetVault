@@ -82,78 +82,50 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
       final api = ApiService();
       final List<Map<String, dynamic>> allMeetings = [];
 
-      // 1. Primary: Fetch Cloud Meeting History for the Authenticated User identity
-      try {
-        final histResp = await api.get('/meetings/history');
-        if (histResp.statusCode == 200) {
-          final histList = List<Map<String, dynamic>>.from(
-            json.decode(histResp.body) as List,
-          );
-          for (final h in histList) {
+      final histResp = await api.get('/meetings/history');
+      if (histResp.statusCode == 200) {
+        final dynamic decoded = json.decode(histResp.body);
+        if (decoded is List) {
+          for (final item in decoded) {
+            if (item is! Map<String, dynamic>) continue;
+            final meetingId = (item['meeting_id'] ?? item['public_id'] ?? '').toString();
+            final role = (item['my_role'] ?? item['role'] ?? 'ATTENDEE').toString();
+            final participants = (item['participants'] as List?) ?? [];
+            final transStatus = (item['transcription_status'] ?? 'pending').toString();
             allMeetings.add({
-              'public_id': h['meeting_id'],
-              'meeting_id': h['meeting_id'],
-              'title': h['title'] ?? 'Untitled Meeting',
-              'invite_code': h['meeting_code'],
-              'scheduled_start_time': h['started_at'] ?? h['created_at'],
-              'started_at': h['started_at'],
-              'ended_at': h['ended_at'],
-              'duration_seconds': h['duration_seconds'],
-              'role': h['role'],
-              'status': h['status'] ?? 'COMPLETED',
-              'participants': h['participants'],
-              'participant_count': (h['participants'] as List?)?.length ?? 1,
-              'project_name': h['role'] == 'HOST' ? 'Host' : 'Attendee',
+              'public_id': meetingId,
+              'meeting_id': meetingId,
+              'title': item['title'] ?? 'Untitled Meeting',
+              'description': item['description'],
+              'invite_code': item['meeting_code'] ?? item['invite_code'],
+              'meeting_type': item['meeting_type'] ?? 'PERSONAL',
+              'scheduled_start_time': item['started_at'] ?? item['scheduled_start_time'],
+              'started_at': item['started_at'],
+              'ended_at': item['ended_at'],
+              'duration_seconds': item['duration_seconds'],
+              'role': role,
+              'my_role': role,
+              'status': (item['status'] ?? 'COMPLETED').toString(),
+              'transcription_status': transStatus,
+              'transcription_error': item['transcription_error'],
+              'recording_url': item['recording_url'],
+              'participants': participants,
+              'participant_count': participants.length,
+              'project_name': role.toUpperCase() == 'HOST' ? 'Host' : 'Attendee',
             });
           }
         }
-      } catch (_) {}
-
-      // 2. Fallback: if no history found via /meetings/history, try personal/company endpoints
-      if (allMeetings.isEmpty) {
-        final authProvider = Provider.of<AuthProvider>(context, listen: false);
-        if (authProvider.isPersonal) {
-          try {
-            final meetResp = await api.get('/meetings/personal');
-            if (meetResp.statusCode == 200) {
-              final meetings = List<Map<String, dynamic>>.from(
-                json.decode(meetResp.body) as List,
-              );
-              for (final m in meetings) {
-                allMeetings.add({...m, 'project_name': 'Personal'});
-              }
-            }
-          } catch (_) {}
-        } else {
-          try {
-            final compResp = await api.get('/companies');
-            if (compResp.statusCode == 200) {
-              final companies = List<Map<String, dynamic>>.from(
-                json.decode(compResp.body) as List,
-              );
-              for (final company in companies) {
-                final compId = company['public_id'] ?? company['id'];
-                if (compId == null) continue;
-                try {
-                  final meetResp = await api.get('/companies/$compId/meetings');
-                  if (meetResp.statusCode == 200) {
-                    final meetings = List<Map<String, dynamic>>.from(
-                      json.decode(meetResp.body) as List,
-                    );
-                    for (final m in meetings) {
-                      allMeetings.add({...m, 'project_name': m['project_id'] ?? 'General'});
-                    }
-                  }
-                } catch (_) {}
-              }
-            }
-          } catch (_) {}
-        }
+      } else if (histResp.statusCode == 401) {
+        throw Exception('Session expired. Please sign in again.');
+      } else if (histResp.statusCode == 403) {
+        throw Exception('Access denied: You do not have permission to view meeting history.');
+      } else {
+        throw Exception('Failed to load meeting history (${histResp.statusCode}).');
       }
 
       allMeetings.sort((a, b) {
-        final aTime = a['scheduled_start_time'] as String? ?? '';
-        final bTime = b['scheduled_start_time'] as String? ?? '';
+        final aTime = a['started_at']?.toString() ?? a['scheduled_start_time']?.toString() ?? '';
+        final bTime = b['started_at']?.toString() ?? b['scheduled_start_time']?.toString() ?? '';
         return bTime.compareTo(aTime);
       });
 
@@ -165,7 +137,7 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = e.toString().replaceFirst('Exception: ', '');
         _loading = false;
       });
     }
@@ -358,7 +330,7 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
     if (!mounted) return;
     final code = (meeting['invite_code'] ?? meeting['public_id'] ?? '').toString();
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final creatorName = authProvider.user?.fullName ?? authProvider.user?.email ?? 'Host';
+    final creatorName = authProvider.displayName;
 
     await showDialog<void>(
       context: context,
@@ -542,11 +514,15 @@ class _MeetingsScreenState extends State<MeetingsScreen> {
                       meeting: filtered[i],
                       statusBadge: _statusBadge(
                           (filtered[i]['status'] ?? 'UNKNOWN').toString()),
-                      onTap: () => Navigator.pushNamed(
-                        ctx,
-                        AppRouter.meetingDetails,
-                        arguments: {'id': filtered[i]['public_id']},
-                      ),
+                      onTap: () {
+                        final mid = (filtered[i]['public_id'] ?? filtered[i]['meeting_id'] ?? '').toString();
+                        final title = (filtered[i]['title'] ?? 'Untitled Meeting').toString();
+                        Navigator.pushNamed(
+                          ctx,
+                          AppRouter.meetingDetails,
+                          arguments: {'id': mid, 'title': title},
+                        );
+                      },
                     ),
                   ),
           ),
@@ -654,6 +630,87 @@ class _MeetingCard extends StatelessWidget {
         ? participants.map((p) => (p['name'] ?? p['email'] ?? 'User').toString()).join(', ')
         : '${meeting['participant_count'] ?? 1} participant(s)';
 
+    final transStatus = (meeting['transcription_status'] ?? '').toString().toLowerCase();
+
+    Widget? transcriptionBadge;
+    if (transStatus == 'completed') {
+      transcriptionBadge = Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF0FDF4),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: const Color(0xFF86EFAC)),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.description, size: 12, color: Color(0xFF15803D)),
+            SizedBox(width: 4),
+            Text(
+              'Transcript Ready',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF15803D),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (transStatus == 'processing' || transStatus == 'queued') {
+      transcriptionBadge = Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFBEB),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: const Color(0xFFFDE68A)),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 10,
+              height: 10,
+              child: CircularProgressIndicator(strokeWidth: 1.5, color: Color(0xFFB45309)),
+            ),
+            SizedBox(width: 4),
+            Text(
+              'Transcribing...',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFB45309),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (transStatus == 'failed') {
+      transcriptionBadge = Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEF2F2),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: const Color(0xFFFECACA)),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline, size: 12, color: Color(0xFFB91C1C)),
+            SizedBox(width: 4),
+            Text(
+              'Transcript Failed',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFB91C1C),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       clipBehavior: Clip.antiAlias,
@@ -713,6 +770,10 @@ class _MeetingCard extends StatelessWidget {
                   ),
                 ],
               ),
+              if (transcriptionBadge != null) ...[
+                const SizedBox(height: 8),
+                transcriptionBadge,
+              ],
               const SizedBox(height: 8),
               Row(
                 children: [

@@ -12,9 +12,12 @@ Supported analysis providers:
 """
 import json
 import logging
+import math
+import tempfile
 import time
+import wave
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
@@ -24,6 +27,116 @@ from .schemas import MeetingAnalysis, TranscriptSegment
 logger = logging.getLogger(__name__)
 
 _HF_API_BASE = "https://api-inference.huggingface.co/models"
+
+# ---------------------------------------------------------------------------
+# Multilingual Support Matrix & Language Evaluation
+# ---------------------------------------------------------------------------
+
+LANGUAGE_SUPPORT_MATRIX: Dict[str, Dict[str, Any]] = {
+    "en": {
+        "name": "English",
+        "iso_639_1": "en",
+        "supported": True,
+        "tier": "Tier 1 Native",
+        "code_switching_capable": True,
+        "script": "Latin",
+        "notes": "Optimal accuracy, extensive training data.",
+    },
+    "ta": {
+        "name": "Tamil",
+        "iso_639_1": "ta",
+        "supported": True,
+        "tier": "Tier 1 Native",
+        "code_switching_capable": True,
+        "script": "Tamil",
+        "notes": "Native Whisper Large v3 support. Handles Tamil script and Tanglish code-switching.",
+    },
+    "hi": {
+        "name": "Hindi",
+        "iso_639_1": "hi",
+        "supported": True,
+        "tier": "Tier 1 Native",
+        "code_switching_capable": True,
+        "script": "Devanagari",
+        "notes": "Native Whisper Large v3 support. Handles Devanagari script and Hinglish code-switching.",
+    },
+    "auto": {
+        "name": "Automatic Detection",
+        "iso_639_1": None,
+        "supported": True,
+        "tier": "Auto Detection",
+        "code_switching_capable": True,
+        "script": "Multilingual",
+        "notes": "Whisper detects spoken language automatically per audio stream.",
+    },
+}
+
+
+def evaluate_language_support(language_code: Optional[str]) -> Dict[str, Any]:
+    """
+    Validate and evaluate model support for a given language code.
+    Do not claim support for languages that the configured ASR cannot reliably handle.
+    """
+    if not language_code or language_code.lower().strip() in ("auto", "none", ""):
+        return {
+            "requested_language": language_code,
+            "normalized_code": "auto",
+            "supported": True,
+            "tier": "Auto Detection",
+            "code_switching_capable": True,
+            "script": "Multilingual",
+            "provider_model": settings.hf_transcription_model,
+            "notes": "Automatic language identification enabled.",
+        }
+
+    code = language_code.lower().strip()
+    if code in LANGUAGE_SUPPORT_MATRIX:
+        info = LANGUAGE_SUPPORT_MATRIX[code]
+        return {
+            "requested_language": language_code,
+            "normalized_code": code,
+            "supported": True,
+            "tier": info["tier"],
+            "code_switching_capable": info["code_switching_capable"],
+            "script": info["script"],
+            "provider_model": settings.hf_transcription_model,
+            "notes": info["notes"],
+        }
+
+    return {
+        "requested_language": language_code,
+        "normalized_code": code,
+        "supported": False,
+        "tier": "Unsupported / Unverified",
+        "code_switching_capable": False,
+        "script": "Unknown",
+        "provider_model": settings.hf_transcription_model,
+        "notes": f"Language code '{language_code}' is not verified for reliable ASR in current configuration.",
+    }
+
+
+def _extract_confidence(raw_val: Any) -> Optional[float]:
+    """
+    Extract genuine confidence score bounded to [0.0, 1.0].
+    Whisper emits avg_logprob (<= 0.0). We compute exp(avg_logprob).
+    If raw_val is already [0.0, 1.0] probability, preserve it.
+    If no confidence/logprob is present, return None (never invent fake confidence).
+    """
+    if raw_val is None:
+        return None
+    try:
+        val = float(raw_val)
+        if math.isnan(val) or math.isinf(val):
+            return None
+        if val <= 0.0:
+            if val < -10.0:
+                return 0.0
+            return round(math.exp(val), 4)
+        if 0.0 < val <= 1.0:
+            return round(val, 4)
+        return None
+    except (ValueError, TypeError):
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -39,16 +152,22 @@ def _hf_headers() -> Dict[str, str]:
 
 
 def _hf_post_with_retry(url: str, **kwargs) -> requests.Response:
-    """POST to a HF Inference endpoint, waiting up to 3× on 503 (model loading)."""
-    backoff = 20
+    """POST to a HF Inference endpoint with exponential backoff on 503 (loading) and 429 (rate-limit)."""
+    backoff = 10
+    resp = None
     for attempt in range(1, 4):
         resp = requests.post(url, timeout=300, **kwargs)
-        if resp.status_code != 503:
+        if resp.status_code not in (503, 429):
             return resp
         wait = backoff * attempt
-        logger.warning("HF model loading (503) — retrying in %ds (attempt %d/3)", wait, attempt)
+        logger.warning(
+            "HF Inference status %d (attempt %d/3) — retrying in %ds...",
+            resp.status_code,
+            attempt,
+            wait,
+        )
         time.sleep(wait)
-    return resp  # return last response even if still 503
+    return resp if resp is not None else requests.post(url, timeout=300, **kwargs)
 
 
 def _require_openai():
@@ -62,15 +181,164 @@ def _require_openai():
 
 
 # ---------------------------------------------------------------------------
+# Chunking for Long Audio
+# ---------------------------------------------------------------------------
+
+def _get_wav_duration_seconds(path: Path) -> Optional[float]:
+    """Return WAV duration in seconds using standard library wave, or None if not WAV."""
+    try:
+        with wave.open(str(path), "rb") as wf:
+            frames = wf.getnframes()
+            rate = wf.getframerate()
+            if rate <= 0:
+                return None
+            return float(frames) / float(rate)
+    except Exception:
+        return None
+
+
+def _chunk_wav_file(
+    path: Path,
+    chunk_duration_sec: float = 300.0,
+    overlap_sec: float = 2.0,
+) -> List[Tuple[Path, float]]:
+    """
+    Split a WAV file into smaller temporal chunks with overlap.
+    Returns list of (temp_chunk_path, start_offset_seconds).
+    Caller is responsible for cleaning up temporary files.
+    """
+    chunks: List[Tuple[Path, float]] = []
+    try:
+        with wave.open(str(path), "rb") as wf:
+            params = wf.getparams()
+            framerate = params.framerate
+            nframes = params.nframes
+            sampwidth = params.sampwidth
+            nchannels = params.nchannels
+
+            if framerate <= 0 or nframes <= 0:
+                return [(path, 0.0)]
+
+            total_duration = float(nframes) / float(framerate)
+            if total_duration <= chunk_duration_sec:
+                return [(path, 0.0)]
+
+            chunk_frames = int(chunk_duration_sec * framerate)
+            step_frames = int((chunk_duration_sec - overlap_sec) * framerate)
+            if step_frames <= 0:
+                step_frames = chunk_frames
+
+            curr_frame = 0
+            while curr_frame < nframes:
+                wf.setpos(curr_frame)
+                frames_to_read = min(chunk_frames, nframes - curr_frame)
+                audio_data = wf.readframes(frames_to_read)
+
+                tmp_chunk = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+                with wave.open(tmp_chunk.name, "wb") as cwf:
+                    cwf.setnchannels(nchannels)
+                    cwf.setsampwidth(sampwidth)
+                    cwf.setframerate(framerate)
+                    cwf.writeframes(audio_data)
+
+                offset_sec = float(curr_frame) / float(framerate)
+                chunks.append((Path(tmp_chunk.name), offset_sec))
+
+                curr_frame += step_frames
+                if curr_frame >= nframes:
+                    break
+
+        return chunks
+    except Exception as exc:
+        logger.warning("Could not chunk WAV file (%s). Falling back to single pass: %s", path, exc)
+        return [(path, 0.0)]
+
+
+def _merge_chunk_segments(
+    chunk_results: List[Tuple[List[TranscriptSegment], float]]
+) -> List[TranscriptSegment]:
+    """
+    Merge segments across temporal chunks, adjusting timestamps by chunk offsets
+    and deduplicating overlapping boundary segments.
+    """
+    merged: List[TranscriptSegment] = []
+    for segments, offset in chunk_results:
+        for seg in segments:
+            shifted_start = round(seg.start_time + offset, 3)
+            shifted_end = round(seg.end_time + offset, 3)
+
+            # Check boundary overlap with previously accepted segment
+            if merged:
+                last_seg = merged[-1]
+                # If exact duplicate text within overlap window, skip
+                if (
+                    last_seg.text.strip().lower() == seg.text.strip().lower()
+                    and abs(shifted_start - last_seg.start_time) < 3.0
+                ):
+                    continue
+                # If end time is before last start, avoid retrograding
+                if shifted_end <= last_seg.start_time:
+                    continue
+
+            # Update segment timestamps with absolute global timing
+            seg.start_time = shifted_start
+            seg.end_time = max(shifted_end, shifted_start + 0.1)
+            merged.append(seg)
+
+    return merged
+
+
+# ---------------------------------------------------------------------------
 # Transcription
 # ---------------------------------------------------------------------------
 
-def transcribe(audio_path: str, language: Optional[str] = None) -> List[TranscriptSegment]:
-    """Transcribe *audio_path* using the configured transcription provider."""
+def transcribe(
+    audio_path: str,
+    language: Optional[str] = None,
+    allow_chunking: bool = True,
+) -> List[TranscriptSegment]:
+    """
+    Transcribe *audio_path* using the configured transcription provider.
+    Handles long audio chunking with timestamp offsets, language support evaluation,
+    silence, and metadata preservation.
+    """
     path = Path(audio_path)
     if not path.is_file():
         raise FileNotFoundError(f"Audio file does not exist: {audio_path}")
 
+    # Check for empty audio file
+    if path.stat().st_size == 0:
+        logger.info("Audio file is 0 bytes; returning empty transcript.")
+        return []
+
+    # Evaluate requested language support
+    lang_info = evaluate_language_support(language)
+    logger.info("ASR language evaluation: %s", lang_info)
+
+    # Check audio duration and chunk if needed
+    duration = _get_wav_duration_seconds(path)
+    if allow_chunking and duration and duration > 300.0:
+        logger.info("Long audio detected (%.1fs > 300s). Chunking audio with overlap...", duration)
+        chunks = _chunk_wav_file(path, chunk_duration_sec=300.0, overlap_sec=2.0)
+        chunk_results: List[Tuple[List[TranscriptSegment], float]] = []
+        try:
+            for chunk_path, offset in chunks:
+                segs = _transcribe_single_audio(chunk_path, language)
+                chunk_results.append((segs, offset))
+            return _merge_chunk_segments(chunk_results)
+        finally:
+            for chunk_path, _ in chunks:
+                if chunk_path != path:
+                    try:
+                        chunk_path.unlink(missing_ok=True)
+                    except OSError:
+                        pass
+
+    return _transcribe_single_audio(path, language)
+
+
+def _transcribe_single_audio(path: Path, language: Optional[str]) -> List[TranscriptSegment]:
+    """Transcribe single audio chunk using configured provider."""
     provider = settings.transcription_provider.lower()
 
     if provider == "huggingface":
@@ -105,20 +373,24 @@ def _transcribe_huggingface(path: Path, language: Optional[str]) -> List[Transcr
             f"HF transcription API error {resp.status_code}: {resp.text[:500]}"
         )
 
-    return _parse_hf_transcription_response(resp.json())
+    return _parse_hf_transcription_response(resp.json(), fallback_language=language)
 
 
-def _parse_hf_transcription_response(data: Any) -> List[TranscriptSegment]:
+def _parse_hf_transcription_response(
+    data: Any,
+    fallback_language: Optional[str] = None,
+) -> List[TranscriptSegment]:
     """
     Parse HF Whisper API response into TranscriptSegment list.
-
-    HF returns one of:
-      {"text": "...", "chunks": [{"timestamp": [0.0, 2.5], "text": "..."}, ...]}
-    or (older format):
-      {"text": "..."}  — no timestamp chunks
+    Preserves detected language, genuine confidence from avg_logprob,
+    word-level timestamps, and translated text if present.
     """
     segments: List[TranscriptSegment] = []
     try:
+        if isinstance(data, list) and len(data) > 0:
+            data = data[0]
+
+        top_level_lang = data.get("language") if isinstance(data, dict) else None
         chunks = data.get("chunks") if isinstance(data, dict) else None
 
         if chunks:
@@ -129,12 +401,41 @@ def _parse_hf_transcription_response(data: Any) -> List[TranscriptSegment]:
                     continue
                 start = float(ts[0]) if len(ts) > 0 and ts[0] is not None else 0.0
                 end = float(ts[1]) if len(ts) > 1 and ts[1] is not None else start + 1.0
-                segments.append(TranscriptSegment(start, end, text))
+                chunk_lang = chunk.get("language") or top_level_lang or fallback_language
+                raw_conf = chunk.get("avg_logprob", chunk.get("confidence", chunk.get("score")))
+                confidence = _extract_confidence(raw_conf)
+                translated_text = chunk.get("translated_text", chunk.get("translation"))
+                words = chunk.get("words")
+
+                segments.append(
+                    TranscriptSegment(
+                        start_time=start,
+                        end_time=end,
+                        text=text,
+                        language=chunk_lang,
+                        confidence=confidence,
+                        translated_text=translated_text,
+                        words=words,
+                    )
+                )
         else:
-            # No chunks — create a single segment for the whole transcript
+            # Single transcript without chunks
             full_text = (data.get("text", "") if isinstance(data, dict) else str(data)).strip()
             if full_text:
-                segments.append(TranscriptSegment(0.0, 0.0, full_text))
+                raw_conf = data.get("avg_logprob", data.get("confidence")) if isinstance(data, dict) else None
+                confidence = _extract_confidence(raw_conf)
+                detected_lang = top_level_lang or fallback_language
+                translated_text = data.get("translated_text", data.get("translation")) if isinstance(data, dict) else None
+                segments.append(
+                    TranscriptSegment(
+                        start_time=0.0,
+                        end_time=0.0,
+                        text=full_text,
+                        language=detected_lang,
+                        confidence=confidence,
+                        translated_text=translated_text,
+                    )
+                )
 
         logger.info("HF transcription produced %d segment(s).", len(segments))
     except Exception as exc:
@@ -151,11 +452,28 @@ def _transcribe_local(path: Path, language: Optional[str]) -> List[TranscriptSeg
         raise RuntimeError("Install openai-whisper and torch for local transcription") from exc
     model = whisper.load_model(settings.whisper_model)
     result = model.transcribe(str(path), language=language, verbose=False)
-    return [
-        TranscriptSegment(float(item["start"]), float(item["end"]), item["text"].strip())
-        for item in result.get("segments", [])
-        if item.get("text", "").strip()
-    ]
+    detected_lang = result.get("language")
+    segments = []
+    for item in result.get("segments", []):
+        text = item.get("text", "").strip()
+        if not text:
+            continue
+        start = float(item.get("start", 0.0))
+        end = float(item.get("end", start + 1.0))
+        raw_logprob = item.get("avg_logprob")
+        conf = _extract_confidence(raw_logprob)
+        words = item.get("words")
+        segments.append(
+            TranscriptSegment(
+                start_time=start,
+                end_time=end,
+                text=text,
+                language=detected_lang,
+                confidence=conf,
+                words=words,
+            )
+        )
+    return segments
 
 
 def _transcribe_openai(path: Path, language: Optional[str]) -> List[TranscriptSegment]:
@@ -166,13 +484,30 @@ def _transcribe_openai(path: Path, language: Optional[str]) -> List[TranscriptSe
             file=audio,
             language=language,
             response_format="verbose_json",
-            timestamp_granularities=["segment"],
+            timestamp_granularities=["segment", "word"],
         )
-    return [
-        TranscriptSegment(float(item.start), float(item.end), item.text.strip())
-        for item in getattr(response, "segments", [])
-        if getattr(item, "text", "").strip()
-    ]
+    detected_lang = getattr(response, "language", None)
+    segments = []
+    for item in getattr(response, "segments", []):
+        text = getattr(item, "text", "").strip()
+        if not text:
+            continue
+        start = float(getattr(item, "start", 0.0))
+        end = float(getattr(item, "end", start + 1.0))
+        raw_logprob = getattr(item, "avg_logprob", None)
+        conf = _extract_confidence(raw_logprob)
+        words = getattr(item, "words", None)
+        segments.append(
+            TranscriptSegment(
+                start_time=start,
+                end_time=end,
+                text=text,
+                language=detected_lang,
+                confidence=conf,
+                words=words,
+            )
+        )
+    return segments
 
 
 # ---------------------------------------------------------------------------

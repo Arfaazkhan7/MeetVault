@@ -9,15 +9,18 @@ class RecordingUploadResponse(BaseModel):
     meeting_id: str
     company_id: Optional[str] = None
     uploaded_by_user_id: str
-    storage_backend: str
-    storage_bucket: str
-    storage_path: str
-    original_filename: str
-    file_type: str
-    file_size_bytes: int
-    duration_seconds: Optional[int]
+    storage_backend: str = "supabase"
+    storage_bucket: Optional[str] = None
+    storage_path: Optional[str] = None
+    original_filename: Optional[str] = None
+    file_type: Optional[str] = None
+    file_size_bytes: Optional[int] = 0
+    duration_seconds: Optional[int] = None
     processing_status: str
     ai_job_id: Optional[str] = None
+    session_id: Optional[str] = None
+    egress_id: Optional[str] = None
+    source: Optional[str] = None
     created_at: datetime
     model_config = {"from_attributes": True}
 
@@ -39,7 +42,7 @@ class RecordingStatusUpdateRequest(BaseModel):
     @field_validator("processing_status")
     @classmethod
     def validate_status(cls, value: str) -> str:
-        allowed = {"UPLOADED", "QUEUED", "PROCESSING", "COMPLETED", "FAILED"}
+        allowed = {"STARTING", "RECORDING", "FINALIZING", "UPLOADED", "QUEUED", "PROCESSING", "COMPLETED", "FAILED"}
         if value not in allowed:
             raise ValueError("Invalid processing status")
         return value
