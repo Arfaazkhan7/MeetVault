@@ -43,6 +43,7 @@ class AppRouter {
   static const String joinMeeting = '/join';
   static const String participants = '/meetings/:id/participants';
   static const String transcript = '/meetings/:id/transcript';
+  static const String vault = '/meetings/:id/vault';
   static const String summary = '/meetings/:id/summary';
   static const String topics = '/meetings/:id/topics';
   static const String decisions = '/meetings/:id/decisions';
@@ -267,7 +268,7 @@ class AppRouter {
               builder: (context) => ParticipantsScreen(meetingId: meetingId),
               settings: settings,
             );
-          } else if (sub == 'transcript') {
+          } else if (sub == 'transcript' || sub == 'vault') {
             final args = settings.arguments is Map<String, dynamic>
                 ? settings.arguments as Map<String, dynamic>
                 : null;

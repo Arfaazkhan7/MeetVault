@@ -72,13 +72,18 @@ class UpdateParticipantStatusRequest(BaseModel):
 
 
 class MeetingParticipantResponse(BaseModel):
-    user_public_id: str
+    user_public_id: Optional[str] = None
+    participant_id: Optional[str] = None
     meeting_id: str
     role: str
     status: str
     join_time: Optional[datetime] = None
     leave_time: Optional[datetime] = None
     attendance_duration_seconds: Optional[int] = None
+    livekit_identity: Optional[str] = None
+    identity_mapping_status: Optional[str] = "unmapped"
+    is_guest: Optional[bool] = False
+    display_name: Optional[str] = None
 
     # Joined fields
     email: Optional[str] = None
@@ -88,6 +93,11 @@ class MeetingParticipantResponse(BaseModel):
 
 class JoinByInviteCodeRequest(BaseModel):
     invite_code: str
+
+
+class GuestJoinMeetingRequest(BaseModel):
+    display_name: str
+    invite_code: Optional[str] = None
 
 
 class MeetingStartResponse(BaseModel):

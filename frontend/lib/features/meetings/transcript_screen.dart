@@ -8,6 +8,10 @@ class TranscriptSegment {
   final String? segmentId;
   final String? recordingId;
   final String speakerLabel;
+  final String? speakerUserId;
+  final String? userId;
+  final String? participantId;
+  final String attributionStatus;
   final double startTime;
   final double endTime;
   final String text;
@@ -21,6 +25,10 @@ class TranscriptSegment {
     this.segmentId,
     this.recordingId,
     required this.speakerLabel,
+    this.speakerUserId,
+    this.userId,
+    this.participantId,
+    this.attributionStatus = 'unknown',
     required this.startTime,
     required this.endTime,
     required this.text,
@@ -31,11 +39,27 @@ class TranscriptSegment {
     this.speakerConfirmed = false,
   });
 
+  bool get isConfirmed =>
+      attributionStatus.toLowerCase() == 'confirmed' || speakerConfirmed;
+
+  bool get isUnknown =>
+      attributionStatus.toLowerCase() == 'unknown' ||
+      attributionStatus.toLowerCase() == 'unconfirmed' ||
+      (speakerUserId == null && (userName == null || userName!.trim().isEmpty));
+
   factory TranscriptSegment.fromJson(Map<String, dynamic> json) {
+    final speakerUid = json['speaker_user_id']?.toString() ?? json['user_id']?.toString();
+    final isConf = json['speaker_confirmed'] == true;
+    final attrStatus = (json['attribution_status'] ?? (isConf ? 'confirmed' : 'unknown')).toString();
+
     return TranscriptSegment(
       segmentId: json['segment_id']?.toString(),
       recordingId: json['recording_id']?.toString(),
       speakerLabel: json['speaker_label'] ?? 'Speaker',
+      speakerUserId: speakerUid,
+      userId: speakerUid,
+      participantId: json['participant_id']?.toString(),
+      attributionStatus: attrStatus,
       startTime: (json['start_time'] is num) ? (json['start_time'] as num).toDouble() : 0.0,
       endTime: (json['end_time'] is num) ? (json['end_time'] as num).toDouble() : 0.0,
       text: json['text'] ?? '',
@@ -43,7 +67,39 @@ class TranscriptSegment {
       language: json['language'],
       confidence: (json['confidence'] is num) ? (json['confidence'] as num).toDouble() : null,
       userName: json['user_name'],
-      speakerConfirmed: json['speaker_confirmed'] ?? false,
+      speakerConfirmed: isConf,
+    );
+  }
+}
+
+class MeetingParticipantItem {
+  final String? userPublicId;
+  final String? participantId;
+  final String name;
+  final String? email;
+  final String role;
+
+  MeetingParticipantItem({
+    this.userPublicId,
+    this.participantId,
+    required this.name,
+    this.email,
+    required this.role,
+  });
+
+  factory MeetingParticipantItem.fromJson(Map<String, dynamic> json) {
+    final name = json['full_name']?.toString() ??
+        json['display_name']?.toString() ??
+        json['name']?.toString() ??
+        json['email']?.toString() ??
+        json['user_public_id']?.toString() ??
+        'Participant';
+    return MeetingParticipantItem(
+      userPublicId: json['user_public_id']?.toString() ?? json['user_id']?.toString(),
+      participantId: json['participant_id']?.toString() ?? json['id']?.toString(),
+      name: name,
+      email: json['email']?.toString(),
+      role: json['role']?.toString() ?? 'ATTENDEE',
     );
   }
 }
@@ -64,11 +120,18 @@ class TranscriptScreen extends StatefulWidget {
 
 class _TranscriptScreenState extends State<TranscriptScreen> {
   List<TranscriptSegment> _segments = [];
+  List<MeetingParticipantItem> _participants = [];
+  Map<String, dynamic>? _meetingMetadata;
+
   bool _isLoading = true;
   String? _errorMessage;
   int? _errorStatusCode;
   String _transcriptionStatus = 'unknown';
   String? _transcriptionError;
+
+  // Speaker Filtering State
+  String? _selectedSpeakerUserId; // null means 'All Speakers'
+  bool _filterUnknownOnly = false;
 
   @override
   void initState() {
@@ -86,7 +149,28 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
     try {
       final api = ApiService();
 
-      // 1. Fetch transcription processing status
+      // 1. Fetch meeting metadata (optional, best-effort)
+      try {
+        final mtgResp = await api.get('/meetings/${widget.meetingId}');
+        if (mtgResp.statusCode == 200) {
+          _meetingMetadata = json.decode(mtgResp.body);
+        }
+      } catch (_) {}
+
+      // 2. Fetch authenticated participant list (scoped to meeting)
+      try {
+        final partsResp = await api.get('/meetings/${widget.meetingId}/participants');
+        if (partsResp.statusCode == 200) {
+          final dynamic partsData = json.decode(partsResp.body);
+          if (partsData is List) {
+            _participants = partsData
+                .map((p) => MeetingParticipantItem.fromJson(p as Map<String, dynamic>))
+                .toList();
+          }
+        }
+      } catch (_) {}
+
+      // 3. Fetch transcription processing status
       final statusResp = await api.get('/transcripts/meetings/${widget.meetingId}/status');
 
       if (statusResp.statusCode == 401) {
@@ -136,8 +220,8 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
       _transcriptionStatus = status;
       _transcriptionError = err;
 
-      // 2. If status is completed (or has segments), fetch the segments
-      if (status == 'completed') {
+      // 4. Fetch the segments from the backend
+      if (status == 'completed' || status == 'partial') {
         final transcriptResp = await api.get('/transcripts/meetings/${widget.meetingId}');
         if (transcriptResp.statusCode == 200) {
           final data = json.decode(transcriptResp.body);
@@ -218,6 +302,20 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Filtering & Display Helpers
+  // ---------------------------------------------------------------------------
+
+  List<TranscriptSegment> get _filteredSegments {
+    if (_filterUnknownOnly) {
+      return _segments.where((s) => s.isUnknown).toList();
+    }
+    if (_selectedSpeakerUserId != null) {
+      return _segments.where((s) => s.speakerUserId == _selectedSpeakerUserId).toList();
+    }
+    return _segments;
+  }
+
   String _formatTime(double seconds) {
     if (seconds < 0) seconds = 0;
     final totalSecs = seconds.floor();
@@ -230,6 +328,9 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
     if (segment.userName != null && segment.userName!.trim().isNotEmpty) {
       return segment.userName!.trim();
     }
+    if (segment.isUnknown) {
+      return '${segment.speakerLabel} (Unconfirmed)';
+    }
     return segment.speakerLabel;
   }
 
@@ -237,6 +338,33 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
     if (confidence >= 0.85) return const Color(0xFF16A34A);
     if (confidence >= 0.65) return const Color(0xFFD97706);
     return const Color(0xFFDC2626);
+  }
+
+  String get _title {
+    if (widget.meetingTitle != null && widget.meetingTitle!.isNotEmpty) {
+      return widget.meetingTitle!;
+    }
+    final metaTitle = _meetingMetadata?['title'] as String?;
+    if (metaTitle != null && metaTitle.isNotEmpty) {
+      return metaTitle;
+    }
+    return 'Meeting Vault';
+  }
+
+  String? get _meetingDate {
+    final raw = _meetingMetadata?['started_at'] ?? _meetingMetadata?['scheduled_start_time'];
+    if (raw == null) return null;
+    try {
+      final dt = DateTime.parse(raw.toString()).toLocal();
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      final month = months[dt.month - 1];
+      final day = dt.day.toString().padLeft(2, '0');
+      final hour = dt.hour.toString().padLeft(2, '0');
+      final minute = dt.minute.toString().padLeft(2, '0');
+      return '$month $day, ${dt.year} • $hour:$minute';
+    } catch (_) {
+      return raw.toString();
+    }
   }
 
   @override
@@ -247,20 +375,29 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              widget.meetingTitle ?? 'Meeting Transcript',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Row(
+              children: [
+                const Icon(Icons.shield_outlined, size: 20, color: Color(0xFF2563EB)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _title,
+                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
             Text(
-              'ID: ${widget.meetingId}',
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
+              'ID: ${widget.meetingId}${_meetingDate != null ? ' • $_meetingDate' : ''}',
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
             ),
           ],
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh Transcript',
+            tooltip: 'Refresh Vault',
             onPressed: _isLoading ? null : _loadTranscript,
           ),
         ],
@@ -373,7 +510,7 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
               ),
               const SizedBox(height: 20),
               const Text(
-                'Unable to Load Transcript',
+                'Unable to Load Vault',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
               ),
               const SizedBox(height: 8),
@@ -397,19 +534,20 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
     // Queued / Processing / Pending States
     if (_transcriptionStatus == 'pending' ||
         _transcriptionStatus == 'queued' ||
-        _transcriptionStatus == 'processing') {
+        _transcriptionStatus == 'processing' ||
+        _transcriptionStatus == 'waiting') {
       final isQueued = _transcriptionStatus == 'queued';
-      final isPending = _transcriptionStatus == 'pending';
+      final isPending = _transcriptionStatus == 'pending' || _transcriptionStatus == 'waiting';
       final title = isPending
-          ? 'Transcription Pending'
+          ? 'Waiting for Transcription'
           : isQueued
               ? 'Transcription Queued'
               : 'Transcribing Audio...';
       final subtitle = isPending
-          ? 'Audio is queued for processing. When processing starts, recognized speech will appear here.'
+          ? 'Meeting audio is queued. Recognized transcript segments will appear here as soon as processing completes.'
           : isQueued
-              ? 'Recording is in queue for the speech recognition worker.'
-              : 'AI is recognizing multilingual speech and speaker diarization. Please stand by.';
+              ? 'Recording is in queue for speech recognition processing.'
+              : 'AI is processing speech and speaker diarization. Zero audio will be permanently stored.';
 
       return Center(
         child: Padding(
@@ -460,206 +598,527 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
       );
     }
 
-    // Empty Transcript State
+    // Empty Transcript State (No Speech Detected)
     if (_segments.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: const BoxDecoration(color: Color(0xFFF1F5F9), shape: BoxShape.circle),
-                child: const Icon(Icons.record_voice_over_outlined, size: 48, color: Color(0xFF94A3B8)),
+      return Column(
+        children: [
+          _buildAiQuickLinksBar(),
+          Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: const BoxDecoration(color: Color(0xFFF1F5F9), shape: BoxShape.circle),
+                      child: const Icon(Icons.record_voice_over_outlined, size: 48, color: Color(0xFF94A3B8)),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'No Speech Detected',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Transcription completed, but no spoken audio segments were detected for this meeting.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 14, color: Color(0xFF64748B)),
+                    ),
+                    const SizedBox(height: 24),
+                    OutlinedButton.icon(
+                      onPressed: _loadTranscript,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Check Again'),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 20),
-              const Text(
-                'No Transcript Segments Found',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'No speech was detected or recorded for this meeting.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: Color(0xFF64748B)),
-              ),
-              const SizedBox(height: 24),
-              OutlinedButton.icon(
-                onPressed: _loadTranscript,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Check Again'),
-              ),
-            ],
+            ),
           ),
-        ),
+        ],
       );
     }
 
-    // Completed Transcript List - Virtualized for Long Transcripts
+    final filtered = _filteredSegments;
+
+    // Completed Transcript with Speaker Filters & AI Quick Links
     return RefreshIndicator(
       onRefresh: _loadTranscript,
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        itemCount: _segments.length,
-        itemBuilder: (context, index) {
-          final segment = _segments[index];
-          final speakerDisplay = _getSpeakerDisplay(segment);
-          final hasUserMapping = segment.userName != null && segment.userName!.trim().isNotEmpty;
-          final hasTranslation = segment.translatedText != null &&
-              segment.translatedText!.trim().isNotEmpty &&
-              segment.translatedText!.trim() != segment.text.trim();
+      child: Column(
+        children: [
+          // AI Intelligence Quick Access Toolbar
+          _buildAiQuickLinksBar(),
 
-          return Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-              side: const BorderSide(color: Color(0xFFE2E8F0)),
-            ),
-            color: Colors.white,
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header Row: Speaker, Time Range, Language, Confidence
-                  Row(
-                    children: [
-                      // Speaker Label Chip
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: hasUserMapping ? const Color(0xFFECFDF5) : const Color(0xFFEFF6FF),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: hasUserMapping ? const Color(0xFFA7F3D0) : const Color(0xFFBFDBFE),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              hasUserMapping ? Icons.person : Icons.mic_none,
-                              size: 13,
-                              color: hasUserMapping ? const Color(0xFF047857) : const Color(0xFF1D4ED8),
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              speakerDisplay,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: hasUserMapping ? const Color(0xFF047857) : const Color(0xFF1D4ED8),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 10),
+          // Speaker Filter Bar
+          _buildSpeakerFilterBar(),
 
-                      // Timestamp Range
-                      Text(
-                        '${_formatTime(segment.startTime)} – ${_formatTime(segment.endTime)}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF64748B),
-                        ),
-                      ),
-                      const Spacer(),
+          // Active Filter Banner (if filtered)
+          if (_selectedSpeakerUserId != null || _filterUnknownOnly)
+            _buildActiveFilterBanner(),
 
-                      // Detected Language Tag (if available)
-                      if (segment.language != null && segment.language!.isNotEmpty) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: const Color(0xFFCBD5E1)),
-                          ),
-                          child: Text(
-                            segment.language!.toUpperCase(),
-                            style: const TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF475569),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                      ],
-
-                      // Confidence Badge (if available)
-                      if (segment.confidence != null)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: _getConfidenceColor(segment.confidence!).withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: _getConfidenceColor(segment.confidence!).withOpacity(0.3),
-                            ),
-                          ),
-                          child: Text(
-                            '${(segment.confidence! * 100).toStringAsFixed(0)}%',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: _getConfidenceColor(segment.confidence!),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-
-                  // Original Recognized Speech Text
-                  SelectableText(
-                    segment.text,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      height: 1.45,
-                      color: Color(0xFF1E293B),
-                    ),
-                  ),
-
-                  // Optional Translated Text Callout
-                  if (hasTranslation) ...[
-                    const SizedBox(height: 10),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+          // Transcript Segments List
+          Expanded(
+            child: filtered.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.translate, size: 14, color: Color(0xFF64748B)),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: SelectableText(
-                              segment.translatedText!,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontStyle: FontStyle.italic,
-                                color: Color(0xFF334155),
-                                height: 1.4,
-                              ),
-                            ),
+                          const Icon(Icons.filter_list_off, size: 36, color: Color(0xFF94A3B8)),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'No segments found for this speaker.',
+                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
+                          ),
+                          const SizedBox(height: 12),
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _selectedSpeakerUserId = null;
+                                _filterUnknownOnly = false;
+                              });
+                            },
+                            child: const Text('Show All Speakers'),
                           ),
                         ],
                       ),
                     ),
-                  ],
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final segment = filtered[index];
+                      return _buildSegmentCard(segment);
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Sub-widgets
+  // ---------------------------------------------------------------------------
+
+  Widget _buildAiQuickLinksBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _buildNavChip(
+              icon: Icons.summarize_outlined,
+              label: 'AI Summary',
+              color: const Color(0xFF7C3AED),
+              onTap: () => Navigator.pushNamed(
+                context,
+                AppRouter.summary,
+                arguments: {'id': widget.meetingId, 'title': _title},
+              ),
+            ),
+            const SizedBox(width: 8),
+            _buildNavChip(
+              icon: Icons.topic_outlined,
+              label: 'Topics',
+              color: const Color(0xFFD97706),
+              onTap: () => Navigator.pushNamed(
+                context,
+                AppRouter.topics,
+                arguments: {'id': widget.meetingId, 'title': _title},
+              ),
+            ),
+            const SizedBox(width: 8),
+            _buildNavChip(
+              icon: Icons.gavel_outlined,
+              label: 'Decisions',
+              color: const Color(0xFF4F46E5),
+              onTap: () => Navigator.pushNamed(
+                context,
+                AppRouter.decisions,
+                arguments: {'id': widget.meetingId, 'title': _title},
+              ),
+            ),
+            const SizedBox(width: 8),
+            _buildNavChip(
+              icon: Icons.assignment_turned_in_outlined,
+              label: 'Action Items',
+              color: const Color(0xFF059669),
+              onTap: () => Navigator.pushNamed(
+                context,
+                AppRouter.tasks,
+                arguments: {'id': widget.meetingId, 'title': _title},
+              ),
+            ),
+            const SizedBox(width: 8),
+            _buildNavChip(
+              icon: Icons.groups_outlined,
+              label: 'Participants (${_participants.length})',
+              color: const Color(0xFF2563EB),
+              onTap: () => Navigator.pushNamed(
+                context,
+                AppRouter.participants,
+                arguments: {'id': widget.meetingId},
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavChip({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withOpacity(0.25)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSpeakerFilterBar() {
+    final bool isAllSelected = _selectedSpeakerUserId == null && !_filterUnknownOnly;
+    final int unknownCount = _segments.where((s) => s.isUnknown).length;
+
+    // Collect distinct known participants from both participants endpoint and segment attributes
+    final Map<String, String> speakerOptions = {};
+    for (final p in _participants) {
+      if (p.userPublicId != null) {
+        speakerOptions[p.userPublicId!] = p.name;
+      }
+    }
+    for (final s in _segments) {
+      if (s.speakerUserId != null && !speakerOptions.containsKey(s.speakerUserId)) {
+        speakerOptions[s.speakerUserId!] = s.userName ?? s.speakerLabel;
+      }
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            // "All Speakers" Chip
+            FilterChip(
+              key: const Key('filter_all_speakers'),
+              label: Text('All Speakers (${_segments.length})'),
+              selected: isAllSelected,
+              onSelected: (selected) {
+                setState(() {
+                  _selectedSpeakerUserId = null;
+                  _filterUnknownOnly = false;
+                });
+              },
+              selectedColor: const Color(0xFFDBEAFE),
+              checkmarkColor: const Color(0xFF1D4ED8),
+              labelStyle: TextStyle(
+                fontSize: 12,
+                fontWeight: isAllSelected ? FontWeight.bold : FontWeight.w500,
+                color: isAllSelected ? const Color(0xFF1D4ED8) : const Color(0xFF334155),
+              ),
+            ),
+            const SizedBox(width: 8),
+
+            // Individual Participant Filter Chips
+            ...speakerOptions.entries.map((entry) {
+              final speakerId = entry.key;
+              final speakerName = entry.value;
+              final segCount = _segments.where((s) => s.speakerUserId == speakerId).length;
+              final isSelected = _selectedSpeakerUserId == speakerId;
+
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: FilterChip(
+                  key: Key('filter_speaker_$speakerId'),
+                  avatar: const Icon(Icons.person, size: 14),
+                  label: Text('$speakerName ($segCount)'),
+                  selected: isSelected,
+                  onSelected: (selected) {
+                    setState(() {
+                      _selectedSpeakerUserId = selected ? speakerId : null;
+                      _filterUnknownOnly = false;
+                    });
+                  },
+                  selectedColor: const Color(0xFFECFDF5),
+                  checkmarkColor: const Color(0xFF047857),
+                  labelStyle: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                    color: isSelected ? const Color(0xFF047857) : const Color(0xFF334155),
+                  ),
+                ),
+              );
+            }),
+
+            // "Unconfirmed / Unknown" Chip (if present)
+            if (unknownCount > 0)
+              FilterChip(
+                key: const Key('filter_unknown_speakers'),
+                avatar: const Icon(Icons.help_outline, size: 14, color: Color(0xFFB45309)),
+                label: Text('Unconfirmed ($unknownCount)'),
+                selected: _filterUnknownOnly,
+                onSelected: (selected) {
+                  setState(() {
+                    _filterUnknownOnly = selected;
+                    _selectedSpeakerUserId = null;
+                  });
+                },
+                selectedColor: const Color(0xFFFEF3C7),
+                checkmarkColor: const Color(0xFFB45309),
+                labelStyle: TextStyle(
+                  fontSize: 12,
+                  fontWeight: _filterUnknownOnly ? FontWeight.bold : FontWeight.w500,
+                  color: _filterUnknownOnly ? const Color(0xFFB45309) : const Color(0xFF334155),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActiveFilterBanner() {
+    String filterLabel = 'Unknown Speakers';
+    if (_selectedSpeakerUserId != null) {
+      final part = _participants.firstWhere(
+        (p) => p.userPublicId == _selectedSpeakerUserId,
+        orElse: () => MeetingParticipantItem(name: 'Selected Speaker', role: ''),
+      );
+      filterLabel = part.name;
+    }
+
+    return Container(
+      width: double.infinity,
+      color: const Color(0xFFEFF6FF),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Row(
+        children: [
+          const Icon(Icons.filter_alt, size: 14, color: Color(0xFF2563EB)),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'Showing speech by: $filterLabel (${_filteredSegments.length} segments)',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF1E40AF)),
+            ),
+          ),
+          InkWell(
+            onTap: () {
+              setState(() {
+                _selectedSpeakerUserId = null;
+                _filterUnknownOnly = false;
+              });
+            },
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              child: Row(
+                children: [
+                  Icon(Icons.close, size: 13, color: Color(0xFF1E40AF)),
+                  SizedBox(width: 2),
+                  Text('Show All', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1E40AF))),
                 ],
               ),
             ),
-          );
-        },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSegmentCard(TranscriptSegment segment) {
+    final speakerDisplay = _getSpeakerDisplay(segment);
+    final isConfirmed = segment.isConfirmed;
+    final hasTranslation = segment.translatedText != null &&
+        segment.translatedText!.trim().isNotEmpty &&
+        segment.translatedText!.trim() != segment.text.trim();
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFE2E8F0)),
+      ),
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header Row: Speaker Label, Status Badge, Timestamp, Confidence
+            Row(
+              children: [
+                // Speaker Chip
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: isConfirmed ? const Color(0xFFECFDF5) : const Color(0xFFFFFBEB),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: isConfirmed ? const Color(0xFFA7F3D0) : const Color(0xFFFDE68A),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isConfirmed ? Icons.person : Icons.mic_none,
+                        size: 13,
+                        color: isConfirmed ? const Color(0xFF047857) : const Color(0xFFB45309),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        speakerDisplay,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: isConfirmed ? const Color(0xFF047857) : const Color(0xFFB45309),
+                        ),
+                      ),
+                      if (isConfirmed) ...[
+                        const SizedBox(width: 4),
+                        const Icon(Icons.check_circle, size: 11, color: Color(0xFF047857)),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+
+                // Timestamp Range
+                Text(
+                  '${_formatTime(segment.startTime)} – ${_formatTime(segment.endTime)}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+                const Spacer(),
+
+                // Detected Language Tag
+                if (segment.language != null && segment.language!.isNotEmpty) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFFCBD5E1)),
+                    ),
+                    child: Text(
+                      segment.language!.toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF475569),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                ],
+
+                // Confidence Percentage
+                if (segment.confidence != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: _getConfidenceColor(segment.confidence!).withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: _getConfidenceColor(segment.confidence!).withOpacity(0.3),
+                      ),
+                    ),
+                    child: Text(
+                      '${(segment.confidence! * 100).toStringAsFixed(0)}%',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: _getConfidenceColor(segment.confidence!),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // Transcript Text
+            SelectableText(
+              segment.text,
+              style: const TextStyle(
+                fontSize: 15,
+                height: 1.45,
+                color: Color(0xFF1E293B),
+              ),
+            ),
+
+            // Optional Translated Text Callout
+            if (hasTranslation) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.translate, size: 14, color: Color(0xFF64748B)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: SelectableText(
+                        segment.translatedText!,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontStyle: FontStyle.italic,
+                          color: Color(0xFF334155),
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

@@ -32,14 +32,17 @@ def room_name_for_meeting(meeting: Meeting) -> str:
     return f"meeting-{meeting.public_id}"
 
 
-def participant_identity(user: User, participant: MeetingParticipant) -> str:
-    return f"{user.public_id}:{participant.id}"
+def participant_identity(user: User | None, participant: MeetingParticipant) -> str:
+    if user and getattr(user, "public_id", None):
+        return f"{user.public_id}:{participant.id}"
+    return f"guest:{participant.id}"
 
 
 def generate_meeting_token(
     meeting: Meeting,
-    user: User,
+    user: User | None,
     participant: MeetingParticipant,
+    display_name: str | None = None,
 ) -> tuple[str, datetime]:
     _validate_livekit_config()
     
@@ -47,14 +50,30 @@ def generate_meeting_token(
         minutes=settings.LIVEKIT_TOKEN_EXPIRE_MINUTES
     )
     room_name = room_name_for_meeting(meeting)
+    identity_str = participant_identity(user, participant)
+    
+    # Persist livekit_identity and mapping status on participant record
+    participant.livekit_identity = identity_str
+    if user and getattr(user, "public_id", None):
+        participant.identity_mapping_status = "verified"
+    else:
+        participant.identity_mapping_status = "guest"
+        participant.is_guest = True
+        if display_name and not participant.display_name:
+            participant.display_name = display_name
+
+    name_str = (
+        user.full_name if (user and user.full_name)
+        else (display_name or participant.display_name or "Guest")
+    )
     
     token = AccessToken(
         settings.LIVEKIT_API_KEY,
         settings.LIVEKIT_API_SECRET
     ).with_identity(
-        participant_identity(user, participant)
+        identity_str
     ).with_name(
-        user.full_name
+        name_str
     ).with_grants(
         VideoGrants(
             room_join=True,
@@ -65,10 +84,12 @@ def generate_meeting_token(
         )
     ).with_metadata(
         json.dumps({
-            "user_public_id": user.public_id,
+            "user_public_id": user.public_id if user else None,
             "meeting_id": meeting.public_id,
             "participant_id": str(participant.id),
             "role": participant.role,
+            "is_guest": participant.is_guest,
+            "identity_mapping_status": participant.identity_mapping_status,
         })
     )
     # the TTL for livekit SDK tokens

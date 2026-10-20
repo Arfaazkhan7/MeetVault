@@ -15,6 +15,15 @@ class FakeStorageService:
     def download_private_file(self, *, path: str) -> bytes:
         return self.objects[path]["content"]
 
+    def delete_private_file(self, *, path: str) -> bool:
+        if path in self.objects:
+            del self.objects[path]
+            return True
+        return False
+
+    def file_exists(self, *, path: str) -> bool:
+        return path in self.objects
+
 
 fake_storage = FakeStorageService()
 

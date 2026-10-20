@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -61,6 +61,11 @@ def _serialize_recording(recording: MeetingRecording) -> dict:
         "egress_id": getattr(recording, "egress_id", None),
         "source": getattr(recording, "source", None),
         "ai_job_id": getattr(recording, "ai_job_id", None),
+        "is_audio_purged": getattr(recording, "is_audio_purged", False),
+        "audio_purged_at": getattr(recording, "audio_purged_at", None),
+        "retention_policy": getattr(recording, "retention_policy", "ephemeral_transcript_only"),
+        "cleanup_error": getattr(recording, "cleanup_error", None),
+        "cleanup_retry_count": getattr(recording, "cleanup_retry_count", 0),
         "created_at": recording.created_at,
     }
 
@@ -373,29 +378,46 @@ async def finalize_recording(
     db.flush()
 
     # ── 6. Automatic Transcription Job Dispatch ───────────────────────────
-    job = get_or_create_recording_ai_job(
-        db,
-        recording=recording,
-        requested_by=current_user,
-        provider=settings.LLM_PROVIDER,
-    )
-    db.commit()
-    db.refresh(recording)
+    try:
+        job = get_or_create_recording_ai_job(
+            db,
+            recording=recording,
+            requested_by=current_user,
+            provider=settings.LLM_PROVIDER,
+        )
+        db.commit()
+        db.refresh(recording)
 
-    _enqueue_ai_job(db, job.public_id)
+        _enqueue_ai_job(db, job.public_id)
 
-    logger.info(
-        "[RECORDING_FINALIZED_AND_DISPATCHED] recording_id=%s meeting_id=%s ai_job_id=%s bytes=%d duration=%s",
-        recording.id,
-        meeting.public_id,
-        job.public_id,
-        recording.file_size_bytes,
-        recording.duration_seconds,
-    )
+        logger.info(
+            "[RECORDING_FINALIZED_AND_DISPATCHED] recording_id=%s meeting_id=%s ai_job_id=%s bytes=%d duration=%s",
+            recording.id,
+            meeting.public_id,
+            job.public_id,
+            recording.file_size_bytes,
+            recording.duration_seconds,
+        )
 
-    payload = _serialize_recording(recording)
-    payload["ai_job_id"] = job.public_id
-    return payload
+        payload = _serialize_recording(recording)
+        payload["ai_job_id"] = job.public_id
+        return payload
+    except Exception as exc:
+        logger.error(
+            "[RECORDING_DISPATCH_FAILED] AI job enqueue failed for recording_id=%s: %s. Initiating emergency audio purge.",
+            recording.id,
+            exc,
+        )
+        recording.processing_status = RecordingProcessingStatus.FAILED.value
+        recording.processing_error = f"AI job dispatch failed: {exc}"
+        meeting.transcription_status = "failed"
+        meeting.transcription_error = recording.processing_error
+        db.commit()
+        purge_recording_audio(db, recording, storage)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Recording saved but AI processing dispatch failed: {exc}",
+        )
 
 
 async def create_recording_from_upload(
@@ -492,6 +514,11 @@ def create_recording_signed_url(
     storage: StorageService,
 ) -> dict:
     recording = get_recording_or_404(db, meeting, recording_id)
+    if getattr(recording, "is_audio_purged", False) or not recording.storage_path:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="Audio recording has been permanently purged in accordance with zero-retention transcript policy. Only transcript text is durably stored.",
+        )
     expires = settings.RECORDING_SIGNED_URL_EXPIRE_SECONDS
     return {
         "recording_id": str(recording.id),
@@ -501,6 +528,134 @@ def create_recording_signed_url(
         ),
         "expires_in_seconds": expires,
     }
+
+
+def purge_recording_audio(
+    db: Session,
+    recording: MeetingRecording,
+    storage: StorageService,
+) -> bool:
+    """
+    Purge meeting audio artifact permanently from storage and clear reference from database.
+    Enforces MeetVault's strict zero-retention policy for meeting audio.
+    CRITICAL: Only marks is_audio_purged = True and clears storage_path when deletion is verified.
+    If deletion fails, retains storage_path and records cleanup_error for bounded retry.
+    """
+    purged = False
+    if recording.storage_path:
+        path = recording.storage_path
+        deletion_confirmed = False
+        cleanup_err = None
+        try:
+            res = storage.delete_private_file(path=path)
+            if res is True:
+                deletion_confirmed = True
+            elif hasattr(storage, "file_exists") and not storage.file_exists(path=path):
+                # Object is confirmed gone (idempotent / already deleted)
+                deletion_confirmed = True
+            else:
+                cleanup_err = "Storage provider reported deletion failure (returned False)"
+        except Exception as exc:
+            cleanup_err = f"Storage deletion exception: {exc}"
+
+        if deletion_confirmed:
+            purged = True
+            recording.storage_path = None
+            recording.is_audio_purged = True
+            recording.audio_purged_at = datetime.now(timezone.utc)
+            recording.cleanup_error = None
+            logger.info("[AUDIO_PURGED] Verified removal of audio artifact %s from storage bucket", path)
+        else:
+            purged = False
+            recording.cleanup_error = cleanup_err
+            recording.cleanup_retry_count = (getattr(recording, "cleanup_retry_count", 0) or 0) + 1
+            logger.warning("[AUDIO_PURGE_ERROR] Could not delete %s: %s", path, cleanup_err)
+    elif recording.is_audio_purged:
+        purged = True
+
+    # Clear meeting.recording_url if it pointed to this recording
+    meeting = db.query(Meeting).filter(Meeting.public_id == recording.meeting_id).first()
+    if meeting and meeting.recording_url:
+        meeting.recording_url = None
+
+    db.commit()
+    db.refresh(recording)
+    return purged
+
+
+def reconcile_and_purge_orphaned_audio(
+    db: Session,
+    storage: StorageService,
+    max_age_minutes: int = 15,
+    max_retries: int = 5,
+) -> dict:
+    """
+    Reconciliation mechanism to discover and purge orphaned audio objects.
+    Targets recordings under ephemeral_transcript_only retention policy that:
+      - Still have a storage_path
+      - Have is_audio_purged == False
+      - Have completed/failed processing, missing AI jobs, or have timed out beyond max_age_minutes
+    Enforces bounded retries (cleanup_retry_count < max_retries).
+    """
+    now = datetime.now(timezone.utc)
+    threshold = now - timedelta(minutes=max_age_minutes)
+
+    unpurged_recordings = (
+        db.query(MeetingRecording)
+        .filter(
+            MeetingRecording.deleted_at.is_(None),
+            MeetingRecording.storage_path.isnot(None),
+            MeetingRecording.is_audio_purged.is_(False),
+            MeetingRecording.cleanup_retry_count < max_retries,
+        )
+        .all()
+    )
+
+    stats = {
+        "scanned": len(unpurged_recordings),
+        "purged": 0,
+        "failed": 0,
+        "skipped_active": 0,
+    }
+
+    for rec in unpurged_recordings:
+        job = (
+            db.query(AIJob)
+            .filter(
+                (AIJob.recording_id == str(rec.id)) | (AIJob.meeting_id == rec.meeting_id)
+            )
+            .order_by(AIJob.created_at.desc())
+            .first()
+        )
+
+        should_purge = False
+
+        if rec.processing_status in (RecordingProcessingStatus.COMPLETED.value, RecordingProcessingStatus.FAILED.value):
+            should_purge = True
+        elif not job:
+            if rec.created_at and rec.created_at <= threshold:
+                should_purge = True
+            else:
+                stats["skipped_active"] += 1
+                continue
+        else:
+            if job.status in ("COMPLETED", "FAILED"):
+                should_purge = True
+            elif job.created_at and job.created_at <= threshold:
+                should_purge = True
+            else:
+                stats["skipped_active"] += 1
+                continue
+
+        if should_purge:
+            logger.info("[ORPHAN_RECONCILIATION] Purging orphaned audio for recording_id=%s path=%s", rec.id, rec.storage_path)
+            success = purge_recording_audio(db, rec, storage)
+            if success:
+                stats["purged"] += 1
+            else:
+                stats["failed"] += 1
+
+    return stats
 
 
 def update_recording_status(
@@ -638,12 +793,14 @@ async def handle_livekit_webhook_event(
                 RecordingProcessingStatus.PROCESSING.value,
                 RecordingProcessingStatus.COMPLETED.value,
             ]
-            and recording.storage_path
+            and (recording.storage_path or recording.is_audio_purged)
         ):
             logger.info(
-                "[LIVEKIT_WEBHOOK_DUPLICATE_IGNORED] egress_id=%s already finalized with storage_path=%s",
+                "[LIVEKIT_WEBHOOK_DUPLICATE_IGNORED] egress_id=%s already finalized with status=%s storage_path=%s purged=%s",
                 egress_id,
+                recording.processing_status,
                 recording.storage_path,
+                recording.is_audio_purged,
             )
             return {
                 "status": "already_processed",
@@ -737,20 +894,53 @@ async def handle_livekit_webhook_event(
 
         # Enqueue AI Job ONLY after storage_path is committed
         if uploader:
-            job = get_or_create_recording_ai_job(
-                db,
-                recording=recording,
-                requested_by=uploader,
-                provider=settings.LLM_PROVIDER,
-            )
+            try:
+                job = get_or_create_recording_ai_job(
+                    db,
+                    recording=recording,
+                    requested_by=uploader,
+                    provider=settings.LLM_PROVIDER,
+                )
+                db.commit()
+                _enqueue_ai_job(db, job.public_id)
+                logger.info(
+                    "[LIVEKIT_EGRESS_FINALIZED_AND_DISPATCHED] recording_id=%s ai_job_id=%s storage_path=%s",
+                    recording.id,
+                    job.public_id,
+                    recording.storage_path,
+                )
+            except Exception as exc:
+                logger.error(
+                    "[LIVEKIT_EGRESS_DISPATCH_FAILED] Failed to enqueue AI job for recording_id=%s: %s. Initiating emergency audio purge.",
+                    recording.id,
+                    exc,
+                )
+                recording.processing_status = RecordingProcessingStatus.FAILED.value
+                recording.processing_error = f"AI job dispatch failed: {exc}"
+                if meeting:
+                    meeting.transcription_status = "failed"
+                    meeting.transcription_error = recording.processing_error
+                db.commit()
+                purge_recording_audio(db, recording, storage)
+                return {
+                    "status": "failed",
+                    "recording_id": str(recording.id),
+                    "error": recording.processing_error,
+                }
+        else:
+            logger.error("[LIVEKIT_EGRESS_NO_UPLOADER] Cannot dispatch AI job without uploader for recording_id=%s", recording.id)
+            recording.processing_status = RecordingProcessingStatus.FAILED.value
+            recording.processing_error = "Recording uploader user not found, cannot dispatch AI job"
+            if meeting:
+                meeting.transcription_status = "failed"
+                meeting.transcription_error = recording.processing_error
             db.commit()
-            _enqueue_ai_job(db, job.public_id)
-            logger.info(
-                "[LIVEKIT_EGRESS_FINALIZED_AND_DISPATCHED] recording_id=%s ai_job_id=%s storage_path=%s",
-                recording.id,
-                job.public_id,
-                recording.storage_path,
-            )
+            purge_recording_audio(db, recording, storage)
+            return {
+                "status": "failed",
+                "recording_id": str(recording.id),
+                "error": recording.processing_error,
+            }
 
         return {"status": "processed", "recording_id": str(recording.id), "storage_path": stored.path}
 

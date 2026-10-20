@@ -42,6 +42,43 @@ def _log_config_status():
         logger.info("Config check — %s: %s", name, status)
 
 
+def _purge_temporary_recording_audio(db, recording, meeting, storage):
+    """
+    Purge temporary audio from storage bucket and clear references per zero-retention policy.
+    CRITICAL: Only marks is_audio_purged = True and clears storage_path when deletion is verified.
+    If deletion fails, retains storage_path and records cleanup_error for retry.
+    """
+    if recording and getattr(recording, "storage_path", None):
+        path = recording.storage_path
+        deletion_confirmed = False
+        cleanup_err = None
+        try:
+            res = storage.delete_private_file(path=path)
+            if res is True:
+                deletion_confirmed = True
+            elif hasattr(storage, "file_exists") and not storage.file_exists(path=path):
+                # Object is confirmed no longer existing (idempotent delete)
+                deletion_confirmed = True
+            else:
+                cleanup_err = "Storage provider reported deletion failure (returned False)"
+        except Exception as exc:
+            cleanup_err = f"Storage deletion exception: {exc}"
+
+        if deletion_confirmed:
+            recording.storage_path = None
+            recording.is_audio_purged = True
+            from datetime import datetime, timezone
+            recording.audio_purged_at = datetime.now(timezone.utc)
+            recording.cleanup_error = None
+            logger.info("[ZERO_RETENTION] Verified purge of temporary audio artifact %s from storage bucket.", path)
+        else:
+            logger.warning("[ZERO_RETENTION_WARN] Could not purge %s: %s", path, cleanup_err)
+            recording.cleanup_error = cleanup_err
+            recording.cleanup_retry_count = (getattr(recording, "cleanup_retry_count", 0) or 0) + 1
+    if meeting:
+        meeting.recording_url = None
+
+
 def process_meeting_intelligence(ai_job_id: str):
     """
     Synchronous pipeline entry point (called by Celery task or DB worker).
@@ -105,7 +142,7 @@ def process_meeting_intelligence(ai_job_id: str):
 
         suffix = (
             "." + recording.original_filename.rsplit(".", 1)[-1]
-            if "." in recording.original_filename
+            if recording.original_filename and "." in recording.original_filename
             else ".bin"
         )
 
@@ -149,9 +186,10 @@ def process_meeting_intelligence(ai_job_id: str):
                 meeting.analysis_error = None
                 recording.processing_status = "COMPLETED"
                 recording.processing_error = None
+                _purge_temporary_recording_audio(db, recording, meeting, storage)
                 db.commit()
                 manager.mark_completed(job)
-                logger.info("Pipeline completed cleanly for silent/empty recording (job %s).", ai_job_id)
+                logger.info("Pipeline completed cleanly for silent/empty recording with audio purged (job %s).", ai_job_id)
                 return
 
             logger.info("Transcription produced %d segment(s).", len(segments))
@@ -213,6 +251,12 @@ def process_meeting_intelligence(ai_job_id: str):
 
         active_segment_ids = set()
 
+        from app.models.meeting import MeetingParticipant
+        participants = db.query(MeetingParticipant).filter(
+            MeetingParticipant.meeting_id == meeting.public_id
+        ).all()
+        part_map = {p.user_id: p.id for p in participants if p.user_id}
+
         for idx, segment in enumerate(mapped_segments):
             # Validate timestamps
             start_ts = max(0.0, float(segment.start_time))
@@ -233,11 +277,14 @@ def process_meeting_intelligence(ai_job_id: str):
             if existing_seg and existing_seg.speaker_confirmed:
                 # User has confirmed this segment's speaker mapping; PRESERVE IT!
                 speaker_label = existing_seg.speaker_label
-                user_id = existing_seg.user_id
+                user_id = existing_seg.speaker_user_id or existing_seg.user_id
                 is_confirmed = True
             elif speaker_label in confirmed_by_spk:
                 # User previously confirmed this speaker label across the meeting
                 user_id, is_confirmed = confirmed_by_spk[speaker_label]
+
+            part_id = part_map.get(user_id) if user_id else (existing_seg.participant_id if existing_seg else None)
+            attr_status = "confirmed" if is_confirmed else ("unconfirmed" if user_id else "unknown")
 
             if existing_seg:
                 # Update existing segment in place
@@ -250,10 +297,14 @@ def process_meeting_intelligence(ai_job_id: str):
                 existing_seg.confidence = segment.confidence
                 existing_seg.translated_text = segment.translated_text or existing_seg.translated_text
                 existing_seg.words = segment.words
+                existing_seg.processing_metadata = {"diarization_engine": "pyannote"}
                 if not existing_seg.speaker_confirmed:
                     existing_seg.speaker_label = speaker_label
                     existing_seg.user_id = user_id
+                    existing_seg.speaker_user_id = user_id
+                    existing_seg.participant_id = part_id
                     existing_seg.speaker_confirmed = is_confirmed
+                    existing_seg.attribution_status = attr_status
             else:
                 # Insert new segment with stable identity
                 new_seg = DbTranscriptSegment(
@@ -262,7 +313,10 @@ def process_meeting_intelligence(ai_job_id: str):
                     segment_id=stable_id,
                     speaker_label=speaker_label,
                     user_id=user_id,
+                    speaker_user_id=user_id,
+                    participant_id=part_id,
                     speaker_confirmed=is_confirmed,
+                    attribution_status=attr_status,
                     start_time=start_ts,
                     end_time=end_ts,
                     text=segment.text,
@@ -270,6 +324,7 @@ def process_meeting_intelligence(ai_job_id: str):
                     confidence=segment.confidence,
                     translated_text=segment.translated_text,
                     words=segment.words,
+                    processing_metadata={"diarization_engine": "pyannote"},
                 )
                 db.add(new_seg)
 
@@ -320,8 +375,10 @@ def process_meeting_intelligence(ai_job_id: str):
         meeting.transcription_status = "completed"
         meeting.analysis_status = "completed"
         recording.processing_status = "COMPLETED"
+        _purge_temporary_recording_audio(db, recording, meeting, storage)
+        db.commit()
         manager.mark_completed(job)
-        logger.info("Pipeline completed successfully for job %s.", ai_job_id)
+        logger.info("Pipeline completed successfully for job %s with zero-retention audio purge.", ai_job_id)
 
     except Exception as exc:
         # Mark everything failed with a useful error message
@@ -348,6 +405,13 @@ def process_meeting_intelligence(ai_job_id: str):
             meeting.transcription_error = error_msg
             meeting.analysis_status = "failed"
             meeting.analysis_error = error_msg
+
+        # Always purge temporary audio even on pipeline failure so no orphan audio files remain
+        try:
+            if 'storage' in locals() and recording:
+                _purge_temporary_recording_audio(db, recording, meeting, storage)
+        except Exception:
+            pass
 
         try:
             db.commit()

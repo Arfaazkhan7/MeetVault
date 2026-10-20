@@ -149,6 +149,7 @@ class TranscriptionService:
         audio_path: str,
         language: Optional[str] = None,
         recording_id: Optional[str] = None,
+        cleanup_audio_after: bool = False,
     ) -> List[TranscriptSegment]:
         """
         Transcribe meeting audio and save segments to database idempotently,
@@ -179,6 +180,12 @@ class TranscriptionService:
             ).all()
             existing_by_seg_id = {s.segment_id: s for s in existing_segments if s.segment_id}
 
+            from app.models.meeting import MeetingParticipant
+            participants = db.query(MeetingParticipant).filter(
+                MeetingParticipant.meeting_id == meeting.public_id
+            ).all()
+            part_map = {p.user_id: p.id for p in participants if p.user_id}
+
             segments = []
             active_ids = set()
             for idx, segment_data in enumerate(result.get("segments", [])):
@@ -193,8 +200,11 @@ class TranscriptionService:
                 confirmed = False
                 if existing_seg and existing_seg.speaker_confirmed:
                     spk = existing_seg.speaker_label
-                    uid = existing_seg.user_id
+                    uid = existing_seg.speaker_user_id or existing_seg.user_id
                     confirmed = True
+
+                part_id = part_map.get(uid) if uid else (existing_seg.participant_id if existing_seg else None)
+                attr_status = "confirmed" if confirmed else ("unconfirmed" if uid else "unknown")
 
                 if existing_seg:
                     existing_seg.recording_id = recording_id or existing_seg.recording_id
@@ -205,10 +215,14 @@ class TranscriptionService:
                     existing_seg.language = segment_data.get("language") or existing_seg.language
                     existing_seg.confidence = segment_data.get("confidence")
                     existing_seg.words = segment_data.get("words")
+                    existing_seg.processing_metadata = {"engine": "whisper"}
                     if not existing_seg.speaker_confirmed:
                         existing_seg.speaker_label = spk
                         existing_seg.user_id = uid
+                        existing_seg.speaker_user_id = uid
+                        existing_seg.participant_id = part_id
                         existing_seg.speaker_confirmed = confirmed
+                        existing_seg.attribution_status = attr_status
                     segments.append(existing_seg)
                 else:
                     new_seg = TranscriptSegment(
@@ -217,13 +231,17 @@ class TranscriptionService:
                         segment_id=stable_id,
                         speaker_label=spk,
                         user_id=uid,
+                        speaker_user_id=uid,
+                        participant_id=part_id,
                         speaker_confirmed=confirmed,
+                        attribution_status=attr_status,
                         start_time=segment_data["start_time"],
                         end_time=segment_data["end_time"],
                         text=segment_data["text"],
                         language=segment_data.get("language"),
                         confidence=segment_data.get("confidence"),
                         words=segment_data.get("words"),
+                        processing_metadata={"engine": "whisper"},
                     )
                     db.add(new_seg)
                     segments.append(new_seg)
@@ -247,6 +265,105 @@ class TranscriptionService:
             db.commit()
             logger.error(f"Transcription failed for meeting {meeting.public_id}: {e}")
             raise
+        finally:
+            if cleanup_audio_after and audio_path:
+                try:
+                    import os
+                    if os.path.isfile(audio_path):
+                        os.unlink(audio_path)
+                        logger.info(f"[AUDIO_CLEANUP] Discarded temporary audio file {audio_path}")
+                except Exception as cleanup_err:
+                    logger.warning(f"[AUDIO_CLEANUP_WARN] Failed to delete {audio_path}: {cleanup_err}")
+
+    def transcribe_participant_audio_chunk(
+        self,
+        db: Session,
+        meeting: Meeting,
+        participant: Any,
+        audio_bytes: bytes,
+        language: Optional[str] = None,
+        start_offset: float = 0.0,
+    ) -> List[TranscriptSegment]:
+        """
+        Process an identified participant's short-lived audio buffer directly in-memory,
+        tagging segments to that participant with zero persistent audio storage.
+        """
+        import os
+        import tempfile
+        import uuid
+
+        if not audio_bytes or len(audio_bytes) == 0:
+            return []
+
+        # Create short-lived ephemeral temporary file for speech-to-text processing
+        tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+        try:
+            tmp.write(audio_bytes)
+            tmp.flush()
+            tmp.close()
+
+            result = self._transcribe_with_retry(tmp.name, language)
+
+            # Assign to participant
+            speaker_uid = participant.user_id
+            part_id = participant.id
+            attr_status = "verified_guest" if getattr(participant, "is_guest", False) else "verified"
+            speaker_lbl = (
+                f"SPEAKER_{participant.display_name or 'GUEST'}"
+                if getattr(participant, "is_guest", False)
+                else f"SPEAKER_{speaker_uid}"
+            )
+
+            segments = []
+            for seg_data in result.get("segments", []):
+                s_time = round(float(seg_data["start_time"]) + start_offset, 3)
+                e_time = round(float(seg_data["end_time"]) + start_offset, 3)
+                seg_id = f"{meeting.public_id}_{part_id}_{int(s_time * 1000)}"
+
+                existing_seg = db.query(TranscriptSegment).filter(
+                    TranscriptSegment.meeting_id == meeting.public_id,
+                    TranscriptSegment.segment_id == seg_id,
+                ).first()
+
+                if existing_seg:
+                    existing_seg.text = seg_data["text"]
+                    existing_seg.start_time = s_time
+                    existing_seg.end_time = e_time
+                    existing_seg.language = seg_data.get("language") or language or existing_seg.language
+                    existing_seg.confidence = seg_data.get("confidence") or existing_seg.confidence
+                    existing_seg.words = seg_data.get("words")
+                    segments.append(existing_seg)
+                else:
+                    seg = TranscriptSegment(
+                        id=str(uuid.uuid4()),
+                        meeting_id=meeting.public_id,
+                        segment_id=seg_id,
+                        speaker_label=speaker_lbl,
+                        user_id=speaker_uid,
+                        speaker_user_id=speaker_uid,
+                        participant_id=part_id,
+                        speaker_confirmed=True,
+                        attribution_status=attr_status,
+                        start_time=s_time,
+                        end_time=e_time,
+                        text=seg_data["text"],
+                        language=seg_data.get("language") or language,
+                        confidence=seg_data.get("confidence"),
+                        words=seg_data.get("words"),
+                        processing_metadata={"engine": "whisper_participant_stream"},
+                    )
+                    db.add(seg)
+                    segments.append(seg)
+
+            db.commit()
+            return segments
+
+        finally:
+            # Strictly discard the temporary audio immediately
+            try:
+                os.unlink(tmp.name)
+            except OSError:
+                pass
     
     def _transcribe_with_retry(
         self,
@@ -281,14 +398,18 @@ class TranscriptionService:
     def get_transcript_segments(
         self,
         db: Session,
-        meeting_id: str
+        meeting_id: str,
+        speaker_user_id: Optional[str] = None,
+        participant_id: Optional[str] = None,
     ) -> List[TranscriptSegment]:
         """
-        Retrieve transcript segments for a meeting.
+        Retrieve transcript segments for an authorized meeting, with optional speaker filtering.
         
         Args:
             db: Database session
             meeting_id: Meeting public ID
+            speaker_user_id: Optional user ID to filter by speaker
+            participant_id: Optional participant ID to filter by participant
         
         Returns:
             List of TranscriptSegment instances ordered by start time
@@ -299,10 +420,17 @@ class TranscriptionService:
         if not meeting:
             raise ValueError(f"Meeting not found: {meeting_id}")
         
-        segments = db.query(TranscriptSegment).filter(
+        query = db.query(TranscriptSegment).filter(
             TranscriptSegment.meeting_id == meeting.public_id
-        ).order_by(TranscriptSegment.start_time).all()
-        
+        )
+        if speaker_user_id:
+            query = query.filter(
+                (TranscriptSegment.speaker_user_id == speaker_user_id) | (TranscriptSegment.user_id == speaker_user_id)
+            )
+        if participant_id:
+            query = query.filter(TranscriptSegment.participant_id == participant_id)
+
+        segments = query.order_by(TranscriptSegment.start_time.asc()).all()
         return segments
     
     def get_transcription_status(
@@ -329,10 +457,15 @@ class TranscriptionService:
         segment_count = db.query(TranscriptSegment).filter(
             TranscriptSegment.meeting_id == meeting.public_id
         ).count()
+
+        speaker_count = db.query(TranscriptSegment.speaker_label).filter(
+            TranscriptSegment.meeting_id == meeting.public_id
+        ).distinct().count()
         
         return {
             "status": meeting.transcription_status,
             "error": meeting.transcription_error,
             "segment_count": segment_count,
+            "speaker_count": speaker_count,
             "recording_url": meeting.recording_url
         }

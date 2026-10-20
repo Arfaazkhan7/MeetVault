@@ -116,7 +116,7 @@ class SpeakerMappingService:
         notes: Optional[str] = None
     ) -> SpeakerMapping:
         """
-        Update a speaker mapping.
+        Update a speaker mapping after validating that user_id is an authorized meeting participant.
         
         Args:
             db: Database session
@@ -129,6 +129,8 @@ class SpeakerMappingService:
         Returns:
             Updated speaker mapping
         """
+        from app.models.meeting import MeetingParticipant
+
         mapping = db.query(SpeakerMapping).filter(
             SpeakerMapping.meeting_id == meeting_id,
             SpeakerMapping.speaker_label == speaker_label
@@ -137,6 +139,15 @@ class SpeakerMappingService:
         if not mapping:
             raise ValueError(f"Speaker mapping not found: {speaker_label}")
         
+        participant = None
+        if user_id:
+            participant = db.query(MeetingParticipant).filter(
+                MeetingParticipant.meeting_id == meeting_id,
+                MeetingParticipant.user_id == user_id,
+            ).first()
+            if not participant:
+                raise ValueError(f"User {user_id} is not an authorized participant in meeting {meeting_id}")
+
         mapping.user_id = user_id
         mapping.is_confirmed = is_confirmed
         if notes is not None:
@@ -145,8 +156,8 @@ class SpeakerMappingService:
         db.commit()
         db.refresh(mapping)
         
-        # Update transcript segments with user_id
-        self._update_transcript_user_mapping(db, meeting_id, speaker_label, user_id)
+        # Update transcript segments with user_id and participant_id
+        self._update_transcript_user_mapping(db, meeting_id, speaker_label, user_id, is_confirmed, participant)
         
         return mapping
     
@@ -155,7 +166,9 @@ class SpeakerMappingService:
         db: Session,
         meeting_id: str,
         speaker_label: str,
-        user_id: Optional[str]
+        user_id: Optional[str],
+        is_confirmed: bool = False,
+        participant = None,
     ):
         """
         Update transcript segments, evidence, and AI entities with user mapping.
@@ -164,6 +177,15 @@ class SpeakerMappingService:
         from app.models.task import Task
         from app.models.decision import Decision
         from app.models.intelligence import Question, Risk, Commitment
+        from app.models.meeting import MeetingParticipant
+
+        if user_id and participant is None:
+            participant = db.query(MeetingParticipant).filter(
+                MeetingParticipant.meeting_id == meeting_id,
+                MeetingParticipant.user_id == user_id,
+            ).first()
+
+        part_id = participant.id if participant else None
 
         segments = db.query(TranscriptSegment).filter(
             TranscriptSegment.meeting_id == meeting_id,
@@ -172,8 +194,14 @@ class SpeakerMappingService:
         
         for segment in segments:
             segment.user_id = user_id
+            segment.speaker_user_id = user_id
+            segment.participant_id = part_id
             if user_id:
-                segment.speaker_confirmed = True
+                segment.speaker_confirmed = bool(is_confirmed)
+                segment.attribution_status = "confirmed" if is_confirmed else "unconfirmed"
+            else:
+                segment.speaker_confirmed = False
+                segment.attribution_status = "unknown"
         
         # Propagate to Evidence
         evidences = db.query(Evidence).filter(
@@ -227,14 +255,16 @@ class SpeakerMappingService:
         meeting_id: str
     ) -> Dict[str, str]:
         """
-        Attempt to auto-map speakers based on meeting participants.
+        Attempt to map speakers based on trusted meeting participant data.
+        Only suggests a mapping when there is confident single-participant evidence,
+        preventing random positional guesswork.
         
         Args:
             db: Database session
             meeting_id: Meeting public ID
         
         Returns:
-            Dictionary of suggested mappings
+            Dictionary of suggested mappings (speaker_label -> user_id)
         """
         from app.models.meeting import MeetingParticipant
         
@@ -250,11 +280,11 @@ class SpeakerMappingService:
         
         suggestions = {}
         
-        # Simple heuristic: map speakers to participants in order
-        # In production, this could use voice profiles or other ML techniques
-        for i, mapping in enumerate(sorted(mappings, key=lambda m: m.speaker_label)):
-            if i < len(participants) and not mapping.is_confirmed:
-                suggestions[mapping.speaker_label] = participants[i].user_id
+        # Safe conservative heuristic: If exactly 1 participant and 1 speaker, confident match
+        if len(participants) == 1 and len(mappings) == 1:
+            first_spk = mappings[0]
+            if not first_spk.is_confirmed and participants[0].user_id:
+                suggestions[first_spk.speaker_label] = participants[0].user_id
         
         return suggestions
     

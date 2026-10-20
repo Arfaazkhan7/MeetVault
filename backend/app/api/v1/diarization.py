@@ -66,22 +66,21 @@ def diarize_meeting(
         )
 
 
+from app.core.meeting_dependencies import get_meeting_and_authorize
+
 @router.get("/meetings/{meeting_id}/speaker-mappings")
 def get_speaker_mappings(
     meeting_id: str,
+    meeting: Meeting = Depends(get_meeting_and_authorize),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Get all speaker mappings for a meeting."""
-    meeting = get_meeting_by_public_id(db, meeting_id)
-    if not meeting:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
-    
+    """Get all speaker mappings for an authorized meeting."""
     mapping_service = SpeakerMappingService()
-    mappings = mapping_service.get_speaker_mappings(db, meeting_id)
+    mappings = mapping_service.get_speaker_mappings(db, meeting.public_id)
     
     return {
-        "meeting_id": meeting_id,
+        "meeting_id": meeting.public_id,
         "mappings": mappings
     }
 
@@ -93,24 +92,20 @@ def update_speaker_mapping(
     user_id: Optional[str] = None,
     is_confirmed: bool = False,
     notes: Optional[str] = None,
+    meeting: Meeting = Depends(get_meeting_and_authorize),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
-    Update a speaker mapping.
-    
-    Map a speaker label (SPEAKER_00) to a user ID (USR-XXXX).
+    Update a speaker mapping for an authorized meeting.
+    Validates that user_id is an authorized participant in the meeting.
     """
-    meeting = get_meeting_by_public_id(db, meeting_id)
-    if not meeting:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
-    
     mapping_service = SpeakerMappingService()
     
     try:
         mapping = mapping_service.update_speaker_mapping(
             db=db,
-            meeting_id=meeting_id,
+            meeting_id=meeting.public_id,
             speaker_label=speaker_label,
             user_id=user_id,
             is_confirmed=is_confirmed,
@@ -118,15 +113,16 @@ def update_speaker_mapping(
         )
         
         return {
-            "meeting_id": meeting_id,
+            "meeting_id": meeting.public_id,
             "speaker_label": speaker_label,
             "user_id": mapping.user_id,
             "is_confirmed": mapping.is_confirmed
         }
         
     except ValueError as e:
+        status_code = status.HTTP_400_BAD_REQUEST if "not an authorized participant" in str(e) else status.HTTP_404_NOT_FOUND
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=status_code,
             detail=str(e)
         )
     except Exception as e:

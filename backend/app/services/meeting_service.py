@@ -199,14 +199,14 @@ def update_participant_status(
 
 def list_meeting_participants(db: Session, meeting_id: str) -> list[dict]:
     members = db.query(MeetingParticipant).filter(MeetingParticipant.meeting_id == meeting_id).all()
-    user_ids = [m.user_id for m in members]
-    users = db.query(User).filter(User.public_id.in_(user_ids)).all()
+    user_ids = [m.user_id for m in members if m.user_id]
+    users = db.query(User).filter(User.public_id.in_(user_ids)).all() if user_ids else []
     user_map = {u.public_id: u for u in users}
 
     now = datetime.now(timezone.utc)
     res = []
     for m in members:
-        u = user_map.get(m.user_id)
+        u = user_map.get(m.user_id) if m.user_id else None
         dur = m.attendance_duration_seconds
         if dur is None and m.join_time:
             jt = m.join_time if m.join_time.tzinfo else m.join_time.replace(tzinfo=timezone.utc)
@@ -216,7 +216,14 @@ def list_meeting_participants(db: Session, meeting_id: str) -> list[dict]:
             else:
                 dur = max(0, int((now - jt).total_seconds()))
 
+        name = (
+            u.full_name if (u and u.full_name)
+            else (u.email.split('@')[0] if (u and u.email)
+            else (m.display_name if m.display_name else ('Guest' if m.is_guest else 'User')))
+        )
+
         res.append({
+            "participant_id": str(m.id) if m.id else None,
             "user_public_id": m.user_id,
             "meeting_id": m.meeting_id,
             "role": m.role,
@@ -224,8 +231,12 @@ def list_meeting_participants(db: Session, meeting_id: str) -> list[dict]:
             "join_time": m.join_time,
             "leave_time": m.leave_time,
             "attendance_duration_seconds": dur,
+            "livekit_identity": m.livekit_identity or (f"{m.user_id}:{m.id}" if m.user_id else f"guest:{m.id}"),
+            "identity_mapping_status": m.identity_mapping_status or ("verified" if m.user_id else "guest"),
+            "is_guest": m.is_guest,
+            "display_name": m.display_name,
             "email": u.email if u else None,
-            "full_name": u.full_name if u else (u.email.split('@')[0] if u and u.email else 'User'),
+            "full_name": name,
         })
     return res
 
@@ -263,6 +274,8 @@ def record_participant_join(
             meeting_id=meeting.public_id,
             role=role,
             status=ParticipantStatus.INVITED.value,
+            identity_mapping_status="verified",
+            is_guest=False,
         )
         db.add(participant)
         db.flush()
@@ -272,6 +285,37 @@ def record_participant_join(
         participant.leave_time = None
         participant.attendance_duration_seconds = None
     participant.status = ParticipantStatus.JOINED.value
+    participant.livekit_identity = f"{user_public_id}:{participant.id}"
+    participant.identity_mapping_status = "verified"
+    if meeting.status == MeetingStatus.SCHEDULED.value:
+        meeting.status = MeetingStatus.LIVE.value
+        meeting.start_time = meeting.start_time or now
+    db.commit()
+    db.refresh(participant)
+    return participant
+
+
+def register_guest_participant(
+    db: Session,
+    meeting: Meeting,
+    display_name: str,
+) -> MeetingParticipant:
+    """Safely register a guest participant without creating a fake application user."""
+    name = display_name.strip() if display_name else "Guest"
+    now = datetime.now(timezone.utc)
+    participant = MeetingParticipant(
+        user_id=None,
+        meeting_id=meeting.public_id,
+        role="GUEST",
+        status=ParticipantStatus.JOINED.value,
+        join_time=now,
+        is_guest=True,
+        display_name=name,
+        identity_mapping_status="guest",
+    )
+    db.add(participant)
+    db.flush()
+    participant.livekit_identity = f"guest:{participant.id}"
     if meeting.status == MeetingStatus.SCHEDULED.value:
         meeting.status = MeetingStatus.LIVE.value
         meeting.start_time = meeting.start_time or now

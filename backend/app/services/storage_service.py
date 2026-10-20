@@ -33,6 +33,14 @@ class StorageService(ABC):
     def download_private_file(self, *, path: str) -> bytes:
         raise NotImplementedError
 
+    @abstractmethod
+    def delete_private_file(self, *, path: str) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def file_exists(self, *, path: str) -> bool:
+        raise NotImplementedError
+
 
 class SupabaseStorageService(StorageService):
     def __init__(
@@ -95,6 +103,24 @@ class SupabaseStorageService(StorageService):
         response = httpx.get(url, headers=self._headers, timeout=120)
         response.raise_for_status()
         return response.content
+
+    def delete_private_file(self, *, path: str) -> bool:
+        encoded_path = quote(path, safe="/")
+        url = f"{self.supabase_url}/storage/v1/object/{self.bucket}/{encoded_path}"
+        try:
+            response = httpx.delete(url, headers=self._headers, timeout=30)
+            return response.status_code in (200, 204, 404)
+        except Exception:
+            return False
+
+    def file_exists(self, *, path: str) -> bool:
+        encoded_path = quote(path, safe="/")
+        url = f"{self.supabase_url}/storage/v1/object/info/{self.bucket}/{encoded_path}"
+        try:
+            response = httpx.get(url, headers=self._headers, timeout=15)
+            return response.status_code == 200
+        except Exception:
+            return False
 
 
 def get_storage_service() -> StorageService:

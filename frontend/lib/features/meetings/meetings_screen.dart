@@ -789,6 +789,52 @@ class _MeetingCard extends StatelessWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
+              const Divider(height: 1, color: Color(0xFFF1F5F9)),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: onTap,
+                    icon: const Icon(Icons.info_outline, size: 14),
+                    label: const Text('Details'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF64748B),
+                      side: const BorderSide(color: Color(0xFFCBD5E1)),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      visualDensity: VisualDensity.compact,
+                      textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton.icon(
+                    key: Key('vault_button_${meeting['public_id']}'),
+                    onPressed: () {
+                      final meetingId = (meeting['public_id'] ?? meeting['meeting_id'] ?? '').toString();
+                      final title = meeting['title']?.toString() ?? 'Meeting Vault';
+                      Navigator.pushNamed(
+                        context,
+                        AppRouter.vault,
+                        arguments: {
+                          'id': meetingId,
+                          'meetingId': meetingId,
+                          'title': title,
+                        },
+                      );
+                    },
+                    icon: const Icon(Icons.shield_outlined, size: 14),
+                    label: const Text('Vault'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      visualDensity: VisualDensity.compact,
+                      textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),

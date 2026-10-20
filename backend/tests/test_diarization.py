@@ -213,10 +213,20 @@ class TestSpeakerMappingService:
     
     def test_update_speaker_mapping(self, test_meeting: Meeting, test_user: User):
         """Test updating a speaker mapping."""
+        from app.models.meeting import MeetingParticipant
         db = TestingSessionLocal()
         try:
             service = SpeakerMappingService()
             
+            # Add participant
+            participant = MeetingParticipant(
+                meeting_id=test_meeting.public_id,
+                user_id=test_user.public_id,
+                role="participant"
+            )
+            db.add(participant)
+            db.commit()
+
             # Create initial mappings
             service.create_speaker_mappings(db, test_meeting, ["SPEAKER_00"])
             

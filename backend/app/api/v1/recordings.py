@@ -18,6 +18,7 @@ from app.services.recording_service import (
     create_recording_signed_url,
     handle_livekit_webhook_event,
     list_meeting_recordings,
+    reconcile_and_purge_orphaned_audio,
     start_automatic_recording_session,
     stop_automatic_recording_session,
     update_recording_status,
@@ -195,3 +196,21 @@ async def livekit_webhook(
             event_dict["room"] = {"name": getattr(rm, "name", "") if not isinstance(rm, dict) else rm.get("name", "")}
 
     return await handle_livekit_webhook_event(db, event_dict, storage)
+
+
+@router.post("/recordings/reconcile-orphans")
+def reconcile_orphans(
+    max_age_minutes: int = 15,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    storage: StorageService = Depends(get_storage_service),
+):
+    """
+    Scan and purge unpurged audio artifacts for stalled, failed, or orphaned recording jobs.
+    Enforces MeetVault's zero-retention policy for ephemeral audio.
+    """
+    return reconcile_and_purge_orphaned_audio(
+        db,
+        storage=storage,
+        max_age_minutes=max_age_minutes,
+    )

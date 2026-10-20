@@ -137,12 +137,13 @@ class TranscriptionWorker:
                 logger.error(f"Meeting not found: {job.meeting_id}")
                 return
             
-            # Process transcription
+            # Process transcription with automatic cleanup
             self.transcription_service.transcribe_meeting(
                 db=db,
                 meeting=meeting,
                 audio_path=job.audio_path,
-                language=job.language
+                language=job.language,
+                cleanup_audio_after=True,
             )
             
             logger.info(f"Successfully processed transcription for meeting {job.meeting_id}")
@@ -150,6 +151,21 @@ class TranscriptionWorker:
         except Exception as e:
             logger.error(f"Failed to process transcription job for meeting {job.meeting_id}: {e}")
         finally:
+            # Enforce zero-retention audio policy: discard audio file on completion or failure
+            if job.audio_path:
+                try:
+                    import os
+                    if os.path.isfile(job.audio_path):
+                        os.unlink(job.audio_path)
+                        logger.info(f"[ZERO_RETENTION] Discarded worker audio {job.audio_path}")
+                except Exception as cleanup_err:
+                    logger.warning(f"[ZERO_RETENTION_WARN] Could not unlink {job.audio_path}: {cleanup_err}")
+            if meeting and meeting.recording_url == job.audio_path:
+                meeting.recording_url = None
+                try:
+                    db.commit()
+                except Exception:
+                    pass
             db.close()
     
     def get_queue_size(self) -> int:

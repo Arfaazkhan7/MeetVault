@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Text, Integer, UniqueConstraint
+from sqlalchemy import Column, String, DateTime, Text, Integer, Boolean, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base
@@ -78,7 +78,7 @@ class MeetingParticipant(Base):
         UniqueConstraint("user_id", "meeting_id", name="uq_participant_meeting"),
     )
 
-    user_id = Column(String, nullable=False, index=True)
+    user_id = Column(String, nullable=True, index=True)
     meeting_id = Column(String, nullable=False, index=True)
 
     role = Column(String, nullable=False, default="ATTENDEE")
@@ -88,6 +88,12 @@ class MeetingParticipant(Base):
     leave_time = Column(DateTime(timezone=True), nullable=True)
     attendance_duration_seconds = Column(Integer, nullable=True)
 
+    # Identity within LiveKit / meeting provider and verification state
+    livekit_identity = Column(String, nullable=True, index=True)
+    identity_mapping_status = Column(String, nullable=False, default="unmapped")
+    is_guest = Column(Boolean, nullable=False, default=False)
+    display_name = Column(String, nullable=True)
+
     meeting = relationship(
         "Meeting",
         primaryjoin="foreign(MeetingParticipant.meeting_id) == Meeting.public_id",
@@ -96,4 +102,10 @@ class MeetingParticipant(Base):
     user = relationship(
         "User",
         primaryjoin="foreign(MeetingParticipant.user_id) == User.public_id",
+    )
+    transcript_segments = relationship(
+        "TranscriptSegment",
+        primaryjoin="MeetingParticipant.id == foreign(TranscriptSegment.participant_id)",
+        back_populates="participant",
+        cascade="all, delete-orphan",
     )

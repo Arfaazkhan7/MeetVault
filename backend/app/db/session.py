@@ -80,6 +80,20 @@ except Exception as e:
             ("transcript_segments", "segment_id", "VARCHAR"),
             ("transcript_segments", "translated_text", "VARCHAR"),
             ("transcript_segments", "words", "JSON"),
+            ("transcript_segments", "speaker_user_id", "VARCHAR"),
+            ("transcript_segments", "participant_id", "CHAR(36)"),
+            ("transcript_segments", "attribution_status", "VARCHAR NOT NULL DEFAULT 'unknown'"),
+            ("transcript_segments", "processing_metadata", "JSON"),
+            ("meeting_participants", "livekit_identity", "VARCHAR"),
+            ("meeting_participants", "identity_mapping_status", "VARCHAR NOT NULL DEFAULT 'unmapped'"),
+            ("meeting_participants", "is_guest", "BOOLEAN NOT NULL DEFAULT 0"),
+            ("meeting_participants", "display_name", "VARCHAR"),
+            ("meeting_recordings", "is_audio_purged", "BOOLEAN NOT NULL DEFAULT 0"),
+            ("meeting_recordings", "audio_purged_at", "DATETIME"),
+            ("meeting_recordings", "retention_policy", "VARCHAR DEFAULT 'ephemeral_transcript_only'"),
+            ("meeting_recordings", "cleanup_error", "TEXT"),
+            ("meeting_recordings", "cleanup_retry_count", "INTEGER NOT NULL DEFAULT 0"),
+            ("ai_jobs", "current_stage", "VARCHAR NOT NULL DEFAULT 'QUEUED'"),
         ):
             columns = {row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({table})")}
             if column not in columns:

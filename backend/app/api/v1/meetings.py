@@ -20,6 +20,7 @@ from app.schemas.meeting import (
     MeetingParticipantResponse,
     MeetingConnectionResponse,
     JoinByInviteCodeRequest,
+    GuestJoinMeetingRequest,
     MeetingStartResponse,
     MeetingHistoryItemResponse,
 )
@@ -36,6 +37,7 @@ from app.services.meeting_service import (
     get_meeting_participant,
     record_participant_join,
     record_participant_leave,
+    register_guest_participant,
     join_meeting_by_invite_code,
     get_meeting_by_invite_code,
     start_meeting,
@@ -199,6 +201,58 @@ def get_participants(
     return list_meeting_participants(db, meeting.public_id)
 
 
+@router.post("/meetings/{meeting_id}/participants/guest", response_model=MeetingConnectionResponse)
+def join_meeting_as_guest(
+    meeting_id: str,
+    payload: GuestJoinMeetingRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Join a meeting as a guest participant without creating an application user account.
+    Validates meeting existence and optional invite code.
+    """
+    meeting = db.query(Meeting).filter(
+        Meeting.public_id == meeting_id,
+        Meeting.deleted_at.is_(None)
+    ).first()
+    if not meeting:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
+
+    if payload.invite_code and meeting.invite_code:
+        if payload.invite_code.strip().upper() != meeting.invite_code.strip().upper():
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid invite code")
+
+    participant = register_guest_participant(db, meeting, payload.display_name)
+    token, expires_at = generate_meeting_token(meeting, None, participant, display_name=payload.display_name)
+
+    participant_data = MeetingParticipantResponse(
+        participant_id=str(participant.id),
+        user_public_id=None,
+        meeting_id=participant.meeting_id,
+        role=participant.role,
+        status=participant.status,
+        join_time=participant.join_time,
+        leave_time=participant.leave_time,
+        attendance_duration_seconds=participant.attendance_duration_seconds,
+        livekit_identity=participant.livekit_identity,
+        identity_mapping_status=participant.identity_mapping_status,
+        is_guest=True,
+        display_name=participant.display_name,
+        email=None,
+        full_name=participant.display_name,
+    )
+
+    return {
+        "meeting_id": meeting.public_id,
+        "meeting_title": meeting.title,
+        "room_name": room_name_for_meeting(meeting),
+        "livekit_url": settings.LIVEKIT_URL,
+        "token": token,
+        "token_expires_at": expires_at,
+        "participant": participant_data,
+    }
+
+
 @router.post("/meetings/{meeting_id}/participants", response_model=MeetingParticipantResponse, status_code=status.HTTP_201_CREATED)
 def invite_user_to_meeting(
     payload: InviteParticipantRequest,
@@ -208,6 +262,7 @@ def invite_user_to_meeting(
     participant = invite_participant(db, meeting, payload.user_public_id, payload.role)
     invited_user = db.query(User).filter(User.public_id == payload.user_public_id).first()
     return MeetingParticipantResponse(
+        participant_id=str(participant.id),
         user_public_id=participant.user_id,
         meeting_id=participant.meeting_id,
         role=participant.role,
@@ -215,6 +270,10 @@ def invite_user_to_meeting(
         join_time=participant.join_time,
         leave_time=participant.leave_time,
         attendance_duration_seconds=participant.attendance_duration_seconds,
+        livekit_identity=participant.livekit_identity,
+        identity_mapping_status=participant.identity_mapping_status,
+        is_guest=participant.is_guest,
+        display_name=participant.display_name,
         email=invited_user.email if invited_user else None,
         full_name=invited_user.full_name if invited_user else None,
     )
@@ -237,6 +296,7 @@ def update_participant(
     )
     user_obj = db.query(User).filter(User.public_id == user_public_id).first()
     return MeetingParticipantResponse(
+        participant_id=str(participant.id),
         user_public_id=participant.user_id,
         meeting_id=participant.meeting_id,
         role=participant.role,
@@ -244,6 +304,10 @@ def update_participant(
         join_time=participant.join_time,
         leave_time=participant.leave_time,
         attendance_duration_seconds=participant.attendance_duration_seconds,
+        livekit_identity=participant.livekit_identity,
+        identity_mapping_status=participant.identity_mapping_status,
+        is_guest=participant.is_guest,
+        display_name=participant.display_name,
         email=user_obj.email if user_obj else None,
         full_name=user_obj.full_name if user_obj else None,
     )
@@ -276,6 +340,7 @@ def get_meeting_room_connection(
     token, expires_at = generate_meeting_token(meeting, current_user, participant)
 
     participant_data = MeetingParticipantResponse(
+        participant_id=str(participant.id),
         user_public_id=participant.user_id,
         meeting_id=participant.meeting_id,
         role=participant.role,
@@ -283,6 +348,10 @@ def get_meeting_room_connection(
         join_time=participant.join_time,
         leave_time=participant.leave_time,
         attendance_duration_seconds=participant.attendance_duration_seconds,
+        livekit_identity=participant.livekit_identity,
+        identity_mapping_status=participant.identity_mapping_status,
+        is_guest=participant.is_guest,
+        display_name=participant.display_name,
         email=current_user.email,
         full_name=current_user.full_name,
     )

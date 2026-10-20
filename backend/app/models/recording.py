@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, BigInteger, DateTime, Text, Index
+from sqlalchemy import Column, String, Integer, BigInteger, DateTime, Text, Index, Boolean
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base
@@ -26,6 +26,11 @@ class MeetingRecording(Base):
     processing_status = Column(String, nullable=False, default="RECORDING", index=True)
     processing_error = Column(Text, nullable=True)
     deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    is_audio_purged = Column(Boolean, nullable=False, default=False)
+    audio_purged_at = Column(DateTime(timezone=True), nullable=True)
+    retention_policy = Column(String, nullable=True, default="ephemeral_transcript_only")
+    cleanup_error = Column(Text, nullable=True)
+    cleanup_retry_count = Column(Integer, nullable=False, default=0)
 
     meeting = relationship(
         "Meeting",

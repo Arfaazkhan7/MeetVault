@@ -1250,18 +1250,22 @@ class _MeetingConnection {
   final String livekitUrl;
   final String token;
   final String roomName;
+  final String? participantId;
 
   const _MeetingConnection({
     required this.livekitUrl,
     required this.token,
     required this.roomName,
+    this.participantId,
   });
 
   factory _MeetingConnection.fromJson(Map<String, dynamic> json) {
+    final participantMap = json['participant'] as Map<String, dynamic>?;
     return _MeetingConnection(
-      livekitUrl: json['livekit_url'],
-      token: json['token'],
+      livekitUrl: json['livekit_url'] ?? '',
+      token: json['token'] ?? '',
       roomName: json['room_name'] ?? '',
+      participantId: participantMap?['participant_id'] as String?,
     );
   }
 }

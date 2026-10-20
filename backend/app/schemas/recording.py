@@ -21,6 +21,9 @@ class RecordingUploadResponse(BaseModel):
     session_id: Optional[str] = None
     egress_id: Optional[str] = None
     source: Optional[str] = None
+    is_audio_purged: bool = False
+    audio_purged_at: Optional[datetime] = None
+    retention_policy: Optional[str] = "ephemeral_transcript_only"
     created_at: datetime
     model_config = {"from_attributes": True}
 
