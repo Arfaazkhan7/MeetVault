@@ -103,14 +103,22 @@ async def start_room_composite_audio_egress(
 
     http_url = _get_livekit_http_url()
     try:
+        file_output_kwargs = {"filepath": output_filepath}
+        if settings.S3_BUCKET and settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
+            from livekit.api import S3Upload
+            file_output_kwargs["s3"] = S3Upload(
+                bucket=settings.S3_BUCKET,
+                access_key=settings.AWS_ACCESS_KEY_ID,
+                secret=settings.AWS_SECRET_ACCESS_KEY,
+                region=settings.AWS_REGION or "us-east-1",
+            )
+
         api = LiveKitAPI(http_url, settings.LIVEKIT_API_KEY, settings.LIVEKIT_API_SECRET)
         req = RoomCompositeEgressRequest(
             room_name=room_name,
             audio_only=True,
             file_outputs=[
-                EncodedFileOutput(
-                    filepath=output_filepath,
-                )
+                EncodedFileOutput(**file_output_kwargs)
             ],
         )
         egress_info = await api.egress.start_room_composite_egress(req)
@@ -119,6 +127,7 @@ async def start_room_composite_audio_egress(
         return egress_id, None
     except Exception as exc:
         return None, f"LiveKit Egress startup failed: {exc}"
+
 
 
 async def stop_livekit_egress(egress_id: str) -> tuple[bool, Optional[str]]:

@@ -320,7 +320,8 @@ def test_non_host_cannot_start_stop_or_finalize(client):
 
 
 def test_livekit_webhook_egress_ended_finalization(client, monkeypatch):
-    monkeypatch.setattr("app.services.recording_service._enqueue_ai_job", lambda _db, _job_id: None)
+    enqueued_jobs = []
+    monkeypatch.setattr("app.services.recording_service._enqueue_ai_job", lambda _db, job_id: enqueued_jobs.append(job_id))
     client.app.dependency_overrides[get_storage_service] = lambda: mock_storage
 
     data = setup_meeting_fixture(client)
@@ -342,12 +343,20 @@ def test_livekit_webhook_egress_ended_finalization(client, monkeypatch):
     db.commit()
     db.close()
 
-    # Mock Webhook verification
+    # Mock Webhook verification with file_results containing valid audio content
+    class MockFileInfo:
+        filename = "meeting-output.mp4"
+        duration = 90_000_000_000
+        size = 1024
+        location = ""
+        content = b"RIFF....WAVEfmt mock-audio-stream"
+
     class MockEgressInfo:
         egress_id = "EG_TEST_12345"
         status = "EGRESS_COMPLETE"
         error = None
         duration = 90_000_000_000
+        file_results = [MockFileInfo()]
 
     class MockWebhookEvent:
         event = "egress_ended"
@@ -367,15 +376,292 @@ def test_livekit_webhook_egress_ended_finalization(client, monkeypatch):
     client.app.dependency_overrides.pop(get_storage_service, None)
 
     assert response.status_code == 200, response.text
-    assert response.json()["status"] == "processed"
+    res_data = response.json()
+    assert res_data["status"] == "processed"
+    assert "storage_path" in res_data
+    assert res_data["storage_path"] is not None
 
-    # Verify recording updated to QUEUED and AI job dispatched
+    # Verify recording updated to QUEUED, storage_path persisted, and AI job enqueued
     recordings = client.get(
         f"/api/v1/meetings/{meeting_id}/recordings",
         headers=auth_headers(data["host_token"]),
     ).json()
     assert len(recordings) == 1
     assert recordings[0]["processing_status"] == "QUEUED"
+    assert recordings[0]["storage_path"] is not None
+    assert recordings[0]["storage_path"] == res_data["storage_path"]
+    assert len(enqueued_jobs) == 1
+
+
+def test_livekit_webhook_missing_output_files_marks_failed(client, monkeypatch):
+    enqueued_jobs = []
+    monkeypatch.setattr("app.services.recording_service._enqueue_ai_job", lambda _db, job_id: enqueued_jobs.append(job_id))
+    client.app.dependency_overrides[get_storage_service] = lambda: mock_storage
+
+    data = setup_meeting_fixture(client)
+    meeting_id = data["meeting_id"]
+
+    start_res = client.post(
+        f"/api/v1/meetings/{meeting_id}/recordings/auto/start",
+        headers=auth_headers(data["host_token"]),
+    ).json()
+
+    from tests.conftest import TestingSessionLocal
+    from app.models.recording import MeetingRecording
+    from uuid import UUID
+
+    db = TestingSessionLocal()
+    rec = db.query(MeetingRecording).filter(MeetingRecording.id == UUID(start_res["id"])).first()
+    rec.egress_id = "EG_TEST_NO_FILES"
+    db.commit()
+    db.close()
+
+    class MockEgressNoFiles:
+        egress_id = "EG_TEST_NO_FILES"
+        status = "EGRESS_COMPLETE"
+        error = None
+        file_results = []
+
+    class MockWebhookEvent:
+        event = "egress_ended"
+        egress_info = MockEgressNoFiles()
+
+    monkeypatch.setattr(
+        "app.api.v1.recordings.verify_livekit_webhook",
+        lambda _body, _auth: MockWebhookEvent()
+    )
+
+    response = client.post(
+        "/api/v1/recordings/livekit-webhook",
+        headers={"Authorization": "Bearer mock-livekit-token"},
+        json={"event": "egress_ended"},
+    )
+    client.app.dependency_overrides.pop(get_storage_service, None)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "failed"
+    assert "no output files" in response.json()["error"].lower()
+    # Crucially, no unusable AI job should be enqueued
+    assert len(enqueued_jobs) == 0
+
+
+def test_livekit_webhook_media_retrieval_failure_marks_failed(client, monkeypatch):
+    enqueued_jobs = []
+    monkeypatch.setattr("app.services.recording_service._enqueue_ai_job", lambda _db, job_id: enqueued_jobs.append(job_id))
+    client.app.dependency_overrides[get_storage_service] = lambda: mock_storage
+
+    data = setup_meeting_fixture(client)
+    meeting_id = data["meeting_id"]
+
+    start_res = client.post(
+        f"/api/v1/meetings/{meeting_id}/recordings/auto/start",
+        headers=auth_headers(data["host_token"]),
+    ).json()
+
+    from tests.conftest import TestingSessionLocal
+    from app.models.recording import MeetingRecording
+    from uuid import UUID
+
+    db = TestingSessionLocal()
+    rec = db.query(MeetingRecording).filter(MeetingRecording.id == UUID(start_res["id"])).first()
+    rec.egress_id = "EG_TEST_RETRIEVAL_FAIL"
+    db.commit()
+    db.close()
+
+    class MockFileInfo:
+        filename = "nonexistent-cloud-path.mp4"
+        location = "s3://nonexistent-bucket/nonexistent-key.mp4"
+        duration = 1000
+
+    class MockEgressInfo:
+        egress_id = "EG_TEST_RETRIEVAL_FAIL"
+        status = "EGRESS_COMPLETE"
+        error = None
+        file_results = [MockFileInfo()]
+
+    class MockWebhookEvent:
+        event = "egress_ended"
+        egress_info = MockEgressInfo()
+
+    monkeypatch.setattr(
+        "app.api.v1.recordings.verify_livekit_webhook",
+        lambda _body, _auth: MockWebhookEvent()
+    )
+
+    # Force retrieval failure
+    monkeypatch.setattr(
+        "app.services.recording_service.retrieve_egress_media",
+        lambda _f: (_ for _ in ()).throw(FileNotFoundError("Media output was not found on remote storage")),
+    )
+
+    response = client.post(
+        "/api/v1/recordings/livekit-webhook",
+        headers={"Authorization": "Bearer mock-livekit-token"},
+        json={"event": "egress_ended"},
+    )
+    client.app.dependency_overrides.pop(get_storage_service, None)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "failed"
+    assert "retrieval failed" in response.json()["error"].lower()
+    assert len(enqueued_jobs) == 0
+
+
+def test_livekit_webhook_storage_failure_marks_failed(client, monkeypatch):
+    enqueued_jobs = []
+    monkeypatch.setattr("app.services.recording_service._enqueue_ai_job", lambda _db, job_id: enqueued_jobs.append(job_id))
+
+    class FailingStorage:
+        def upload_private_file(self, *args, **kwargs):
+            raise RuntimeError("Storage bucket unreachable")
+
+    client.app.dependency_overrides[get_storage_service] = lambda: FailingStorage()
+
+    data = setup_meeting_fixture(client)
+    meeting_id = data["meeting_id"]
+
+    start_res = client.post(
+        f"/api/v1/meetings/{meeting_id}/recordings/auto/start",
+        headers=auth_headers(data["host_token"]),
+    ).json()
+
+    from tests.conftest import TestingSessionLocal
+    from app.models.recording import MeetingRecording
+    from uuid import UUID
+
+    db = TestingSessionLocal()
+    rec = db.query(MeetingRecording).filter(MeetingRecording.id == UUID(start_res["id"])).first()
+    rec.egress_id = "EG_TEST_STORAGE_FAIL"
+    db.commit()
+    db.close()
+
+    class MockFileInfo:
+        filename = "valid.mp4"
+        content = b"valid bytes"
+
+    class MockEgressInfo:
+        egress_id = "EG_TEST_STORAGE_FAIL"
+        status = "EGRESS_COMPLETE"
+        error = None
+        file_results = [MockFileInfo()]
+
+    class MockWebhookEvent:
+        event = "egress_ended"
+        egress_info = MockEgressInfo()
+
+    monkeypatch.setattr(
+        "app.api.v1.recordings.verify_livekit_webhook",
+        lambda _body, _auth: MockWebhookEvent()
+    )
+
+    response = client.post(
+        "/api/v1/recordings/livekit-webhook",
+        headers={"Authorization": "Bearer mock-livekit-token"},
+        json={"event": "egress_ended"},
+    )
+    client.app.dependency_overrides.pop(get_storage_service, None)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "failed"
+    assert "storage upload failed" in response.json()["error"].lower()
+    assert len(enqueued_jobs) == 0
+
+
+def test_livekit_webhook_duplicate_event_is_idempotent(client, monkeypatch):
+    enqueued_jobs = []
+    monkeypatch.setattr("app.services.recording_service._enqueue_ai_job", lambda _db, job_id: enqueued_jobs.append(job_id))
+    client.app.dependency_overrides[get_storage_service] = lambda: mock_storage
+
+    data = setup_meeting_fixture(client)
+    meeting_id = data["meeting_id"]
+
+    start_res = client.post(
+        f"/api/v1/meetings/{meeting_id}/recordings/auto/start",
+        headers=auth_headers(data["host_token"]),
+    ).json()
+
+    from tests.conftest import TestingSessionLocal
+    from app.models.recording import MeetingRecording
+    from uuid import UUID
+
+    db = TestingSessionLocal()
+    rec = db.query(MeetingRecording).filter(MeetingRecording.id == UUID(start_res["id"])).first()
+    rec.egress_id = "EG_TEST_DUPLICATE"
+    db.commit()
+    db.close()
+
+    class MockFileInfo:
+        filename = "meeting.mp4"
+        content = b"sample video/audio"
+
+    class MockEgressInfo:
+        egress_id = "EG_TEST_DUPLICATE"
+        status = "EGRESS_COMPLETE"
+        error = None
+        file_results = [MockFileInfo()]
+
+    class MockWebhookEvent:
+        event = "egress_ended"
+        egress_info = MockEgressInfo()
+
+    monkeypatch.setattr(
+        "app.api.v1.recordings.verify_livekit_webhook",
+        lambda _body, _auth: MockWebhookEvent()
+    )
+
+    # First webhook event: processed successfully
+    r1 = client.post(
+        "/api/v1/recordings/livekit-webhook",
+        headers={"Authorization": "Bearer mock-livekit-token"},
+        json={"event": "egress_ended"},
+    )
+    assert r1.status_code == 200
+    assert r1.json()["status"] == "processed"
+    assert len(enqueued_jobs) == 1
+
+    # Second duplicate webhook event: ignored cleanly
+    r2 = client.post(
+        "/api/v1/recordings/livekit-webhook",
+        headers={"Authorization": "Bearer mock-livekit-token"},
+        json={"event": "egress_ended"},
+    )
+    client.app.dependency_overrides.pop(get_storage_service, None)
+
+    assert r2.status_code == 200
+    assert r2.json()["status"] == "already_processed"
+    # Still only 1 job enqueued (no double dispatch)
+    assert len(enqueued_jobs) == 1
+
+
+def test_regression_sqlite_uuid_conversion(client):
+    """Verify that querying entities with GUID TypeDecorator handles UUIDs, strings, and coercion cleanly."""
+    from tests.conftest import TestingSessionLocal
+    from app.models.document import Document
+    import uuid
+
+    db = TestingSessionLocal()
+    try:
+        doc = Document(
+            public_id="reg_doc_001",
+            company_id="comp_reg_1",
+            title="Regression Test Document",
+            file_name="regression.pdf",
+            file_type="pdf",
+            file_url="/docs/reg.pdf",
+        )
+        db.add(doc)
+        db.commit()
+        db.refresh(doc)
+
+        assert isinstance(doc.id, uuid.UUID)
+
+        # Query all documents
+        queried = db.query(Document).filter(Document.company_id == "comp_reg_1").all()
+        assert len(queried) == 1
+        assert isinstance(queried[0].id, uuid.UUID)
+        assert queried[0].id == doc.id
+    finally:
+        db.close()
 
 
 def test_livekit_webhook_rejects_invalid_signature(client):

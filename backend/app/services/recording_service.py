@@ -519,6 +519,85 @@ def update_recording_status(
     return _serialize_recording(recording)
 
 
+def retrieve_egress_media(file_info: dict) -> tuple[bytes, str]:
+    """
+    Retrieve egress output media using the configured output mechanism.
+    Supports:
+      1. In-memory / direct payload content (file_bytes or content) for testing & direct workers.
+      2. Local filesystem path if location or filename exists on disk.
+      3. Secure HTTP/HTTPS download if location is an explicit pre-signed/cloud URL provided by egress.
+      4. S3 object retrieval if location starts with s3:// or if S3_BUCKET is configured.
+    Never assumes filename is a publicly accessible URL or invents endpoints.
+    """
+    # 1. Direct content provided (e.g. testing or multipart injection)
+    if "content" in file_info and isinstance(file_info["content"], bytes) and len(file_info["content"]) > 0:
+        content_type = "video/mp4" if str(file_info.get("filename", "")).endswith(".mp4") else "audio/webm"
+        return file_info["content"], content_type
+    if "file_bytes" in file_info and isinstance(file_info["file_bytes"], bytes) and len(file_info["file_bytes"]) > 0:
+        content_type = "video/mp4" if str(file_info.get("filename", "")).endswith(".mp4") else "audio/webm"
+        return file_info["file_bytes"], content_type
+
+    filename = str(file_info.get("filename") or "").strip()
+    location = str(file_info.get("location") or "").strip()
+    content_type = "video/mp4" if filename.endswith(".mp4") or location.endswith(".mp4") else "audio/webm"
+
+    # 2. Local filesystem check
+    for cand in (location, filename):
+        if cand:
+            try:
+                p = Path(cand)
+                if p.is_file():
+                    data = p.read_bytes()
+                    if data:
+                        return data, content_type
+            except Exception:
+                pass
+
+    # 3. Explicit HTTP / HTTPS pre-signed cloud URL provided by LiveKit/cloud storage in location
+    if location.startswith("http://") or location.startswith("https://"):
+        try:
+            resp = httpx.get(location, timeout=120)
+            resp.raise_for_status()
+            if resp.content:
+                return resp.content, content_type
+        except Exception as exc:
+            raise RuntimeError(f"Failed downloading egress media from location URL: {exc}") from exc
+
+    # 4. S3 URI or configured S3 bucket
+    s3_bucket = None
+    s3_key = None
+    if location.startswith("s3://"):
+        parts = location[5:].split("/", 1)
+        s3_bucket = parts[0]
+        s3_key = parts[1] if len(parts) > 1 else ""
+    elif settings.S3_BUCKET and filename:
+        s3_bucket = settings.S3_BUCKET
+        s3_key = filename
+
+    if s3_bucket and s3_key:
+        try:
+            import boto3
+
+            boto_kwargs = {}
+            if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
+                boto_kwargs["aws_access_key_id"] = settings.AWS_ACCESS_KEY_ID
+                boto_kwargs["aws_secret_access_key"] = settings.AWS_SECRET_ACCESS_KEY
+            if settings.AWS_REGION:
+                boto_kwargs["region_name"] = settings.AWS_REGION
+
+            s3_client = boto3.client("s3", **boto_kwargs)
+            obj = s3_client.get_object(Bucket=s3_bucket, Key=s3_key)
+            data = obj["Body"].read()
+            if data:
+                return data, content_type
+        except Exception as exc:
+            raise RuntimeError(f"Failed retrieving egress media from S3 (bucket={s3_bucket}, key={s3_key}): {exc}") from exc
+
+    raise FileNotFoundError(
+        f"Egress output media could not be located via configured output mechanisms (filename='{filename}', location='{location}')"
+    )
+
+
 async def handle_livekit_webhook_event(
     db: Session,
     event_payload: dict,
@@ -526,7 +605,8 @@ async def handle_livekit_webhook_event(
 ) -> dict:
     """
     Handle verified LiveKit webhook events (egress_ended, room_finished, etc.).
-    Automatically finalizes egress recording artifacts and dispatches AI jobs.
+    Automatically finalizes egress recording artifacts, uploads to private storage,
+    persists storage_path, and dispatches AI jobs safely.
     """
     event_type = event_payload.get("event")
     logger.info("[LIVEKIT_WEBHOOK_EVENT] event=%s", event_type)
@@ -551,7 +631,27 @@ async def handle_livekit_webhook_event(
 
         meeting = db.query(Meeting).filter(Meeting.public_id == recording.meeting_id).first()
 
-        # Check if egress failed
+        # Idempotency check: duplicate webhook events
+        if (
+            recording.processing_status in [
+                RecordingProcessingStatus.QUEUED.value,
+                RecordingProcessingStatus.PROCESSING.value,
+                RecordingProcessingStatus.COMPLETED.value,
+            ]
+            and recording.storage_path
+        ):
+            logger.info(
+                "[LIVEKIT_WEBHOOK_DUPLICATE_IGNORED] egress_id=%s already finalized with storage_path=%s",
+                egress_id,
+                recording.storage_path,
+            )
+            return {
+                "status": "already_processed",
+                "recording_id": str(recording.id),
+                "storage_path": recording.storage_path,
+            }
+
+        # Check if egress execution failed
         if status_val in ("EGRESS_FAILED", "FAILED", 3):
             recording.processing_status = RecordingProcessingStatus.FAILED.value
             recording.processing_error = error_msg or "LiveKit egress execution failed"
@@ -562,27 +662,80 @@ async def handle_livekit_webhook_event(
             logger.error("[LIVEKIT_EGRESS_FAILED] egress_id=%s error=%s", egress_id, recording.processing_error)
             return {"status": "failed", "recording_id": str(recording.id), "error": recording.processing_error}
 
-        # Egress succeeded: files output produced
         file_results = egress_info.get("file_results") or []
-        first_file = file_results[0] if file_results else {}
+        if not file_results:
+            recording.processing_status = RecordingProcessingStatus.FAILED.value
+            recording.processing_error = "LiveKit egress completed but produced no output files"
+            if meeting:
+                meeting.transcription_status = "failed"
+                meeting.transcription_error = recording.processing_error
+            db.commit()
+            logger.error("[LIVEKIT_EGRESS_NO_FILES] egress_id=%s", egress_id)
+            return {"status": "failed", "recording_id": str(recording.id), "error": recording.processing_error}
+
+        first_file = file_results[0]
         filename = first_file.get("filename") or f"meeting-{recording.meeting_id}.mp4"
         duration = first_file.get("duration") or egress_info.get("duration")
         duration_seconds = int(duration / 1_000_000_000) if duration and duration > 1000000 else (duration or None)
 
+        # Retrieve egress output media from configured output mechanism
+        try:
+            content_bytes, content_type = retrieve_egress_media(first_file)
+        except Exception as exc:
+            recording.processing_status = RecordingProcessingStatus.FAILED.value
+            recording.processing_error = f"Egress media retrieval failed: {exc}"
+            if meeting:
+                meeting.transcription_status = "failed"
+                meeting.transcription_error = recording.processing_error
+            db.commit()
+            logger.error("[LIVEKIT_EGRESS_RETRIEVAL_FAILED] egress_id=%s error=%s", egress_id, exc)
+            return {"status": "failed", "recording_id": str(recording.id), "error": recording.processing_error}
+
+        # Upload audio to private storage
+        uploader = db.query(User).filter(User.public_id == recording.uploaded_by_user_id).first()
+        uploader_ref = uploader or User(public_id="system")
+        storage_path = _recording_storage_path(
+            meeting or Meeting(public_id=recording.meeting_id),
+            uploader_ref,
+            filename,
+        )
+
+        try:
+            stored = storage.upload_private_file(
+                path=storage_path,
+                content=content_bytes,
+                content_type=content_type,
+            )
+        except Exception as exc:
+            recording.processing_status = RecordingProcessingStatus.FAILED.value
+            recording.processing_error = f"Private storage upload failed: {exc}"
+            if meeting:
+                meeting.transcription_status = "failed"
+                meeting.transcription_error = recording.processing_error
+            db.commit()
+            logger.error("[LIVEKIT_EGRESS_STORAGE_FAILED] egress_id=%s error=%s", egress_id, exc)
+            return {"status": "failed", "recording_id": str(recording.id), "error": recording.processing_error}
+
+        # Persist storage path and finalized recording metadata
+        recording.storage_backend = stored.backend
+        recording.storage_bucket = stored.bucket
+        recording.storage_path = stored.path
         recording.original_filename = filename
-        recording.file_type = "video/mp4" if filename.endswith(".mp4") else "audio/webm"
+        recording.file_type = content_type
         recording.duration_seconds = duration_seconds
-        recording.file_size_bytes = first_file.get("size") or recording.file_size_bytes or 0
+        recording.file_size_bytes = len(content_bytes)
         recording.processing_status = RecordingProcessingStatus.QUEUED.value
         recording.processing_error = None
 
         if meeting:
-            meeting.recording_url = recording.storage_path or filename
+            meeting.recording_url = stored.path
             meeting.transcription_status = "queued"
             meeting.analysis_status = "queued"
 
-        # Dispatch AI Job
-        uploader = db.query(User).filter(User.public_id == recording.uploaded_by_user_id).first()
+        db.commit()
+        db.refresh(recording)
+
+        # Enqueue AI Job ONLY after storage_path is committed
         if uploader:
             job = get_or_create_recording_ai_job(
                 db,
@@ -592,9 +745,14 @@ async def handle_livekit_webhook_event(
             )
             db.commit()
             _enqueue_ai_job(db, job.public_id)
-            logger.info("[LIVEKIT_EGRESS_FINALIZED_AND_DISPATCHED] recording_id=%s ai_job_id=%s", recording.id, job.public_id)
+            logger.info(
+                "[LIVEKIT_EGRESS_FINALIZED_AND_DISPATCHED] recording_id=%s ai_job_id=%s storage_path=%s",
+                recording.id,
+                job.public_id,
+                recording.storage_path,
+            )
 
-        return {"status": "processed", "recording_id": str(recording.id)}
+        return {"status": "processed", "recording_id": str(recording.id), "storage_path": stored.path}
 
     elif event_type == "room_finished":
         room = event_payload.get("room", {})

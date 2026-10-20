@@ -159,17 +159,39 @@ async def livekit_webhook(
 
     # Convert event object to dictionary if it's a LiveKit WebhookEvent protobuf/class
     event_dict = {}
-    if hasattr(event, "event"):
-        event_dict["event"] = getattr(event, "event", "")
-    if hasattr(event, "egress_info"):
-        e_info = getattr(event, "egress_info")
-        event_dict["egress_info"] = {
-            "egress_id": getattr(e_info, "egress_id", ""),
-            "status": str(getattr(e_info, "status", "")),
-            "error": getattr(e_info, "error", None),
-        }
-    if hasattr(event, "room"):
-        rm = getattr(event, "room")
-        event_dict["room"] = {"name": getattr(rm, "name", "")}
+    if isinstance(event, dict):
+        event_dict = event
+    else:
+        if hasattr(event, "event"):
+            event_dict["event"] = getattr(event, "event", "")
+        if hasattr(event, "egress_info"):
+            e_info = getattr(event, "egress_info")
+            raw_files = getattr(e_info, "file_results", None) or getattr(e_info, "file_outputs", None) or []
+            file_results = []
+            for f in raw_files:
+                if isinstance(f, dict):
+                    file_results.append(f)
+                else:
+                    item = {
+                        "filename": getattr(f, "filename", ""),
+                        "duration": getattr(f, "duration", 0),
+                        "size": getattr(f, "size", 0),
+                        "location": getattr(f, "location", ""),
+                    }
+                    if hasattr(f, "content"):
+                        item["content"] = getattr(f, "content")
+                    if hasattr(f, "file_bytes"):
+                        item["file_bytes"] = getattr(f, "file_bytes")
+                    file_results.append(item)
+            event_dict["egress_info"] = {
+                "egress_id": getattr(e_info, "egress_id", ""),
+                "status": str(getattr(e_info, "status", "")),
+                "error": getattr(e_info, "error", None),
+                "duration": getattr(e_info, "duration", None),
+                "file_results": file_results,
+            }
+        if hasattr(event, "room"):
+            rm = getattr(event, "room")
+            event_dict["room"] = {"name": getattr(rm, "name", "") if not isinstance(rm, dict) else rm.get("name", "")}
 
     return await handle_livekit_webhook_event(db, event_dict, storage)

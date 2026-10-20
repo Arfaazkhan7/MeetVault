@@ -34,12 +34,16 @@ def override_get_db():
 app.dependency_overrides[get_db] = override_get_db
 
 
+from sqlalchemy.orm import close_all_sessions
+
 @pytest.fixture(autouse=True)
 def setup_db():
     """Fresh schema for every test function."""
     Base.metadata.create_all(bind=engine)
     yield
+    close_all_sessions()
     Base.metadata.drop_all(bind=engine)
+
 
 
 @pytest.fixture()
