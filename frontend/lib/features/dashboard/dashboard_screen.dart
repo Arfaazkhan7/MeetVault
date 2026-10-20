@@ -529,7 +529,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
-    final userName = authProvider.displayName;
 
     return EnterpriseScaffold(
       title: 'Home',

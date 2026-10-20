@@ -9,7 +9,11 @@ from datetime import datetime
 class AskRequest(BaseModel):
     """Request payload for a natural-language question to meeting memory."""
     question: str
+    scope: Optional[str] = "all"  # "all" | "current_meeting" | "selected_meetings" | "project" | "company"
+    meeting_id: Optional[str] = None
+    meeting_ids: Optional[List[str]] = None
     project_id: Optional[str] = None
+    company_id: Optional[str] = None
     limit: Optional[int] = 12  # Max evidence items to retrieve
 
 
@@ -22,6 +26,8 @@ class EvidenceItem(BaseModel):
     meeting_date: Optional[datetime] = None
     speaker: Optional[str] = None
     timestamp: Optional[datetime] = None
+    start_time: Optional[float] = None
+    end_time: Optional[float] = None
     excerpt: str              # Relevant text segment
     document_ref: Optional[str] = None  # Document title + page if applicable
     score: float              # Cosine similarity / relevance score

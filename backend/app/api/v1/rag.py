@@ -12,6 +12,27 @@ router = APIRouter(tags=["rag"])
 
 
 @router.post(
+    "/rag/ask",
+    response_model=AskResponse,
+)
+@router.post(
+    "/ask",
+    response_model=AskResponse,
+)
+def ask_memory(
+    request: AskRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Ask a natural-language question about authorized meeting history.
+    Can be scoped to a single meeting (meeting_id), selected meetings (meeting_ids),
+    a project (project_id), a company (company_id), or all meetings authorized for current_user.
+    """
+    return RAGService.answer_question(db, request, current_user=current_user)
+
+
+@router.post(
     "/companies/{company_id}/ask",
     response_model=AskResponse,
 )
@@ -34,7 +55,7 @@ def ask_company_memory(
       "I could not find enough evidence in the meeting memory to answer this confidently."
     """
     get_membership(db, current_user.public_id, company_id)
-    return RAGService.answer_question(db, company_id, request)
+    return RAGService.answer_question(db, company_id, request, current_user=current_user)
 
 
 @router.post(
@@ -58,7 +79,7 @@ def ask_project_memory(
         project_id=project_id,
         limit=request.limit,
     )
-    return RAGService.answer_question(db, company_id, scoped_request)
+    return RAGService.answer_question(db, company_id, scoped_request, current_user=current_user)
 
 
 @router.post(
@@ -82,4 +103,4 @@ def ask_project_memory_direct(
         project_id=project_id,
         limit=request.limit,
     )
-    return RAGService.answer_question(db, company_id, scoped_request)
+    return RAGService.answer_question(db, company_id, scoped_request, current_user=current_user)

@@ -66,3 +66,55 @@ class RetrievalService:
             total=len(results),
             results=results,
         )
+
+    @classmethod
+    def retrieve_user_evidence(
+        cls,
+        db: Session,
+        current_user,
+        filters: SearchFilterRequest,
+    ) -> SearchResponse:
+        """
+        Execute search across embeddings authorized for current user.
+        Enforces user meeting-level access control.
+        """
+        from app.services.rag_service import RAGService
+        authorized_meetings = RAGService._get_all_authorized_meetings(db, current_user)
+
+        meeting_map = {str(m.id): m for m in authorized_meetings}
+        for m in authorized_meetings:
+            if m.public_id:
+                meeting_map[m.public_id] = m
+
+        authorized_ids = [m.public_id for m in authorized_meetings if m.public_id]
+        if filters.meeting_id:
+            if filters.meeting_id not in authorized_ids:
+                from fastapi import HTTPException, status
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Unauthorized meeting access")
+            filters.meeting_ids = [filters.meeting_id]
+        elif not filters.meeting_ids:
+            filters.meeting_ids = authorized_ids
+
+        mode_str = (filters.mode.value if isinstance(filters.mode, SearchModeEnum) else str(filters.mode)) if filters.mode else "hybrid"
+        if not filters.meeting_ids:
+            return SearchResponse(
+                query=filters.query,
+                mode=mode_str,
+                total=0,
+                results=[],
+            )
+
+        mode = filters.mode or SearchModeEnum.HYBRID
+        if mode == SearchModeEnum.KEYWORD:
+            results = SearchService.keyword_search(db, "all", filters, meeting_map)
+        elif mode == SearchModeEnum.SEMANTIC:
+            results = SearchService.semantic_search(db, "all", filters, meeting_map)
+        else:
+            results = SearchService.hybrid_search(db, "all", filters, meeting_map)
+
+        return SearchResponse(
+            query=filters.query,
+            mode=mode_str,
+            total=len(results),
+            results=results,
+        )

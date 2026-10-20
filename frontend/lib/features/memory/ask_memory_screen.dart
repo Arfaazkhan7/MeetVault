@@ -57,19 +57,13 @@ class _AskMemoryScreenState extends State<AskMemoryScreen> {
     });
 
     try {
-      final cid = _api.companyId;
-      if (cid == null) {
-        setState(() {
-          _error = 'Please create or join a company first.';
-          _loading = false;
-        });
-        return;
-      }
-      final path = _selectedProjectId != null
-          ? '/companies/$cid/projects/$_selectedProjectId/ask'
-          : '/companies/$cid/ask';
+      final body = {
+        'question': questionText.trim(),
+        if (_selectedProjectId != null) 'project_id': _selectedProjectId,
+        'limit': 12,
+      };
 
-      final res = await _api.post(path, body: {'question': questionText.trim()});
+      final res = await _api.post('/rag/ask', body: body);
 
       if (res.statusCode == 200) {
         setState(() {
@@ -79,7 +73,7 @@ class _AskMemoryScreenState extends State<AskMemoryScreen> {
       } else {
         final errJson = json.decode(res.body);
         setState(() {
-          _error = errJson['detail'] ?? 'Failed to complete RAG query';
+          _error = errJson['detail']?.toString() ?? 'Failed to complete RAG query';
           _loading = false;
         });
       }
@@ -315,12 +309,24 @@ class _AskMemoryScreenState extends State<AskMemoryScreen> {
     );
   }
 
+  String _formatTime(double? seconds) {
+    if (seconds == null) return '';
+    final totalSec = seconds.toInt();
+    final m = totalSec ~/ 60;
+    final s = totalSec % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
   Widget _buildEvidenceCard(Map<String, dynamic> item) {
     final sourceType = item['source_type'] ?? 'evidence';
     final title = item['meeting_title'] ?? item['source_id'] ?? 'Meeting Evidence';
     final speaker = item['speaker'];
     final excerpt = item['excerpt'] ?? '';
     final score = (item['score'] as num?)?.toDouble() ?? 0.0;
+    final meetingId = item['meeting_id']?.toString();
+    final startTime = (item['start_time'] as num?)?.toDouble();
+    final endTime = (item['end_time'] as num?)?.toDouble();
+    final timeStr = startTime != null ? '${_formatTime(startTime)}${endTime != null ? " - ${_formatTime(endTime)}" : ""}' : '';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -330,9 +336,17 @@ class _AskMemoryScreenState extends State<AskMemoryScreen> {
           color: Colors.blue.shade700,
         ),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-        subtitle: Text(
-          'Type: ${sourceType.replaceAll('_', ' ')} ${speaker != null ? "• Speaker: $speaker" : ""}',
-          style: const TextStyle(fontSize: 12),
+        subtitle: Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          children: [
+            Text(
+              'Type: ${sourceType.replaceAll('_', ' ')} ${speaker != null ? "• Speaker: $speaker" : ""}',
+              style: const TextStyle(fontSize: 12),
+            ),
+            if (timeStr.isNotEmpty)
+              Text('⏱ $timeStr', style: const TextStyle(fontSize: 11, color: Colors.indigo, fontWeight: FontWeight.bold)),
+          ],
         ),
         trailing: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -342,9 +356,31 @@ class _AskMemoryScreenState extends State<AskMemoryScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.all(12),
-            child: SelectableText(
-              excerpt,
-              style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 13),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SelectableText(
+                  excerpt,
+                  style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 13),
+                ),
+                if (meetingId != null && meetingId.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: () {
+                        Navigator.pushNamed(
+                          context,
+                          '/meetings/$meetingId/transcript',
+                          arguments: {'title': title},
+                        );
+                      },
+                      icon: const Icon(Icons.open_in_new, size: 14),
+                      label: const Text('View in Transcript'),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ],

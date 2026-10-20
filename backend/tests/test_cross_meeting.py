@@ -253,3 +253,311 @@ def test_cross_meeting_timeline(client, setup_db):
     timeline = res["timeline"]
     m_titles = [item["meeting_title"] for item in timeline if item["event_type"] == "MEETING"]
     assert len(m_titles) == 4
+
+
+def test_cross_meeting_query_which_meetings_discussed_project(client, setup_db):
+    """Test answering: 'Which meetings discussed Project X?' spanning multiple authorized meetings."""
+    token, cid, pid, m1_id, m2_id, m3_id, m4_id = setup_4_connected_meetings(client)
+
+    r = client.post(
+        "/api/v1/cross-meeting/query",
+        json={"question": "Which meetings discussed Project Compute Architecture Upgrade?"},
+        headers=auth_headers(token),
+    )
+    assert r.status_code == 200, r.text
+    res = r.json()
+
+    assert res["insufficient_evidence"] is False
+    assert res["confidence"] > 0.8
+    assert len(res["meetings_involved"]) == 4
+
+    meet_ids = {m["meeting_id"] for m in res["meetings_involved"]}
+    assert meet_ids == {m1_id, m2_id, m3_id, m4_id}
+    assert "Compute Architecture Upgrade" in res["synthesis"]
+
+
+def test_cross_meeting_query_decision_evolution_and_conflict(client, setup_db):
+    """Test answering: 'What did we decide about Project X, and how did the decision change?' with conflict detection."""
+    from tests.conftest import TestingSessionLocal
+    from app.models.decision import Decision, DecisionHistory
+
+    token, cid, pid, m1_id, m2_id, m3_id, m4_id = setup_4_connected_meetings(client)
+
+    db = TestingSessionLocal()
+    try:
+        # Decision proposed in M1, concerns in M2, alternative in M3, agreed in M4, reopened in M4 history
+        decision = Decision(
+            company_id=cid,
+            meeting_id=m1_id,
+            project_id=pid,
+            title="Compute Platform Selection",
+            description="Selecting backend compute platform",
+            status="UNDER_REVIEW",
+            original_proposal="The team proposes AWS Lambda.",
+            proposer_id="Dev Lead",
+            reason="Cold-start latency concerns prompted reconsideration.",
+        )
+        db.add(decision)
+        db.flush()
+        dec_id = str(decision.id)
+
+        # Stage 1: Proposal
+        dh1 = DecisionHistory(
+            decision_id=dec_id, meeting_id=m1_id, stage="PROPOSAL",
+            new_status="PROPOSED", notes="The team proposes AWS Lambda.",
+            speaker_label="Dev Lead", timestamp=datetime.now(timezone.utc) - timedelta(days=4)
+        )
+        # Stage 2: Concern
+        dh2 = DecisionHistory(
+            decision_id=dec_id, meeting_id=m2_id, stage="CONCERN",
+            previous_status="PROPOSED", new_status="UNDER_REVIEW",
+            notes="Cold-start latency issues identified.",
+            speaker_label="QA Engineer", timestamp=datetime.now(timezone.utc) - timedelta(days=3)
+        )
+        # Stage 3: Alternative
+        dh3 = DecisionHistory(
+            decision_id=dec_id, meeting_id=m3_id, stage="ALTERNATIVE",
+            previous_status="UNDER_REVIEW", new_status="ALTERNATIVE_PROPOSED",
+            notes="ECS containers proposed as alternative.",
+            speaker_label="Architect", timestamp=datetime.now(timezone.utc) - timedelta(days=2)
+        )
+        # Stage 4: Agreed in Meeting 4
+        dh4 = DecisionHistory(
+            decision_id=dec_id, meeting_id=m4_id, stage="FINAL_DECISION",
+            previous_status="ALTERNATIVE_PROPOSED", new_status="AGREED",
+            notes="The team agrees on ECS.",
+            speaker_label="Engineering Director", timestamp=datetime.now(timezone.utc) - timedelta(days=1)
+        )
+        # Stage 5: Conflict / Reopened due to new constraints
+        dh5 = DecisionHistory(
+            decision_id=dec_id, meeting_id=m4_id, stage="CONFLICT",
+            previous_status="AGREED", new_status="UNDER_REVIEW",
+            notes="Security policy mandates Fargate instead of standard ECS instances.",
+            speaker_label="SecOps", timestamp=datetime.now(timezone.utc)
+        )
+        db.add_all([dh1, dh2, dh3, dh4, dh5])
+        db.commit()
+    finally:
+        db.close()
+
+    r = client.post(
+        "/api/v1/cross-meeting/query",
+        json={"question": "What did we decide about Compute Architecture Upgrade, and how did the decision change?"},
+        headers=auth_headers(token),
+    )
+    assert r.status_code == 200, r.text
+    res = r.json()
+
+    assert res["insufficient_evidence"] is False
+    assert len(res["decisions"]) >= 1
+    d_summary = res["decisions"][0]
+
+    assert d_summary["title"] == "Compute Platform Selection"
+    assert d_summary["is_conflicted"] is True
+    assert "previously AGREED" in d_summary["conflict_notes"]
+    assert len(d_summary["stages"]) >= 5
+
+    stages = [s["stage"] for s in d_summary["stages"]]
+    assert "PROPOSAL" in stages
+    assert "CONCERN" in stages
+    assert "ALTERNATIVE" in stages
+    assert "FINAL_DECISION" in stages
+
+
+def test_cross_meeting_query_tasks_and_deadlines_for_person(client, setup_db):
+    """Test answering: 'What tasks were assigned to Gokul, and what deadlines were discussed?'"""
+    from tests.conftest import TestingSessionLocal
+    from app.models.task import Task
+    from app.models.user import User
+    from app.models.company import CompanyMember
+
+    token, cid, pid, m1_id, m2_id, m3_id, m4_id = setup_4_connected_meetings(client)
+
+    db = TestingSessionLocal()
+    try:
+        # Create user Gokul Krishnan and add to company
+        gokul = User(
+            public_id="usr_gokul_123",
+            email="gokul@example.com",
+            full_name="Gokul Krishnan",
+            hashed_password="hashed_pw",
+        )
+        db.add(gokul)
+        db.flush()
+
+        member = CompanyMember(company_id=cid, user_id=gokul.public_id, role="MEMBER")
+        db.add(member)
+
+        deadline_1 = datetime.now(timezone.utc) + timedelta(days=5)
+        deadline_2 = datetime.now(timezone.utc) + timedelta(days=12)
+
+        # Task 1 in Meeting 1
+        t1 = Task(
+            company_id=cid,
+            meeting_id=m1_id,
+            project_id=pid,
+            assignee_id=gokul.public_id,
+            title="Benchmark Lambda cold start latencies",
+            description="Run 1000 concurrent requests against staging Lambda",
+            status="open",
+            priority="high",
+            due_date=deadline_1,
+            deadline=deadline_1,
+        )
+        # Task 2 in Meeting 3
+        t2 = Task(
+            company_id=cid,
+            meeting_id=m3_id,
+            project_id=pid,
+            assignee_id=gokul.public_id,
+            title="Draft ECS container deployment manifest",
+            description="Prepare Terraform configuration for ECS task definition",
+            status="in_progress",
+            priority="medium",
+            due_date=deadline_2,
+            deadline=deadline_2,
+        )
+        db.add_all([t1, t2])
+        db.commit()
+    finally:
+        db.close()
+
+    r = client.post(
+        "/api/v1/cross-meeting/query",
+        json={"question": "What tasks were assigned to Gokul, and what deadlines were discussed?"},
+        headers=auth_headers(token),
+    )
+    assert r.status_code == 200, r.text
+    res = r.json()
+
+    assert res["insufficient_evidence"] is False
+    assert len(res["tasks"]) == 2
+
+    task_titles = [t["title"] for t in res["tasks"]]
+    assert "Benchmark Lambda cold start latencies" in task_titles
+    assert "Draft ECS container deployment manifest" in task_titles
+
+    for t in res["tasks"]:
+        assert t["assignee_name"] == "Gokul Krishnan"
+        assert t["deadline"] is not None
+        assert t["meeting_title"] is not None
+
+    # Unresolved issues should list these open/in_progress tasks
+    assert len(res["unresolved_issues"]) >= 2
+    assert any("Benchmark Lambda" in ui for ui in res["unresolved_issues"])
+
+
+def test_cross_meeting_query_speaker_attribution_with_timestamps(client, setup_db):
+    """Test answering: 'What did Gokul say, and in which meeting and at what time?' with verified diarization."""
+    from tests.conftest import TestingSessionLocal
+    from app.models.transcript import TranscriptSegment
+    from app.models.user import User
+
+    token, cid, pid, m1_id, m2_id, m3_id, m4_id = setup_4_connected_meetings(client)
+
+    db = TestingSessionLocal()
+    try:
+        # Find or create Gokul user
+        gokul = db.query(User).filter(User.email == "gokul@example.com").first()
+        if not gokul:
+            gokul = User(
+                public_id="usr_gokul_spk",
+                email="gokul@example.com",
+                full_name="Gokul Krishnan",
+                hashed_password="pw",
+            )
+            db.add(gokul)
+            db.flush()
+
+        seg1 = TranscriptSegment(
+            meeting_id=m1_id,
+            segment_id="seg_gk_001",
+            speaker_label="Gokul",
+            user_id=gokul.public_id,
+            speaker_confirmed=True,
+            start_time=125.0,  # 02:05
+            end_time=155.0,    # 02:35
+            text="I will run the ECS performance benchmarks against the staging cluster tomorrow.",
+            language="en",
+        )
+        seg2 = TranscriptSegment(
+            meeting_id=m3_id,
+            segment_id="seg_gk_002",
+            speaker_label="Gokul",
+            user_id=gokul.public_id,
+            speaker_confirmed=True,
+            start_time=360.0,  # 06:00
+            end_time=395.0,    # 06:35
+            text="The ECS cluster response time averaged 42 milliseconds with zero cold starts.",
+            language="en",
+        )
+        db.add_all([seg1, seg2])
+        db.commit()
+    finally:
+        db.close()
+
+    r = client.post(
+        "/api/v1/cross-meeting/query",
+        json={"question": "What did Gokul say, and in which meeting and at what time?"},
+        headers=auth_headers(token),
+    )
+    assert r.status_code == 200, r.text
+    res = r.json()
+
+    assert res["insufficient_evidence"] is False
+    assert len(res["statements"]) >= 2
+
+    s1 = next(s for s in res["statements"] if "benchmarks against the staging cluster" in s["text"])
+    assert s1["speaker_name"] == "Gokul Krishnan"
+    assert s1["is_verified_user"] is True
+    assert s1["meeting_id"] == m1_id
+    assert s1["timestamp_range"] == "02:05 - 02:35"
+    assert s1["start_time"] == 125.0
+    assert s1["end_time"] == 155.0
+
+    s2 = next(s for s in res["statements"] if "42 milliseconds" in s["text"])
+    assert s2["timestamp_range"] == "06:00 - 06:35"
+    assert s2["meeting_id"] == m3_id
+
+
+def test_cross_meeting_unauthorized_scope_forbidden(client, setup_db):
+    """Test security: User cannot query unauthorized meetings (enforced pre-retrieval)."""
+    # Setup meetings under User A
+    token_a, cid, pid, m1_id, m2_id, m3_id, m4_id = setup_4_connected_meetings(client)
+
+    # Setup User B (unauthorized third-party)
+    user_b = register_user(client, email="mallory@evil.com", name="Mallory")
+    token_b = login_user(client, email="mallory@evil.com")
+
+    # Mallory attempts to query User A's meeting
+    r = client.post(
+        "/api/v1/cross-meeting/query",
+        json={
+            "question": "What did they decide about compute architecture?",
+            "meeting_ids": [m1_id],
+        },
+        headers=auth_headers(token_b),
+    )
+    assert r.status_code == 403, r.text
+    assert "not authorized" in r.json()["detail"].lower()
+
+
+def test_cross_meeting_insufficient_evidence_no_hallucination(client, setup_db):
+    """Test abstention: Unknown information is not fabricated and returns insufficient_evidence."""
+    token, cid, pid, m1_id, m2_id, m3_id, m4_id = setup_4_connected_meetings(client)
+
+    r = client.post(
+        "/api/v1/cross-meeting/query",
+        json={"question": "What were the results of the Quantum Warp Engine experiment?"},
+        headers=auth_headers(token),
+    )
+    assert r.status_code == 200, r.text
+    res = r.json()
+
+    assert res["insufficient_evidence"] is True
+    assert res["confidence"] == 0.0
+    assert len(res["decisions"]) == 0
+    assert len(res["tasks"]) == 0
+    assert len(res["statements"]) == 0
+    assert "not find enough evidence" in res["synthesis"].lower() or "no authorized" in res["synthesis"].lower()
+

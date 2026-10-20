@@ -85,3 +85,83 @@ class CrossMeetingTimelineResponse(BaseModel):
     project_id: str
     total_events: int
     timeline: List[CrossMeetingTimelineNode] = []
+
+
+# ─── Cross-Meeting Intelligence Natural-Language QA Schemas ─────────────────
+
+class CrossMeetingQueryRequest(BaseModel):
+    """Natural-language question spanning multiple authorized meetings, projects, decisions, and people."""
+    question: str
+    project_id: Optional[str] = None
+    project_name: Optional[str] = None
+    person_name: Optional[str] = None
+    meeting_ids: Optional[List[str]] = None
+    date_from: Optional[datetime] = None
+    date_to: Optional[datetime] = None
+    scope: Optional[str] = "all"  # "all" | "project" | "selected_meetings"
+    limit: Optional[int] = 20
+
+
+class DecisionEvolutionSummary(BaseModel):
+    """Structured decision evolution chain across meetings."""
+    decision_id: str
+    title: str
+    original_proposal: Optional[str] = None
+    current_status: str
+    final_decision: Optional[str] = None
+    reason: Optional[str] = None
+    is_conflicted: bool = False
+    conflict_notes: Optional[str] = None
+    stages: List[DecisionEvolutionNode] = []
+    source_meetings: List[Dict[str, Any]] = []
+
+    model_config = {"from_attributes": True}
+
+
+class TaskAssignmentSummary(BaseModel):
+    """Structured task assignment with deadlines and meeting origins."""
+    task_id: str
+    title: str
+    description: Optional[str] = None
+    assignee_id: Optional[str] = None
+    assignee_name: Optional[str] = None
+    status: str
+    priority: Optional[str] = None
+    deadline: Optional[datetime] = None
+    meeting_id: str
+    meeting_title: str
+
+    model_config = {"from_attributes": True}
+
+
+class SpeakerStatement(BaseModel):
+    """Direct statement attributed to a speaker with genuine timestamps."""
+    meeting_id: str
+    meeting_title: str
+    speaker_name: str
+    user_id: Optional[str] = None
+    is_verified_user: bool = False
+    start_time: Optional[float] = None
+    end_time: Optional[float] = None
+    timestamp_range: Optional[str] = None
+    text: str
+
+    model_config = {"from_attributes": True}
+
+
+class CrossMeetingQueryResponse(BaseModel):
+    """Synthesized cross-meeting intelligence response with traceable source references."""
+    question: str
+    synthesis: str
+    insufficient_evidence: bool = False
+    confidence: float = 1.0
+    meetings_involved: List[Dict[str, Any]] = []
+    decisions: List[DecisionEvolutionSummary] = []
+    tasks: List[TaskAssignmentSummary] = []
+    statements: List[SpeakerStatement] = []
+    unresolved_issues: List[str] = []
+    evidence_citations: List[Dict[str, Any]] = []
+    model_used: str = "MeetVault Cross-Meeting Intelligence"
+
+    model_config = {"from_attributes": True}
+

@@ -66,7 +66,7 @@ class EmbeddingService:
     def create_or_update_embedding(
         db: Session,
         *,
-        company_id: str,
+        company_id: Optional[str] = None,
         source_type: str,
         source_id: str,
         content_text: str,
@@ -76,11 +76,12 @@ class EmbeddingService:
         participant_id: Optional[str] = None,
     ) -> Embedding:
         """Generate embedding vector and persist in Embedding table."""
+        cid = company_id or "personal"
         vec = generate_text_embedding(content_text)
         vec_json = json.dumps(vec)
 
         existing = db.query(Embedding).filter(
-            Embedding.company_id == company_id,
+            Embedding.company_id == cid,
             Embedding.source_type == source_type,
             Embedding.source_id == source_id,
         ).first()
@@ -97,7 +98,7 @@ class EmbeddingService:
             pub_id = f"emb_{uuid.uuid4().hex[:12]}"
             rec = Embedding(
                 public_id=pub_id,
-                company_id=company_id,
+                company_id=cid,
                 project_id=project_id,
                 meeting_id=meeting_id,
                 source_type=source_type,
@@ -248,7 +249,7 @@ class EmbeddingService:
         return count
 
     @classmethod
-    def index_meeting_entities(cls, db: Session, company_id: str, meeting_id: str) -> int:
+    def index_meeting_entities(cls, db: Session, company_id: Optional[str], meeting_id: str) -> int:
         """Index all entities (segments, summaries, etc.) specifically for one meeting."""
         count = 0
         meeting = db.query(Meeting).filter(Meeting.public_id == meeting_id).first()
@@ -256,12 +257,13 @@ class EmbeddingService:
             return 0
             
         project_id = meeting.project_id
+        effective_cid = company_id or meeting.company_id or (f"personal_{meeting.owner_id}" if meeting.owner_id else "personal")
 
         # 1. Transcript segments
         segments = db.query(TranscriptSegment).filter(TranscriptSegment.meeting_id == meeting_id).all()
         for seg in segments:
             cls.create_or_update_embedding(
-                db, company_id=company_id, source_type="transcript_segment", source_id=str(seg.id),
+                db, company_id=effective_cid, source_type="transcript_segment", source_id=str(seg.id),
                 content_text=seg.text, project_id=project_id, meeting_id=meeting_id,
                 speaker_label=seg.speaker_label, participant_id=str(seg.user_id) if seg.user_id else None
             )
@@ -272,7 +274,7 @@ class EmbeddingService:
         if summary:
             text = f"{summary.summary_text} Takeaways: {summary.key_takeaways or ''}"
             cls.create_or_update_embedding(
-                db, company_id=company_id, source_type="meeting_summary", source_id=str(summary.id),
+                db, company_id=effective_cid, source_type="meeting_summary", source_id=str(summary.id),
                 content_text=text, project_id=project_id, meeting_id=meeting_id
             )
             count += 1
@@ -282,7 +284,7 @@ class EmbeddingService:
         questions = db.query(Question).filter(Question.meeting_id == meeting_id).all()
         for q in questions:
             cls.create_or_update_embedding(
-                db, company_id=company_id, source_type="question", source_id=str(q.id),
+                db, company_id=effective_cid, source_type="question", source_id=str(q.id),
                 content_text=q.question, project_id=project_id, meeting_id=meeting_id
             )
             count += 1
@@ -291,7 +293,7 @@ class EmbeddingService:
         commitments = db.query(Commitment).filter(Commitment.meeting_id == meeting_id).all()
         for c in commitments:
             cls.create_or_update_embedding(
-                db, company_id=company_id, source_type="commitment", source_id=str(c.id),
+                db, company_id=effective_cid, source_type="commitment", source_id=str(c.id),
                 content_text=f"{c.person} committed to: {c.commitment}", project_id=project_id, meeting_id=meeting_id
             )
             count += 1
@@ -300,7 +302,7 @@ class EmbeddingService:
         risks = db.query(Risk).filter(Risk.meeting_id == meeting_id).all()
         for r in risks:
             cls.create_or_update_embedding(
-                db, company_id=company_id, source_type="risk", source_id=str(r.id),
+                db, company_id=effective_cid, source_type="risk", source_id=str(r.id),
                 content_text=f"Risk: {r.title}", project_id=project_id, meeting_id=meeting_id
             )
             count += 1
@@ -324,4 +326,23 @@ class EmbeddingService:
             "indexed_decisions": c_dec,
             "indexed_document_pages": c_doc,
             "total_indexed": total,
+        }
+
+    @classmethod
+    def index_user_meetings(cls, db: Session, current_user) -> Dict[str, int]:
+        """Index all meetings authorized for current user."""
+        from app.services.rag_service import RAGService
+        meetings = RAGService._get_all_authorized_meetings(db, current_user)
+        total_segments = 0
+        for m in meetings:
+            cnt = cls.index_meeting_entities(db, m.company_id, m.public_id)
+            total_segments += cnt
+
+        return {
+            "indexed_transcript_segments": total_segments,
+            "indexed_meeting_summaries": 0,
+            "indexed_topics": 0,
+            "indexed_decisions": 0,
+            "indexed_document_pages": 0,
+            "total_indexed": total_segments,
         }

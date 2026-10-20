@@ -98,17 +98,14 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
     try {
       String livekitUrl;
       String token;
-      String roomName;
 
-      if (widget.livekitUrl != null && widget.token != null && widget.roomName != null) {
+      if (widget.livekitUrl != null && widget.token != null) {
         livekitUrl = widget.livekitUrl!;
         token = widget.token!;
-        roomName = widget.roomName!;
       } else {
         final connection = await _requestConnection();
         livekitUrl = connection.livekitUrl;
         token = connection.token;
-        roomName = connection.roomName;
       }
 
       setState(() => _connectionStatus = 'Joining room');

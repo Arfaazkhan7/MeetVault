@@ -15,15 +15,18 @@ class SearchService:
     """Service executing Keyword, Semantic, and Hybrid search over 5 entity types with 7 filters."""
 
     @classmethod
-    def filter_query(cls, query, company_id: str, filters: SearchFilterRequest):
+    def filter_query(cls, query, company_id: Optional[str], filters: SearchFilterRequest):
         """Apply security and contextual search filters to SQLAlchemy query."""
-        query = query.filter(Embedding.company_id == company_id)
+        if company_id and company_id != "all":
+            query = query.filter(Embedding.company_id == company_id)
+
+        if filters.meeting_ids:
+            query = query.filter(Embedding.meeting_id.in_(filters.meeting_ids))
+        elif filters.meeting_id:
+            query = query.filter(Embedding.meeting_id == filters.meeting_id)
 
         if filters.project_id:
             query = query.filter(Embedding.project_id == filters.project_id)
-
-        if filters.meeting_id:
-            query = query.filter(Embedding.meeting_id == filters.meeting_id)
 
         if filters.participant_id:
             pattern = f"%{filters.participant_id}%"
@@ -81,6 +84,35 @@ class SearchService:
         else:
             title = f"Evidence ({emb.source_type})"
 
+        start_time = None
+        end_time = None
+        if emb.source_type == "transcript_segment" and emb.source_id:
+            try:
+                from app.models.transcript import TranscriptSegment
+                seg = db.query(TranscriptSegment).filter(TranscriptSegment.segment_id == emb.source_id).first()
+                if not seg:
+                    try:
+                        import uuid
+                        uid = uuid.UUID(emb.source_id)
+                        seg = db.query(TranscriptSegment).filter(TranscriptSegment.id == uid).first()
+                    except (ValueError, TypeError, AttributeError):
+                        pass
+                if not seg:
+                    try:
+                        seg = db.query(TranscriptSegment).filter(TranscriptSegment.id == emb.source_id).first()
+                    except Exception:
+                        pass
+                if not seg and emb.source_id.isdigit():
+                    try:
+                        seg = db.query(TranscriptSegment).filter(TranscriptSegment.id == int(emb.source_id)).first()
+                    except Exception:
+                        pass
+                if seg:
+                    start_time = seg.start_time
+                    end_time = seg.end_time
+            except Exception:
+                pass
+
         return SearchResultItem(
             source_type=emb.source_type,
             source_id=emb.source_id,
@@ -91,6 +123,8 @@ class SearchService:
             project_id=emb.project_id,
             speaker_label=emb.speaker_label,
             timestamp=emb.created_at,
+            start_time=start_time,
+            end_time=end_time,
             score=round(float(score), 4),
             search_mode=mode,
         )
@@ -105,7 +139,8 @@ class SearchService:
     ) -> List[SearchResultItem]:
         """Execute Keyword search across embedded entities using exact and word matching."""
         # Ensure company embeddings exist
-        EmbeddingService.index_all_company_entities(db, company_id)
+        if company_id and company_id != "all":
+            EmbeddingService.index_all_company_entities(db, company_id)
 
         query_text = filters.query.strip()
         words = [w.lower() for w in re.findall(r'\b\w+\b', query_text) if len(w) > 2]
@@ -145,7 +180,8 @@ class SearchService:
     ) -> List[SearchResultItem]:
         """Execute Semantic Vector search across 1536-dim vector embeddings using cosine similarity."""
         # Ensure company embeddings exist
-        EmbeddingService.index_all_company_entities(db, company_id)
+        if company_id and company_id != "all":
+            EmbeddingService.index_all_company_entities(db, company_id)
 
         query_vec = generate_text_embedding(filters.query)
 
@@ -204,6 +240,8 @@ class SearchService:
                 project_id=item.project_id,
                 speaker_label=item.speaker_label,
                 timestamp=item.timestamp,
+                start_time=item.start_time,
+                end_time=item.end_time,
                 score=round(float(hybrid_score), 4),
                 search_mode="hybrid",
             )

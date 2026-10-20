@@ -284,3 +284,37 @@ def test_search_filters_and_tenant_isolation(client, setup_db):
     )
     assert r_topic.status_code == 200
     assert r_topic.json()["total"] > 0
+
+
+def test_user_scoped_search_endpoint(client, setup_db):
+    """Test the user-scoped POST /api/v1/search endpoint across all authorized meetings with timestamps."""
+    token, cid, pid, m1_id = setup_search_test_data(client)
+    client.post(f"/api/v1/companies/{cid}/embeddings/generate", headers=auth_headers(token))
+
+    r = client.post(
+        "/api/v1/search",
+        json={"query": "cold-start latency", "mode": "hybrid"},
+        headers=auth_headers(token),
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["total"] > 0
+    seg_items = [it for it in data["results"] if it["source_type"] == "transcript_segment"]
+    if seg_items:
+        first_seg = seg_items[0]
+        assert first_seg["start_time"] is not None
+        assert first_seg["end_time"] is not None
+
+
+def test_user_scoped_generate_embeddings(client, setup_db):
+    """Test POST /api/v1/search/embeddings/generate for current user."""
+    token, cid, pid, m1_id = setup_search_test_data(client)
+    r = client.post(
+        "/api/v1/search/embeddings/generate",
+        headers=auth_headers(token),
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["status"] == "SUCCESS"
+    assert data["total_indexed"] > 0
+

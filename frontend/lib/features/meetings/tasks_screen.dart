@@ -88,19 +88,6 @@ class _TasksScreenState extends State<TasksScreen> {
     }
   }
 
-  Color _getPriorityColor(String? priority) {
-    switch (priority?.toLowerCase()) {
-      case 'high':
-        return Colors.red;
-      case 'medium':
-        return Colors.orange;
-      case 'low':
-        return Colors.green;
-      default:
-        return Colors.grey;
-    }
-  }
-
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
       case 'completed':

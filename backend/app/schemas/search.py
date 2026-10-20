@@ -15,6 +15,8 @@ class SearchFilterRequest(BaseModel):
     mode: Optional[SearchModeEnum] = SearchModeEnum.HYBRID
     project_id: Optional[str] = None
     meeting_id: Optional[str] = None
+    meeting_ids: Optional[List[str]] = None
+    company_id: Optional[str] = None
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     participant_id: Optional[str] = None
@@ -33,6 +35,8 @@ class SearchResultItem(BaseModel):
     project_id: Optional[str] = None
     speaker_label: Optional[str] = None
     timestamp: Optional[datetime] = None
+    start_time: Optional[float] = None
+    end_time: Optional[float] = None
     score: float
     search_mode: str
 
