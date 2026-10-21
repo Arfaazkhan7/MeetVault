@@ -10,6 +10,7 @@ from app.services.user_service import get_user_by_public_id
 from app.models.user import User
 from app.models.company import CompanyMember
 from app.models.project import Project, ProjectMember
+from app.core.config import settings
 
 _bearer = HTTPBearer(auto_error=False)
 _bearer_optional = HTTPBearer(auto_error=False)
@@ -28,7 +29,7 @@ def get_current_user(
     token = credentials.credentials.strip()
 
     # Handle local / fallback tokens containing user email (e.g. mv-local-token:user@gmail.com)
-    if token.startswith("mv-local-") or token.startswith("mail-"):
+    if settings.ENVIRONMENT == "development" and (token.startswith("mv-local-") or token.startswith("mail-")):
         email = None
         if ":" in token:
             email = token.split(":", 1)[1].strip()
@@ -66,7 +67,7 @@ def get_optional_current_user(
         return None
     token = credentials.credentials.strip()
 
-    if token.startswith("mv-local-") or token.startswith("mail-"):
+    if settings.ENVIRONMENT == "development" and (token.startswith("mv-local-") or token.startswith("mail-")):
         email = None
         if ":" in token:
             email = token.split(":", 1)[1].strip()
@@ -168,3 +169,4 @@ def require_project_admin(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Requires project admin privileges")
 
     return project
+

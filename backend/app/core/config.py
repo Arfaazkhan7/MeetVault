@@ -2,6 +2,7 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 import json
+from app.core.runtime import IS_WORKERS
 
 
 class Settings(BaseSettings):
@@ -70,6 +71,9 @@ class Settings(BaseSettings):
     SUPABASE_STORAGE_BUCKET: str = "meeting-recordings"
     RECORDING_SIGNED_URL_EXPIRE_SECONDS: int = 900
     MAX_RECORDING_UPLOAD_BYTES: int = 500 * 1024 * 1024
+    DOCUMENT_STORAGE_BACKEND: str = "local"
+    SUPABASE_DOCUMENTS_BUCKET: str = "meeting-documents"
+    PASSWORD_HASH_SCHEMA: str = "extensions"
 
     # AWS
     AWS_REGION: str = "us-east-1"
@@ -119,4 +123,45 @@ class Settings(BaseSettings):
         return value
 
 
-settings = Settings()
+def _worker_binding_values(bindings) -> dict:
+    values = {}
+    for name in Settings.model_fields:
+        value = getattr(bindings, name, None)
+        if isinstance(value, (str, int, float, bool)):
+            values[name] = value
+    values.setdefault("ENVIRONMENT", "production")
+    values.setdefault("DOCUMENT_STORAGE_BACKEND", "supabase")
+    values.setdefault("AI_WORKER_QUEUE", "cloudflare")
+    return values
+
+
+def load_settings() -> Settings:
+    if not IS_WORKERS:
+        return Settings()
+    from workers import env
+
+    # Bindings are deployment configuration, not process environment variables.
+    return Settings(_env_file=None, **_worker_binding_values(env))
+
+
+settings = load_settings()
+_request_binding_values = None
+
+
+def refresh_worker_settings(bindings) -> None:
+    """Refresh copied settings from the live request's deployment bindings.
+
+    A settings object captured before secrets are added can retain defaults in
+    a Python snapshot. Preserve object identity because services import it
+    directly. The entrypoint holds its request lock while calling this helper.
+    Revalidate only if bindings changed, avoiding Settings work on every call.
+    """
+    global _request_binding_values
+    values = _worker_binding_values(bindings)
+    if values == _request_binding_values:
+        return
+    current = Settings(_env_file=None, **values)
+    for name in Settings.model_fields:
+        setattr(settings, name, getattr(current, name))
+    _request_binding_values = values
+

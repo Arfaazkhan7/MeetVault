@@ -27,7 +27,7 @@ jobs:
       - name: Prepare Web Directory & Inject Config
         env:
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
-          API_BASE_URL: https://meetvault-api.onrender.com/api/v1
+          API_BASE_URL: https://meetvault-api-candidate.aeris-cloud.workers.dev/api/v1
         run: |
           mkdir -p dist
           cp -r web/* dist/
@@ -37,7 +37,7 @@ jobs:
           const fs = require('fs');
           const files = ['dist/login.html', 'dist/signup.html', 'dist/index.html', 'dist/admin.html'];
           const firebaseApiKey = process.env.FIREBASE_API_KEY || '';
-          const apiBaseUrl = process.env.API_BASE_URL || 'https://meetvault-api.onrender.com/api/v1';
+          const apiBaseUrl = process.env.API_BASE_URL || 'https://meetvault-api-candidate.aeris-cloud.workers.dev/api/v1';
 
           for (const file of files) {
             if (!fs.existsSync(file)) continue;
@@ -78,4 +78,5 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
 

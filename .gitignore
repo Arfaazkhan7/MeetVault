@@ -68,3 +68,15 @@ frontend/.flutter-plugins
 frontend/.flutter-plugins-dependencies
 frontend/.dart_tool/
 
+# Cloudflare Python build output and local secrets
+.dev.vars
+.dev.vars.*
+.wrangler/
+.venv-workers/
+python_modules/
+backend/wrangler.jsonc
+cloudflare_backend/wrangler.jsonc
+cloudflare_backend/wrangler.local.jsonc
+cloudflare_backend/src/
+
+

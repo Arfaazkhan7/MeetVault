@@ -1,7 +1,7 @@
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user, require_role
@@ -179,6 +179,18 @@ def download_private_document(
 ):
     """Private document file download."""
     doc = get_document(db, company_id=company_id, document_id=document_id)
+    if doc.file_url.startswith("supabase://"):
+        from app.core.config import settings
+        from app.services.storage_service import SupabaseStorageService
+        bucket, _, object_path = doc.file_url.removeprefix("supabase://").partition("/")
+        if bucket != settings.SUPABASE_DOCUMENTS_BUCKET or not object_path:
+            raise HTTPException(status_code=404, detail="Document storage location is invalid")
+        storage = SupabaseStorageService(
+            supabase_url=settings.SUPABASE_URL,
+            service_role_key=settings.SUPABASE_SERVICE_ROLE_KEY,
+            bucket=bucket,
+        )
+        return RedirectResponse(storage.create_signed_url(path=object_path, expires_in_seconds=60))
     import os
     if not os.path.exists(doc.file_url):
         raise HTTPException(status_code=404, detail="Document file binary not found in storage")
@@ -188,3 +200,4 @@ def download_private_document(
         filename=doc.file_name,
         media_type="application/octet-stream",
     )
+
