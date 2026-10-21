@@ -1439,7 +1439,7 @@ async function loginWithGoogle() {
     const user = result.user;
     const idToken = await user.getIdToken();
 
-    const response = await fetch(`${RUNTIME_API_BASE_URL}/auth/firebase/google`, {
+    const response = await queuedApiRequest(`${RUNTIME_API_BASE_URL}/auth/firebase/google`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id_token: idToken }),
@@ -1546,6 +1546,20 @@ function closeDrawer(e){
 let isRefreshingToken = false;
 let refreshSubscribers = [];
 
+// Keep dashboard polling, authentication and meeting writes from overlapping
+// against the Python Worker's synchronous database bridge. Release only after
+// the response body has arrived, including failed responses.
+let apiRequestTail = Promise.resolve();
+function queuedApiRequest(url, options) {
+  const pending = apiRequestTail.then(async () => {
+    const response = await fetch(url, options);
+    await response.clone().arrayBuffer();
+    return response;
+  });
+  apiRequestTail = pending.then(() => undefined, () => undefined);
+  return pending;
+}
+
 function onTokenRefreshed(newToken) {
   refreshSubscribers.forEach(cb => cb(newToken));
   refreshSubscribers = [];
@@ -1580,7 +1594,7 @@ async function refreshAccessToken() {
   if (!refreshToken) return null;
   const baseUrl = getApiBaseUrl();
   try {
-    const res = await fetch(`${baseUrl}/auth/refresh`, {
+    const res = await queuedApiRequest(`${baseUrl}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh_token: refreshToken }),
@@ -1618,7 +1632,7 @@ async function apiFetch(endpoint, options = {}, isRetry = false) {
 
   let response;
   try {
-    response = await fetch(url, options);
+    response = await queuedApiRequest(url, options);
   } catch (netErr) {
     console.error('[API] Network error:', netErr);
     throw new Error('Network error. Check your server connection.');

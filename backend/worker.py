@@ -12,6 +12,11 @@ from sqlalchemy import text
 from app.main import app
 from app.core.config import settings, refresh_worker_settings
 from app.db.session import SessionLocal
+from app.core.workers_routes import configure_worker_routes
+from app.core.runtime import IS_WORKERS
+
+if IS_WORKERS:
+    configure_worker_routes(app)
 
 # Python's synchronous database operations can suspend through the Workers
 # socket bridge. Serialize requests as recommended by the Hyperdrive docs.

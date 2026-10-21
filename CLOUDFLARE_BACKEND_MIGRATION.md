@@ -16,6 +16,18 @@ check found zero active document records requiring legacy binary transfer.
 No paid plan was enabled. Full file/media/AI flows and CPU-heavy workloads still
 need live validation; do not delete Render resources or claim full parity yet.
 
+### Meeting creation runtime incident
+
+After cutover, overlapping dashboard requests produced Pyodide's
+`Cannot enter a promising task from inside another running promising task`
+error, including HTTP 500 responses to meeting-creation CORS preflights.
+The Worker now adapts synchronous FastAPI endpoints and dependencies to run
+on the serialized request task, avoiding emulated thread-pool dispatch while
+preserving database dependency cleanup. The hosted dashboard also queues API
+transport through response-body completion. Neither change retries writes.
+Deploy the updated Worker before treating the incident as resolved; native
+regression tests do not reproduce the live Pyodide stack-switching runtime.
+
 ## What changes
 
 - Existing `/api/v1` routes and SQLAlchemy models are reused.
