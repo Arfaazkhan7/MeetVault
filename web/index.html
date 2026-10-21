@@ -1408,7 +1408,7 @@
 const API_BASE_URL = "__API_BASE_URL__";
 const RUNTIME_API_BASE_URL = (API_BASE_URL && !API_BASE_URL.startsWith('__'))
   ? API_BASE_URL
-  : 'https://meetvault-api.onrender.com/api/v1';
+  : 'https://meetvault-api-candidate.aeris-cloud.workers.dev/api/v1';
 const firebaseConfig = {
   apiKey: "__FIREBASE_API_KEY__",
   authDomain: "ai-meet-f8fd0.firebaseapp.com",
@@ -1562,7 +1562,7 @@ function getApiBaseUrl() {
   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
     return 'http://localhost:8000/api/v1';
   }
-  return 'https://meetvault-api.onrender.com/api/v1';
+  return 'https://meetvault-api-candidate.aeris-cloud.workers.dev/api/v1';
 }
 
 function handleSessionExpired() {
@@ -3376,3 +3376,4 @@ if (document.readyState === 'loading') {
 
 </body>
 </html>
+

@@ -7,7 +7,7 @@ Verified orientation for future agents. Always inspect the current `main` branch
 - Repository: https://github.com/GOKUL5731/meetvault
 - Remote: `origin`; primary branch: `main`
 - Production frontend: https://ai-meet-f8fd0.web.app
-- Production API: https://meetvault-api.onrender.com/api/v1
+- Production API target: https://meetvault-api-candidate.aeris-cloud.workers.dev/api/v1
 
 Never commit `.env`, passwords, API keys, Firebase service-account JSON, LiveKit credentials, Supabase service-role keys, OpenAI keys, local databases, build output, or virtual environments.
 
@@ -40,7 +40,7 @@ SETUP.md                 Local setup; DEPLOYMENT.md production setup
 ## Runtime Contracts
 
 1. Firebase authenticates the browser. The frontend stores the application token through `ApiService` and sends `Authorization: Bearer <token>` to protected API routes.
-2. Flutter receives `API_BASE_URL` at build time with `--dart-define`. Local default: `http://localhost:8000/api/v1`; production: `https://meetvault-api.onrender.com/api/v1`.
+2. Flutter receives `API_BASE_URL` at build time with `--dart-define`. Local development uses `http://localhost:8000/api/v1`; hosted default is `https://meetvault-api-candidate.aeris-cloud.workers.dev/api/v1`.
 3. Meeting creation returns a public id and `invite_code` such as `MTG-XXXXXX`.
 4. `POST /api/v1/meetings/join` with `{ "invite_code": "MTG-..." }` creates or reuses the participant and returns `meeting_id`, `room_name`, `livekit_url`, `token`, and participant data.
 5. `MeetingRoomScreen` uses that LiveKit token, or requests one from `/meetings/{meeting_id}/room/connect` for direct entry.
@@ -111,10 +111,15 @@ python -m ai_worker
   pgcrypto. Keep the SHA-256/base64 prehash and cost factor 12.
 - New Worker document uploads require a private bucket; old local binaries must
   be copied before Render is retired.
-- Firebase currently serves `web/` via `firebase.json`. Its workflow accepts the
-  optional `MEETVAULT_API_BASE_URL` repository variable and defaults to Render.
-- Do not change the AI worker callback URL or production frontend until the
-  candidate passes runtime, auth, file, meeting, AI-job, and CPU checks.
+- Firebase serves `web/` via `firebase.json`. Its deployment workflow injects
+  the Cloudflare API URL. Verify the actual workflow run and hosted output.
+- The user authorized live cutover on 2026-10-21 after Firebase token exchange,
+  profile, workspace, project, and meeting-list checks returned 200. The AI
+  worker callback now targets Cloudflare. Both Supabase buckets are private;
+  no active document records needed copying at cutover. File roundtrip, two-user
+  media, AI-job completion and workload CPU checks still require live validation.
+- Retain Render resources until those checks and backups are complete. Do not
+  interpret a passing health response as proof that every feature works.
 
 ### Existing Render deployment
 

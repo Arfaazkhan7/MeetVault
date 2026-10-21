@@ -2,15 +2,19 @@
 
 ## Status
 
-This branch prepares the existing FastAPI API for Python Workers. It is not a
-production cutover. Firebase Hosting, the existing AI worker, LiveKit, and
-Supabase remain in place. Do not delete Render or its files yet.
+The user authorized live cutover on 2026-10-21. The API is deployed at
+`https://meetvault-api-candidate.aeris-cloud.workers.dev/api/v1`; its existing
+name is retained to preserve the tested URL and secret bindings. Health checks
+the database and returns 200. The user's real Firebase token exchange and
+authenticated profile, workspace, project and personal meeting-list requests
+returned 200. The AI worker callback has been changed to this API, and the
+frontend workflows now inject this URL when deployed.
 
-The API dependency set resolves for Pyodide and Wrangler's dry-run package build
-has passed. Native regression tests are recorded in the PR. A local workerd
-runtime test could not start in the build environment because its Pyodide
-runtime download hostname could not resolve. No production endpoint or full
-free-tier workload has been verified.
+Firebase Hosting and Authentication, LiveKit and Supabase remain in place.
+`meeting-documents` and `meeting-recordings` are private. A read-only database
+check found zero active document records requiring legacy binary transfer.
+No paid plan was enabled. Full file/media/AI flows and CPU-heavy workloads still
+need live validation; do not delete Render resources or claim full parity yet.
 
 ## What changes
 
@@ -41,8 +45,8 @@ free-tier workload has been verified.
   optional OpenAI SDK to reduce snapshot memory. Keep `LLM_PROVIDER=cloudflare`
   and leave `OPENAI_API_KEY` unset on this Worker. Native deployments retain
   their existing optional OpenAI integration.
-- Firebase's deploy workflow reads the optional `MEETVAULT_API_BASE_URL`
-  repository variable. Its default remains the existing Render URL until cutover.
+- Firebase's deploy workflow injects the Cloudflare API URL. The GitHub Pages
+  mirror, static frontend fallbacks and Flutter default target the same API.
 - Email-only development tokens are rejected when ENVIRONMENT is production.
 
 ## Free-tier boundaries
@@ -171,16 +175,17 @@ Before updating production, verify all of these on the candidate:
   transcript ingestion, and indexing. Stay inside Free rather than upgrading.
 - Check quotas and errors in Cloudflare before switching the frontend.
 
-For the final switch:
+Cutover configuration:
 
 1. Set the AI worker's `BACKEND_API_BASE_URL` to the candidate `/api/v1` URL,
    keeping its Queue, AI binding, and all existing secrets intact.
-2. Set GitHub repository variable `MEETVAULT_API_BASE_URL` to that same URL.
+2. Set the Firebase workflow's `API_BASE_URL` to that same URL. The workflow
+   deliberately pins it rather than inheriting a stale repository variable.
 3. Run the existing Firebase Hosting workflow and verify the hosted pages use
    the new backend. `firebase.json` currently serves `web/`, not Flutter output.
 4. Repeat the login, two-user meeting, file, and completed-AI-job checks from
    Firebase Hosting. Only then retire Render and retain a database/file backup.
 
-Rollback: restore the repository variable and AI worker callback URL to
+Rollback: restore the frontend workflow API URLs and AI worker callback URL to
 `https://meetvault-api.onrender.com/api/v1`, then redeploy Firebase Hosting.
 This assumes Render and the shared database remain available.

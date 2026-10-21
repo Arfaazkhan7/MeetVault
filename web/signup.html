@@ -230,7 +230,7 @@
     const API_BASE_URL = "__API_BASE_URL__";
     const RUNTIME_API_BASE_URL = (API_BASE_URL && !API_BASE_URL.startsWith('__'))
       ? API_BASE_URL
-      : 'https://meetvault-api.onrender.com/api/v1';
+      : 'https://meetvault-api-candidate.aeris-cloud.workers.dev/api/v1';
     const firebaseConfig = {
       apiKey: "__FIREBASE_API_KEY__",
       authDomain: "ai-meet-f8fd0.firebaseapp.com",
@@ -337,7 +337,7 @@
           await firebase.auth().signInWithRedirect(p2); return;
         }
         const detail = err && (err.name === 'TypeError' || /failed to fetch/i.test(err.message || ''))
-          ? 'Cannot reach the MeetVault API. Check the Render service and its CORS settings.'
+          ? 'Cannot reach the MeetVault API. Please try again shortly.'
           : (err.message || 'Please try again.');
         setMsg('error', 'Google sign-in failed: ' + detail);
       }
@@ -354,7 +354,7 @@
         }
       }).catch(err => {
         const detail = err && (err.name === 'TypeError' || /failed to fetch/i.test(err.message || ''))
-          ? 'Cannot reach the MeetVault API. Check the Render service and its CORS settings.'
+          ? 'Cannot reach the MeetVault API. Please try again shortly.'
           : (err.message || 'Unknown error');
         setMsg('error', 'Google sign-in failed: ' + detail);
       });
@@ -379,7 +379,7 @@
       const BACKEND_TIMEOUT_MS = 60000;
       const baseUrl = (typeof RUNTIME_API_BASE_URL !== 'undefined' && RUNTIME_API_BASE_URL && !RUNTIME_API_BASE_URL.startsWith('__'))
         ? RUNTIME_API_BASE_URL
-        : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000/api/v1' : 'https://meetvault-api.onrender.com/api/v1');
+        : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000/api/v1' : 'https://meetvault-api-candidate.aeris-cloud.workers.dev/api/v1');
 
       try {
         setMsg('info', '⏳ Creating account on server… (may take up to 60s on cold start)');
@@ -454,3 +454,4 @@
   </script>
 </body>
 </html>
+
