@@ -10,7 +10,7 @@ from workers import WorkerEntrypoint, Response, asgi
 from sqlalchemy import text
 
 from app.main import app
-from app.core.config import settings
+from app.core.config import settings, refresh_worker_settings
 from app.db.session import SessionLocal
 
 # Python's synchronous database operations can suspend through the Workers
@@ -34,9 +34,10 @@ def configuration_ready(env) -> bool:
 
 class Default(WorkerEntrypoint):
     async def fetch(self, request):
-        if not configuration_ready(self.env):
-            return Response.json({"status": "not_configured"}, status=503)
         async with _request_lock:
+            refresh_worker_settings(self.env)
+            if not configuration_ready(self.env):
+                return Response.json({"status": "not_configured"}, status=503)
             if urlparse(request.url).path in ("/health", "/api/v1/health"):
                 try:
                     with SessionLocal() as db:

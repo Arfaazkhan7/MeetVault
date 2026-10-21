@@ -18,6 +18,9 @@ free-tier workload has been verified.
 - Hyperdrive and pg8000 replace the API's psycopg2 driver on Workers. Connections
   use NullPool and open only during requests, never while snapshotting imports.
 - Worker settings come from bindings rather than `.env` files.
+  Each request refreshes copied settings from its live bindings before the
+  readiness guard; changes are validated once and applied to the existing
+  settings object. This also covers secrets added after the initial snapshot.
 - Cost-12 bcrypt runs in the existing PostgreSQL `extensions.pgcrypto` extension
   on Workers, keeping the SHA-256/base64 prehash and stored password hashes.
   MeetVault's database already has pgcrypto. A synthetic `$2b$` hash verified
