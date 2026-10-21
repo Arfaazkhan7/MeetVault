@@ -1,4 +1,5 @@
 import logging
+import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -40,6 +41,29 @@ def _recording_storage_path(meeting: Meeting, user: User, filename: str) -> str:
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     tenant_id = meeting.company_id or f"personal/{user.public_id}"
     return f"{tenant_id}/{meeting.public_id}/{timestamp}-{user.public_id}-{uuid4()}{suffix}"
+
+
+def _sanitize_storage_path(path: str | None) -> str:
+    """Sanitize storage path for safe logging without exposing query tokens or signatures."""
+    if not path:
+        return "none"
+    clean_path = path.split("?")[0].split("#")[0]
+    parts = clean_path.split("/")
+    if len(parts) > 2:
+        return f"{parts[0]}/.../{parts[-1]}"
+    return clean_path
+
+
+def _to_utc_aware(dt: datetime | None) -> datetime | None:
+    """Normalize naive or aware datetime to UTC-aware datetime for safe comparisons."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+_orphan_cleanup_lock = threading.Lock()
 
 
 def _serialize_recording(recording: MeetingRecording) -> dict:
@@ -534,6 +558,7 @@ def purge_recording_audio(
     db: Session,
     recording: MeetingRecording,
     storage: StorageService,
+    reason: str = "manual_or_event",
 ) -> bool:
     """
     Purge meeting audio artifact permanently from storage and clear reference from database.
@@ -541,6 +566,9 @@ def purge_recording_audio(
     CRITICAL: Only marks is_audio_purged = True and clears storage_path when deletion is verified.
     If deletion fails, retains storage_path and records cleanup_error for bounded retry.
     """
+    if recording.is_audio_purged:
+        return True
+
     purged = False
     if recording.storage_path:
         path = recording.storage_path
@@ -564,19 +592,44 @@ def purge_recording_audio(
             recording.is_audio_purged = True
             recording.audio_purged_at = datetime.now(timezone.utc)
             recording.cleanup_error = None
-            logger.info("[AUDIO_PURGED] Verified removal of audio artifact %s from storage bucket", path)
+            logger.info(
+                "[AUDIO_PURGED] Verified removal of audio artifact for recording_id=%s path=%s reason=%s",
+                recording.id,
+                _sanitize_storage_path(path),
+                reason,
+            )
         else:
             purged = False
             recording.cleanup_error = cleanup_err
             recording.cleanup_retry_count = (getattr(recording, "cleanup_retry_count", 0) or 0) + 1
-            logger.warning("[AUDIO_PURGE_ERROR] Could not delete %s: %s", path, cleanup_err)
-    elif recording.is_audio_purged:
+            logger.warning(
+                "[AUDIO_PURGE_ERROR] Could not delete audio for recording_id=%s path=%s: %s",
+                recording.id,
+                _sanitize_storage_path(path),
+                cleanup_err,
+            )
+    else:
+        recording.is_audio_purged = True
         purged = True
 
-    # Clear meeting.recording_url if it pointed to this recording
+    # Clear meeting.recording_url only if no other active unpurged recording exists for this meeting
     meeting = db.query(Meeting).filter(Meeting.public_id == recording.meeting_id).first()
     if meeting and meeting.recording_url:
-        meeting.recording_url = None
+        other_active = (
+            db.query(MeetingRecording)
+            .filter(
+                MeetingRecording.meeting_id == meeting.public_id,
+                MeetingRecording.id != recording.id,
+                MeetingRecording.deleted_at.is_(None),
+                MeetingRecording.storage_path.isnot(None),
+                MeetingRecording.is_audio_purged.is_(False),
+            )
+            .first()
+        )
+        if not other_active:
+            meeting.recording_url = None
+        elif other_active.storage_path:
+            meeting.recording_url = other_active.storage_path
 
     db.commit()
     db.refresh(recording)
@@ -586,6 +639,7 @@ def purge_recording_audio(
 def reconcile_and_purge_orphaned_audio(
     db: Session,
     storage: StorageService,
+    company_id: str | None = None,
     max_age_minutes: int = 15,
     max_retries: int = 5,
 ) -> dict:
@@ -595,67 +649,205 @@ def reconcile_and_purge_orphaned_audio(
       - Still have a storage_path
       - Have is_audio_purged == False
       - Have completed/failed processing, missing AI jobs, or have timed out beyond max_age_minutes
-    Enforces bounded retries (cleanup_retry_count < max_retries).
+    Enforces:
+      - Unambiguous recording-to-job matching (never newest meeting-level job)
+      - Active recording and active job preservation (never delete in-flight audio)
+      - Company/tenant isolation
+      - Concurrency safety with thread locking and row-level locking where supported
+      - Bounded retries and sanitized logging
     """
-    now = datetime.now(timezone.utc)
-    threshold = now - timedelta(minutes=max_age_minutes)
+    with _orphan_cleanup_lock:
+        now = datetime.now(timezone.utc)
+        threshold = now - timedelta(minutes=max_age_minutes)
 
-    unpurged_recordings = (
-        db.query(MeetingRecording)
-        .filter(
-            MeetingRecording.deleted_at.is_(None),
-            MeetingRecording.storage_path.isnot(None),
-            MeetingRecording.is_audio_purged.is_(False),
-            MeetingRecording.cleanup_retry_count < max_retries,
-        )
-        .all()
-    )
-
-    stats = {
-        "scanned": len(unpurged_recordings),
-        "purged": 0,
-        "failed": 0,
-        "skipped_active": 0,
-    }
-
-    for rec in unpurged_recordings:
-        job = (
-            db.query(AIJob)
+        query = (
+            db.query(MeetingRecording)
             .filter(
-                (AIJob.recording_id == str(rec.id)) | (AIJob.meeting_id == rec.meeting_id)
+                MeetingRecording.deleted_at.is_(None),
+                MeetingRecording.storage_path.isnot(None),
+                MeetingRecording.is_audio_purged.is_(False),
+                MeetingRecording.cleanup_retry_count < max_retries,
             )
-            .order_by(AIJob.created_at.desc())
-            .first()
         )
+        if company_id:
+            query = query.filter(MeetingRecording.company_id == company_id)
 
-        should_purge = False
+        # Concurrency control: on PostgreSQL, use SELECT FOR UPDATE SKIP LOCKED
+        if hasattr(db.bind, "dialect") and getattr(db.bind.dialect, "name", "") == "postgresql":
+            query = query.with_for_update(skip_locked=True)
 
-        if rec.processing_status in (RecordingProcessingStatus.COMPLETED.value, RecordingProcessingStatus.FAILED.value):
-            should_purge = True
-        elif not job:
-            if rec.created_at and rec.created_at <= threshold:
-                should_purge = True
-            else:
-                stats["skipped_active"] += 1
+        unpurged_recordings = query.all()
+
+        stats = {
+            "scanned": len(unpurged_recordings),
+            "purged": 0,
+            "failed": 0,
+            "skipped_active": 0,
+            "skipped_ambiguous": 0,
+        }
+
+        for rec in unpurged_recordings:
+            # Check idempotency: could have been purged concurrently
+            try:
+                db.refresh(rec)
+            except Exception:
                 continue
-        else:
-            if job.status in ("COMPLETED", "FAILED"):
-                should_purge = True
-            elif job.created_at and job.created_at <= threshold:
-                should_purge = True
-            else:
-                stats["skipped_active"] += 1
+
+            if rec.is_audio_purged or not rec.storage_path:
                 continue
 
-        if should_purge:
-            logger.info("[ORPHAN_RECONCILIATION] Purging orphaned audio for recording_id=%s path=%s", rec.id, rec.storage_path)
-            success = purge_recording_audio(db, rec, storage)
-            if success:
-                stats["purged"] += 1
-            else:
-                stats["failed"] += 1
+            retention_policy = getattr(rec, "retention_policy", "ephemeral_transcript_only") or "ephemeral_transcript_only"
+            if retention_policy != "ephemeral_transcript_only":
+                logger.info(
+                    "[ORPHAN_RECONCILE_SKIP] recording_id=%s tenant=%s retention_policy=%s != ephemeral",
+                    rec.id,
+                    rec.company_id or "personal",
+                    retention_policy,
+                )
+                continue
 
-    return stats
+            # Active recording state check: live meeting actively capturing/finalizing
+            if rec.processing_status in (
+                RecordingProcessingStatus.STARTING.value,
+                RecordingProcessingStatus.RECORDING.value,
+                RecordingProcessingStatus.FINALIZING.value,
+            ):
+                stats["skipped_active"] += 1
+                logger.info(
+                    "[ORPHAN_RECONCILE_SKIP_ACTIVE] recording_id=%s meeting_id=%s status=%s is in active capture/finalization",
+                    rec.id,
+                    rec.meeting_id,
+                    rec.processing_status,
+                )
+                continue
+
+            # ── Step 1: Unambiguous Job Matching for this Recording ───────────────
+            matching_jobs: list[AIJob] = []
+
+            # 1a. Explicit reference via ai_job_id column
+            if getattr(rec, "ai_job_id", None):
+                job_by_id = db.query(AIJob).filter(AIJob.public_id == rec.ai_job_id).first()
+                if job_by_id:
+                    matching_jobs.append(job_by_id)
+
+            # 1b. Direct foreign reference via AIJob.recording_id
+            jobs_by_rec = db.query(AIJob).filter(AIJob.recording_id == str(rec.id)).all()
+            for j in jobs_by_rec:
+                if j not in matching_jobs:
+                    matching_jobs.append(j)
+
+            should_purge = False
+            purge_reason = "unknown"
+            rec_created = _to_utc_aware(rec.created_at)
+
+            if matching_jobs:
+                # Check for any active in-flight processing jobs for THIS recording
+                active_jobs = [j for j in matching_jobs if j.status in ("QUEUED", "RUNNING", "PROCESSING")]
+                if active_jobs:
+                    stats["skipped_active"] += 1
+                    logger.info(
+                        "[ORPHAN_RECONCILE_SKIP_ACTIVE_JOB] recording_id=%s has active job(s): %s",
+                        rec.id,
+                        [j.public_id for j in active_jobs],
+                    )
+                    continue
+
+                completed_jobs = [j for j in matching_jobs if j.status == "COMPLETED"]
+                failed_jobs = [j for j in matching_jobs if j.status == "FAILED"]
+
+                if completed_jobs:
+                    # Associated job successfully completed: zero-retention purge required
+                    should_purge = True
+                    purge_reason = "associated_job_completed"
+                elif failed_jobs:
+                    # Check if any failed job is still eligible for automatic retry and within timeout
+                    retriable_jobs = [j for j in failed_jobs if j.retry_count < j.max_retries]
+                    if retriable_jobs and (rec_created and rec_created > threshold):
+                        stats["skipped_active"] += 1
+                        logger.info(
+                            "[ORPHAN_RECONCILE_SKIP_RETRIABLE] recording_id=%s has retriable failed job(s)",
+                            rec.id,
+                        )
+                        continue
+                    else:
+                        should_purge = True
+                        purge_reason = "associated_job_failed_exhausted"
+            else:
+                # ── Step 2: No Explicit Job Link Found ────────────────────────────
+                # Inspect other recordings in the same meeting
+                sibling_recordings = (
+                    db.query(MeetingRecording)
+                    .filter(
+                        MeetingRecording.meeting_id == rec.meeting_id,
+                        MeetingRecording.id != rec.id,
+                        MeetingRecording.deleted_at.is_(None),
+                    )
+                    .all()
+                )
+
+                if sibling_recordings:
+                    # Multiple recordings in meeting: NEVER assume a meeting-level job belongs to this recording
+                    if rec.processing_status == RecordingProcessingStatus.FAILED.value:
+                        should_purge = True
+                        purge_reason = "recording_status_failed_no_job"
+                    else:
+                        stats["skipped_ambiguous"] += 1
+                        logger.warning(
+                            "[ORPHAN_RECONCILE_SKIP_AMBIGUOUS] recording_id=%s meeting_id=%s has %d sibling recordings and no explicit AIJob link",
+                            rec.id,
+                            rec.meeting_id,
+                            len(sibling_recordings),
+                        )
+                        continue
+                else:
+                    # Single recording in meeting with no explicit job link
+                    # Check if there is an active meeting-level job
+                    meeting_active_jobs = (
+                        db.query(AIJob)
+                        .filter(
+                            AIJob.meeting_id == rec.meeting_id,
+                            AIJob.status.in_(["QUEUED", "RUNNING", "PROCESSING"]),
+                        )
+                        .all()
+                    )
+                    if meeting_active_jobs:
+                        stats["skipped_active"] += 1
+                        logger.info(
+                            "[ORPHAN_RECONCILE_SKIP_MEETING_ACTIVE_JOB] recording_id=%s meeting_id=%s has active meeting job",
+                            rec.id,
+                            rec.meeting_id,
+                        )
+                        continue
+
+                    if rec.processing_status in (
+                        RecordingProcessingStatus.COMPLETED.value,
+                        RecordingProcessingStatus.FAILED.value,
+                    ):
+                        should_purge = True
+                        purge_reason = f"recording_status_{rec.processing_status.lower()}"
+                    elif rec_created and rec_created <= threshold:
+                        should_purge = True
+                        purge_reason = "stalled_abandoned_orphan"
+                    else:
+                        stats["skipped_active"] += 1
+                        continue
+
+            if should_purge:
+                logger.info(
+                    "[ORPHAN_RECONCILE_PURGE] recording_id=%s meeting_id=%s tenant=%s reason=%s path=%s",
+                    rec.id,
+                    rec.meeting_id,
+                    rec.company_id or "personal",
+                    purge_reason,
+                    _sanitize_storage_path(rec.storage_path),
+                )
+                success = purge_recording_audio(db, rec, storage)
+                if success:
+                    stats["purged"] += 1
+                else:
+                    stats["failed"] += 1
+
+        return stats
 
 
 def update_recording_status(

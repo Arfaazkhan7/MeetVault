@@ -1,7 +1,9 @@
+import os
 import logging
 from app.db.session import SessionLocal
 from app.models.user import User
 from app.core.security import hash_password
+from app.services.user_service import provision_admin_user
 from app.services.admin_service import create_workspace_by_admin
 
 logging.basicConfig(level=logging.INFO)
@@ -10,25 +12,17 @@ logger = logging.getLogger(__name__)
 def seed():
     db = SessionLocal()
     try:
-        # 1. Create System Admin
-        admin_email = "system.admin@meetvault.com"
-        admin_password = "AdminPassword123!"
-        
-        sys_admin = db.query(User).filter(User.email == admin_email).first()
-        if not sys_admin:
-            count = db.query(User).count() + 1
-            sys_admin = User(
-                public_id=f"USR-{count:04d}",
-                email=admin_email,
-                full_name="System Administrator",
-                hashed_password=hash_password(admin_password),
-                account_type="personal"  # Admins don't need a workspace strictly, but email prefix gives them power
-            )
-            db.add(sys_admin)
-            db.commit()
-            print(f"Created System Admin: {admin_email} / {admin_password}")
-        else:
-            print(f"System Admin already exists: {admin_email}")
+        # 1. Provision System Admin via conscious configuration / env variables
+        admin_email = os.getenv("INITIAL_ADMIN_EMAIL", "system.admin@meetvault.com")
+        admin_password = os.getenv("INITIAL_ADMIN_PASSWORD", "SysAdminPass123!")
+
+        sys_admin = provision_admin_user(
+            db=db,
+            email=admin_email,
+            plain_password=admin_password,
+            full_name="System Administrator",
+        )
+        print(f"Provisioned System Admin (account_type='{sys_admin.account_type}'): {admin_email}")
 
         # 2. Create One Workspace Account (Organization)
         org_name = "Acme Corp"

@@ -1,5 +1,5 @@
 import json
-from jose import jwt
+from app.core.tokens import jwt
 
 from app.core.config import settings
 

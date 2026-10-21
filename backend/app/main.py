@@ -1,13 +1,28 @@
+from contextlib import asynccontextmanager
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.api.v1 import health, auth, admin, companies, users, projects, meetings, recordings, transcripts, diarization, analytics, documents, project_memory, cross_meeting, search, rag, analysis, ai_jobs, cloudflare_ai
 
+logger = logging.getLogger(__name__)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Enforce production security requirements at application startup
+    try:
+        settings.validate_production_security()
+    except ValueError as exc:
+        logger.critical("PRODUCTION SECURITY CONFIGURATION ERROR: %s", exc)
+        raise RuntimeError(f"Startup aborted due to production security configuration error: {exc}") from exc
+    yield
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
     docs_url=f"{settings.API_V1_PREFIX}/docs",
+    lifespan=lifespan,
 )
 
 app.add_middleware(

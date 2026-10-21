@@ -14,6 +14,7 @@ class MeetingRecording(Base):
     session_id = Column(String, nullable=True, index=True)
     egress_id = Column(String, nullable=True, index=True)
     source = Column(String, nullable=True, default="client_mixed_audio")
+    ai_job_id = Column(String, nullable=True, index=True)
 
     storage_backend = Column(String, nullable=False, default="supabase")
     storage_bucket = Column(String, nullable=True)
@@ -40,6 +41,11 @@ class MeetingRecording(Base):
     uploader = relationship(
         "User",
         primaryjoin="foreign(MeetingRecording.uploaded_by_user_id) == User.public_id",
+    )
+    ai_job = relationship(
+        "AIJob",
+        primaryjoin="foreign(MeetingRecording.ai_job_id) == AIJob.public_id",
+        uselist=False,
     )
 
 

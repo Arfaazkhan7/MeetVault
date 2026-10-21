@@ -1,9 +1,9 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError
 from sqlalchemy.orm import Session
 
-from app.core.tokens import decode_token
+from app.core.config import settings
+from app.core.tokens import decode_token, JWTError
 from app.core.roles import Role, role_gte, ProjectRole, project_role_gte
 from app.db.session import get_db
 from app.services.user_service import get_user_by_public_id
@@ -28,19 +28,21 @@ def get_current_user(
     token = credentials.credentials.strip()
 
     # Handle local / fallback tokens containing user email (e.g. mv-local-token:user@gmail.com)
-    if token.startswith("mv-local-") or token.startswith("mail-"):
-        email = None
-        if ":" in token:
-            email = token.split(":", 1)[1].strip()
-        elif "-" in token:
-            parts = token.split("-")
-            for p in parts:
-                if "@" in p:
-                    email = p.strip()
-                    break
-        if email and "@" in email:
-            from app.services.user_service import get_or_create_firebase_personal_user
-            return get_or_create_firebase_personal_user(db, email=email, full_name=None)
+    # Strictly prohibited in production/staging environments
+    if settings.ENVIRONMENT.lower() not in ("production", "prod", "staging"):
+        if token.startswith("mv-local-") or token.startswith("mail-"):
+            email = None
+            if ":" in token:
+                email = token.split(":", 1)[1].strip()
+            elif "-" in token:
+                parts = token.split("-")
+                for p in parts:
+                    if "@" in p:
+                        email = p.strip()
+                        break
+            if email and "@" in email:
+                from app.services.user_service import get_or_create_firebase_personal_user
+                return get_or_create_firebase_personal_user(db, email=email, full_name=None)
 
     try:
         payload = decode_token(token)
@@ -66,19 +68,21 @@ def get_optional_current_user(
         return None
     token = credentials.credentials.strip()
 
-    if token.startswith("mv-local-") or token.startswith("mail-"):
-        email = None
-        if ":" in token:
-            email = token.split(":", 1)[1].strip()
-        elif "-" in token:
-            parts = token.split("-")
-            for p in parts:
-                if "@" in p:
-                    email = p.strip()
-                    break
-        if email and "@" in email:
-            from app.services.user_service import get_or_create_firebase_personal_user
-            return get_or_create_firebase_personal_user(db, email=email, full_name=None)
+    # Strictly prohibited in production/staging environments
+    if settings.ENVIRONMENT.lower() not in ("production", "prod", "staging"):
+        if token.startswith("mv-local-") or token.startswith("mail-"):
+            email = None
+            if ":" in token:
+                email = token.split(":", 1)[1].strip()
+            elif "-" in token:
+                parts = token.split("-")
+                for p in parts:
+                    if "@" in p:
+                        email = p.strip()
+                        break
+            if email and "@" in email:
+                from app.services.user_service import get_or_create_firebase_personal_user
+                return get_or_create_firebase_personal_user(db, email=email, full_name=None)
 
     try:
         payload = decode_token(token)
@@ -168,3 +172,36 @@ def require_project_admin(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Requires project admin privileges")
 
     return project
+
+
+def require_maintenance_or_admin(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    """
+    Enforces administrator authorization for system maintenance and orphan audio cleanup.
+    Allowed callers:
+    1. System Administrator (account_type == 'admin').
+    2. Company Administrator (CompanyMember with role COMPANY_ADMIN or SUPER_ADMIN).
+    Standard members (MEMBER, PERSONAL_USER) are rejected with 403 Forbidden.
+    """
+    is_sys_admin = getattr(current_user, "account_type", "") == "admin"
+    if is_sys_admin:
+        return current_user
+
+    # Check if the user is a Company Admin in any active company
+    membership = (
+        db.query(CompanyMember)
+        .filter(
+            CompanyMember.user_id == current_user.public_id,
+            CompanyMember.role.in_([Role.COMPANY_ADMIN.value, Role.SUPER_ADMIN.value]),
+        )
+        .first()
+    )
+    if membership:
+        return current_user
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Requires system admin or company admin privileges to reconcile audio cleanup",
+    )

@@ -5,7 +5,7 @@ from app.main import app
 client = TestClient(app)
 
 def test_admin_workspace_creation_flow():
-    # 1. Register System Admin
+    # 1. Register user via public endpoint with admin email - must NOT grant admin rights
     admin_email = "system.admin@meetvault.com"
     admin_pass = "SysAdminPass123!"
     reg = client.post("/api/v1/auth/register", json={
@@ -16,7 +16,24 @@ def test_admin_workspace_creation_flow():
     })
     assert reg.status_code == 201, reg.text
 
-    # 2. Login Admin
+    # 1b. Public registration user MUST BE REJECTED from admin login even with system admin email
+    unauth_login = client.post("/api/v1/admin/login", json={
+        "email": admin_email,
+        "password": admin_pass
+    })
+    assert unauth_login.status_code == 403, "Publicly registered user must not be granted admin access based on email"
+    assert "This account does not have admin privileges" in unauth_login.json()["detail"]
+
+    # 2. Securely provision admin via server-side provisioning mechanism
+    from tests.conftest import TestingSessionLocal
+    from app.services.user_service import provision_admin_user
+    db = TestingSessionLocal()
+    try:
+        provision_admin_user(db, email=admin_email, plain_password=admin_pass, full_name="Verified System Admin")
+    finally:
+        db.close()
+
+    # 2b. Now legitimate, provisioned Admin logs in successfully
     login_a = client.post("/api/v1/admin/login", json={
         "email": admin_email,
         "password": admin_pass

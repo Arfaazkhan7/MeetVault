@@ -14,12 +14,14 @@ import os
 import tempfile
 from uuid import UUID
 
+from app.core.audio_temp import managed_temp_audio_file
 from app.db.session import SessionLocal
 from ai_worker.config import settings
 from ai_worker.core.job_manager import JobManager
 from app.models.meeting import Meeting
 from app.models.recording import MeetingRecording
 from app.models.transcript import TranscriptSegment as DbTranscriptSegment
+from app.services.recording_service import purge_recording_audio
 from app.services.storage_service import get_storage_service
 
 logger = logging.getLogger(__name__)
@@ -45,38 +47,14 @@ def _log_config_status():
 def _purge_temporary_recording_audio(db, recording, meeting, storage):
     """
     Purge temporary audio from storage bucket and clear references per zero-retention policy.
-    CRITICAL: Only marks is_audio_purged = True and clears storage_path when deletion is verified.
-    If deletion fails, retains storage_path and records cleanup_error for retry.
+    Delegates to the unified purge_recording_audio service to guarantee:
+      - Verified storage removal before marking recording purged.
+      - Sibling recording URL preservation.
+      - Bounded retries and error recording on failure.
+      - Sanitized logging.
     """
-    if recording and getattr(recording, "storage_path", None):
-        path = recording.storage_path
-        deletion_confirmed = False
-        cleanup_err = None
-        try:
-            res = storage.delete_private_file(path=path)
-            if res is True:
-                deletion_confirmed = True
-            elif hasattr(storage, "file_exists") and not storage.file_exists(path=path):
-                # Object is confirmed no longer existing (idempotent delete)
-                deletion_confirmed = True
-            else:
-                cleanup_err = "Storage provider reported deletion failure (returned False)"
-        except Exception as exc:
-            cleanup_err = f"Storage deletion exception: {exc}"
-
-        if deletion_confirmed:
-            recording.storage_path = None
-            recording.is_audio_purged = True
-            from datetime import datetime, timezone
-            recording.audio_purged_at = datetime.now(timezone.utc)
-            recording.cleanup_error = None
-            logger.info("[ZERO_RETENTION] Verified purge of temporary audio artifact %s from storage bucket.", path)
-        else:
-            logger.warning("[ZERO_RETENTION_WARN] Could not purge %s: %s", path, cleanup_err)
-            recording.cleanup_error = cleanup_err
-            recording.cleanup_retry_count = (getattr(recording, "cleanup_retry_count", 0) or 0) + 1
-    if meeting:
-        meeting.recording_url = None
+    if recording and storage:
+        purge_recording_audio(db, recording, storage, reason="pipeline_zero_retention")
 
 
 def process_meeting_intelligence(ai_job_id: str):
@@ -146,14 +124,14 @@ def process_meeting_intelligence(ai_job_id: str):
             else ".bin"
         )
 
-        # Write audio to a temp file for transcription.
-        # Keep it alive across stages by NOT using context manager delete=True here.
-        tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
-        try:
-            tmp.write(audio_bytes)
-            tmp.flush()
-            tmp.close()
-            audio_path = tmp.name
+        # Write audio to dedicated managed temporary directory for transcription.
+        with managed_temp_audio_file(
+            suffix=suffix,
+            prefix="mv_audio_pipeline_",
+            meeting_id=meeting.public_id,
+            content=audio_bytes,
+        ) as tmp_audio_path:
+            audio_path = str(tmp_audio_path)
 
             # ── Stage 2: Transcription ────────────────────────────────────────
             manager.update_stage(job, "TRANSCRIBING")
@@ -214,13 +192,6 @@ def process_meeting_intelligence(ai_job_id: str):
                     exc,
                 )
                 speaker_turns = []
-
-        finally:
-            # Always clean up the temp file
-            try:
-                os.unlink(tmp.name)
-            except OSError:
-                pass
 
         # ── Stage 4: Align speakers with transcript ──────────────────────────
         manager.update_stage(job, "BUILDING_TRANSCRIPT")
@@ -408,10 +379,10 @@ def process_meeting_intelligence(ai_job_id: str):
 
         # Always purge temporary audio even on pipeline failure so no orphan audio files remain
         try:
-            if 'storage' in locals() and recording:
+            if 'storage' in locals() and storage and recording:
                 _purge_temporary_recording_audio(db, recording, meeting, storage)
-        except Exception:
-            pass
+        except Exception as purge_err:
+            logger.warning("[PIPELINE_PURGE_ERROR] Could not purge audio on failure for job %s: %s", ai_job_id, purge_err)
 
         try:
             db.commit()

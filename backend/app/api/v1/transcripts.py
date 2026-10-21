@@ -3,7 +3,11 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
 import tempfile
+import math
+import wave
+import io
 
+from app.core.audio_temp import create_temp_audio_file, safe_delete_temp_file
 from app.db.session import get_db
 from app.core.dependencies import get_current_user
 from app.core.meeting_dependencies import get_meeting_and_authorize, require_meeting_host
@@ -34,7 +38,7 @@ def get_transcript(
     """
     transcription_service = TranscriptionService()
     mapping_service = SpeakerMappingService()
-    
+
     try:
         # Validate speaker membership if speaker_user_id provided
         if speaker_user_id:
@@ -72,14 +76,14 @@ def get_transcript(
             speaker_user_id=speaker_user_id,
             participant_id=participant_id,
         )
-        
+
         # Get speaker mappings and user information
         speaker_mappings = mapping_service.get_speaker_mappings(db, meeting.public_id)
         speaker_map = {m["speaker_label"]: m["user_name"] for m in speaker_mappings}
-        
+
         # Collect distinct speakers
         all_speakers = list(set(seg.speaker_label for seg in segments))
-        
+
         return {
             "meeting_id": meeting.public_id,
             "total_segments": len(segments),
@@ -147,11 +151,11 @@ def get_transcription_status(
 ):
     """
     Get transcription status for an authorized meeting.
-    
+
     Returns processing status, error information, and segment count.
     """
     transcription_service = TranscriptionService()
-    
+
     try:
         status_info = transcription_service.get_transcription_status(db, meeting.public_id)
         return status_info
@@ -171,6 +175,10 @@ async def process_participant_audio_stream(
     participant_id: str,
     file: UploadFile = File(...),
     start_offset: float = Form(default=0.0),
+    end_offset: Optional[float] = Form(default=None),
+    sequence_number: Optional[int] = Form(default=None),
+    chunk_id: Optional[str] = Form(default=None),
+    sample_rate: Optional[int] = Form(default=16000),
     language: Optional[str] = Form(default=None),
     meeting: Meeting = Depends(get_meeting_and_authorize),
     current_user: User = Depends(get_current_user),
@@ -179,7 +187,8 @@ async def process_participant_audio_stream(
     """
     Direct in-memory participant audio processing endpoint.
     Processes an authenticated participant's short-lived audio buffer directly,
-    attributing transcript segments directly to the speaker with zero durable audio storage.
+    attributing transcript segments directly to the speaker with accurate capture offsets
+    and zero durable audio storage.
     """
     participant = db.query(MeetingParticipant).filter(
         MeetingParticipant.id == participant_id,
@@ -199,12 +208,64 @@ async def process_participant_audio_stream(
             detail="Not authorized to submit audio stream for this participant: caller identity does not match participant",
         )
 
+    # Server-side validation of capture timing offsets and sequence numbers
+    if math.isnan(start_offset) or math.isinf(start_offset) or start_offset < 0.0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="start_offset must be a non-negative finite number",
+        )
+    if start_offset > 86400.0:  # Max 24 hours meeting
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="start_offset exceeds reasonable meeting bounds (maximum 24 hours)",
+        )
+
+    if sequence_number is not None and sequence_number < 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="sequence_number must be non-negative",
+        )
+
+    if end_offset is not None:
+        if math.isnan(end_offset) or math.isinf(end_offset) or end_offset < start_offset:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="end_offset cannot be less than start_offset and must be a finite number",
+            )
+        if (end_offset - start_offset) > 300.0:  # 5 minutes chunk maximum
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Audio chunk duration exceeds maximum allowed limit of 300 seconds",
+            )
+
     content = await file.read()
     if not content:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Audio stream content is empty",
         )
+
+    # Inspect WAV frames and audio duration
+    audio_duration = 0.0
+    detected_rate = sample_rate or 16000
+    frame_count = 0
+
+    try:
+        with wave.open(io.BytesIO(content), "rb") as wf:
+            framerate = wf.getframerate()
+            n_frames = wf.getnframes()
+            if framerate > 0:
+                detected_rate = framerate
+                frame_count = n_frames
+                audio_duration = round(n_frames / float(framerate), 3)
+    except Exception:
+        if sample_rate and sample_rate > 0:
+            frame_count = len(content) // 2
+            audio_duration = round(frame_count / float(sample_rate), 3)
+
+    resolved_end_offset = end_offset
+    if resolved_end_offset is None and audio_duration > 0.0:
+        resolved_end_offset = round(start_offset + audio_duration, 3)
 
     transcription_service = TranscriptionService()
     try:
@@ -215,6 +276,12 @@ async def process_participant_audio_stream(
             audio_bytes=content,
             language=language,
             start_offset=start_offset,
+            end_offset=resolved_end_offset,
+            sequence_number=sequence_number,
+            chunk_id=chunk_id,
+            sample_rate=detected_rate,
+            frame_count=frame_count,
+            chunk_duration=audio_duration,
         )
     except Exception as exc:
         raise HTTPException(
@@ -254,74 +321,66 @@ async def upload_recording(
 ):
     """
     Upload meeting recording for transcription.
-    
+
     Accepts audio file and submits it for async transcription processing.
     Supported formats: wav, mp3, m4a, flac, ogg
     """
     # Validate file type
     allowed_extensions = {".wav", ".mp3", ".m4a", ".flac", ".ogg"}
     file_ext = os.path.splitext(file.filename)[1].lower()
-    
+
     if file_ext not in allowed_extensions:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Unsupported file type. Allowed: {', '.join(allowed_extensions)}"
         )
-    
-    # Save uploaded file to temporary location
+
+    # Save uploaded file to dedicated temporary audio directory
     temp_file_path = None
     try:
-        temp_dir = tempfile.gettempdir()
-        temp_file_path = os.path.join(temp_dir, f"recording_{meeting.public_id}_{file.filename}")
-        
-        # Write uploaded file
-        with open(temp_file_path, "wb") as buffer:
-            content = await file.read()
-            buffer.write(content)
-        
+        content = await file.read()
+        created_file = create_temp_audio_file(
+            suffix=f".{file_ext}",
+            prefix="recording_",
+            meeting_id=meeting.public_id,
+            content=content,
+        )
+        temp_file_path = str(created_file)
+
         # Update meeting with recording URL
         meeting.recording_url = temp_file_path
         meeting.transcription_status = "queued"
         meeting.transcription_error = None
         db.commit()
-        
+
         # Submit to transcription worker
         job_submitted = submit_transcription_job(
             meeting_id=meeting.public_id,
             audio_path=temp_file_path,
             language=language
         )
-        
+
         if not job_submitted:
-            if temp_file_path and os.path.exists(temp_file_path):
-                try:
-                    os.unlink(temp_file_path)
-                except OSError:
-                    pass
+            if temp_file_path:
+                safe_delete_temp_file(temp_file_path, reason="job_submission_failed")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to submit transcription job"
             )
-        
+
         return {
             "message": "Recording uploaded and queued for transcription",
             "meeting_id": meeting.public_id,
             "status": "queued"
         }
-        
+
     except HTTPException:
-        if temp_file_path and os.path.exists(temp_file_path):
-            try:
-                os.unlink(temp_file_path)
-            except OSError:
-                pass
+        if temp_file_path:
+            safe_delete_temp_file(temp_file_path, reason="upload_http_error")
         raise
     except Exception as e:
-        if temp_file_path and os.path.exists(temp_file_path):
-            try:
-                os.unlink(temp_file_path)
-            except OSError:
-                pass
+        if temp_file_path:
+            safe_delete_temp_file(temp_file_path, reason="upload_exception")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to process upload: {str(e)}"
@@ -337,7 +396,7 @@ def delete_transcript(
 ):
     """
     Delete transcript segments for a meeting (host only).
-    
+
     This does not delete the meeting itself, only the transcript data.
     """
     try:
@@ -345,20 +404,20 @@ def delete_transcript(
         deleted_count = db.query(TranscriptSegment).filter(
             (TranscriptSegment.meeting_id == meeting.public_id) | (TranscriptSegment.meeting_id == str(meeting.id))
         ).delete(synchronize_session=False)
-        
+
         # Reset transcription status
         meeting.transcription_status = "pending"
         meeting.transcription_error = None
         db.commit()
-        
+
         return {
             "message": f"Deleted {deleted_count} transcript segments",
             "meeting_id": meeting.public_id
         }
-        
+
     except Exception as e:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
-        )
+        )

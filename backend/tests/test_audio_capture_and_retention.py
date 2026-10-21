@@ -912,3 +912,142 @@ def test_orphan_audio_reconciliation_mechanism(setup_meeting_env, memory_storage
     assert rec2.is_audio_purged is False
     assert rec2.storage_path == exhausted_path
     db.close()
+
+
+def test_reconcile_orphans_endpoint_rejects_unauthorized_member(setup_meeting_env, client: TestClient):
+    """
+    CRITICAL REQUIREMENT 6: Ordinary company member cannot trigger orphan audio reconciliation.
+    Must return 403 Forbidden.
+    """
+    attendee_token = setup_meeting_env["tokens"]["attendee"]
+    resp = client.post(
+        "/api/v1/recordings/reconcile-orphans",
+        headers={"Authorization": f"Bearer {attendee_token}"},
+    )
+    assert resp.status_code == 403
+    assert "Requires system admin or company admin privileges" in resp.json()["detail"]
+
+
+def test_reconcile_orphans_endpoint_rejects_cross_tenant_access(setup_meeting_env, client: TestClient):
+    """
+    CRITICAL REQUIREMENT 6: Company admin cannot reconcile recordings for a company
+    they do not administer. Must return 403 Forbidden.
+    """
+    host_token = setup_meeting_env["tokens"]["host"]
+    resp = client.post(
+        "/api/v1/recordings/reconcile-orphans?company_id=comp-unauthorized-999",
+        headers={"Authorization": f"Bearer {host_token}"},
+    )
+    assert resp.status_code == 403
+    assert "Cannot reconcile recordings for a company you do not administer" in resp.json()["detail"]
+
+
+def test_reconcile_orphans_endpoint_authorized_company_admin_success(setup_meeting_env, client: TestClient):
+    """
+    CRITICAL REQUIREMENT 6: Authorized company admin can trigger scoped orphan cleanup.
+    Response must return sanitized counts without exposing internal paths.
+    """
+    host_token = setup_meeting_env["tokens"]["host"]
+    with patch(
+        "app.api.v1.recordings.reconcile_and_purge_orphaned_audio",
+        return_value={"scanned": 3, "purged": 3, "failed": 0, "skipped_active": 0},
+    ):
+        resp = client.post(
+            "/api/v1/recordings/reconcile-orphans",
+            headers={"Authorization": f"Bearer {host_token}"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "completed"
+        assert data["scanned"] == 3
+        assert data["purged"] == 3
+        assert data["failed"] == 0
+        assert data["skipped_active"] == 0
+        assert data["company_id"] == "comp-ret-1"
+        # Verify no file paths or sensitive internals are exposed
+        assert "storage_path" not in data
+        assert "/" not in json.dumps(data)
+
+
+def test_reconcile_orphans_endpoint_system_admin_global_success(client: TestClient):
+    """
+    CRITICAL REQUIREMENT 6: System Admin can trigger global orphan reconciliation.
+    """
+    db = TestingSessionLocal()
+    sysadmin = User(
+        public_id=f"usr-sysadmin-{uuid.uuid4().hex[:6]}",
+        email="admin@meetvault.com",
+        full_name="MeetVault System Admin",
+        hashed_password="hash",
+        account_type="admin",
+    )
+    db.add(sysadmin)
+    db.commit()
+    admin_token = create_token(subject=sysadmin.public_id, token_type="access")
+    db.close()
+
+    with patch(
+        "app.api.v1.recordings.reconcile_and_purge_orphaned_audio",
+        return_value={"scanned": 5, "purged": 5, "failed": 0, "skipped_active": 0},
+    ):
+        resp = client.post(
+            "/api/v1/recordings/reconcile-orphans",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "completed"
+        assert data["scanned"] == 5
+        assert data["purged"] == 5
+        assert data["company_id"] is None
+
+
+def test_alembic_migration_tracking_fields():
+    """
+    CRITICAL REQUIREMENT 5: Alembic migration add_cleanup_tracking_to_recordings (6b2e1f4a9c33)
+    defines clean upgrade and downgrade operations for cleanup_error and cleanup_retry_count.
+    """
+    import importlib.util
+    migration_path = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        "alembic",
+        "versions",
+        "add_cleanup_tracking_to_recordings.py",
+    )
+    assert os.path.exists(migration_path), f"Migration file missing: {migration_path}"
+
+    spec = importlib.util.spec_from_file_location("migration_mod", migration_path)
+    migration_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration_mod)
+
+    assert migration_mod.revision == "6b2e1f4a9c33"
+    assert migration_mod.down_revision == "5f0c3d2e1a44"
+    assert hasattr(migration_mod, "upgrade")
+    assert hasattr(migration_mod, "downgrade")
+
+
+def test_admin_endpoint_rejects_email_guess_attacker(client: TestClient):
+    """
+    CRITICAL REQUIREMENT: An attacker registering an email like 'admin@evil.com'
+    with personal account_type must be strictly rejected with 403 Forbidden.
+    Server-side role must not guess admin privilege from email prefix or domain.
+    """
+    db = TestingSessionLocal()
+    fake_admin = User(
+        public_id=f"usr-fakeadmin-{uuid.uuid4().hex[:6]}",
+        email="admin@evil.com",
+        full_name="Fake Admin Attacker",
+        hashed_password="hash",
+        account_type="personal",
+    )
+    db.add(fake_admin)
+    db.commit()
+    token = create_token(subject=fake_admin.public_id, token_type="access")
+    db.close()
+
+    resp = client.post(
+        "/api/v1/recordings/reconcile-orphans",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403
+    assert "Requires system admin or company admin privileges" in resp.json()["detail"]

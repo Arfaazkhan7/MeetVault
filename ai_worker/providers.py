@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
+from app.core.audio_temp import create_temp_audio_file, safe_delete_temp_file
 from .config import settings
 from .schemas import MeetingAnalysis, TranscriptSegment
 
@@ -234,15 +235,18 @@ def _chunk_wav_file(
                 frames_to_read = min(chunk_frames, nframes - curr_frame)
                 audio_data = wf.readframes(frames_to_read)
 
-                tmp_chunk = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-                with wave.open(tmp_chunk.name, "wb") as cwf:
+                chunk_file = create_temp_audio_file(
+                    suffix=".wav",
+                    prefix="mv_audio_chunk_",
+                )
+                with wave.open(str(chunk_file), "wb") as cwf:
                     cwf.setnchannels(nchannels)
                     cwf.setsampwidth(sampwidth)
                     cwf.setframerate(framerate)
                     cwf.writeframes(audio_data)
 
                 offset_sec = float(curr_frame) / float(framerate)
-                chunks.append((Path(tmp_chunk.name), offset_sec))
+                chunks.append((chunk_file, offset_sec))
 
                 curr_frame += step_frames
                 if curr_frame >= nframes:
@@ -329,10 +333,7 @@ def transcribe(
         finally:
             for chunk_path, _ in chunks:
                 if chunk_path != path:
-                    try:
-                        chunk_path.unlink(missing_ok=True)
-                    except OSError:
-                        pass
+                    safe_delete_temp_file(chunk_path, reason="chunk_transcription_complete")
 
     return _transcribe_single_audio(path, language)
 

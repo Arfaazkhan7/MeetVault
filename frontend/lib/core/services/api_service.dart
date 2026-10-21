@@ -212,6 +212,35 @@ class ApiService {
     );
   }
 
+  Future<http.Response> postMultipart(
+    String endpoint, {
+    required List<int> fileBytes,
+    required String filename,
+    String fieldName = 'file',
+    Map<String, String>? fields,
+  }) async {
+    return _requestWithRetry(() async {
+      final uri = Uri.parse('$baseUrl$endpoint');
+      final request = http.MultipartRequest('POST', uri);
+      if (_token != null) {
+        request.headers['Authorization'] = 'Bearer $_token';
+      }
+      if (fields != null) {
+        request.fields.addAll(fields);
+      }
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          fieldName,
+          fileBytes,
+          filename: filename,
+        ),
+      );
+      final streamedResponse = await request.send();
+      return await http.Response.fromStream(streamedResponse);
+    });
+  }
+
+
   http.Response _handleResponse(http.Response response) {
     if (response.statusCode >= 400) {
       throw ApiException(

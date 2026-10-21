@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional
 from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
+from app.core.audio_temp import safe_delete_temp_file
 from app.db.session import SessionLocal
 from app.services.transcription_service import TranscriptionService
 from app.services.meeting_service import get_meeting_by_public_id
@@ -153,13 +154,15 @@ class TranscriptionWorker:
         finally:
             # Enforce zero-retention audio policy: discard audio file on completion or failure
             if job.audio_path:
-                try:
-                    import os
-                    if os.path.isfile(job.audio_path):
-                        os.unlink(job.audio_path)
-                        logger.info(f"[ZERO_RETENTION] Discarded worker audio {job.audio_path}")
-                except Exception as cleanup_err:
-                    logger.warning(f"[ZERO_RETENTION_WARN] Could not unlink {job.audio_path}: {cleanup_err}")
+                deleted = safe_delete_temp_file(job.audio_path, reason="worker_zero_retention")
+                if not deleted:
+                    try:
+                        import os
+                        if os.path.isfile(job.audio_path):
+                            os.unlink(job.audio_path)
+                            logger.info(f"[ZERO_RETENTION] Discarded worker audio {job.audio_path}")
+                    except Exception as cleanup_err:
+                        logger.warning(f"[ZERO_RETENTION_WARN] Could not unlink {job.audio_path}: {cleanup_err}")
             if meeting and meeting.recording_url == job.audio_path:
                 meeting.recording_url = None
                 try:

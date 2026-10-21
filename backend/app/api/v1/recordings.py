@@ -2,10 +2,13 @@ from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Reque
 from sqlalchemy.orm import Session
 from typing import Optional
 
-from app.core.dependencies import get_current_user
+from app.core.audio_temp import recover_and_cleanup_stale_temp_audio
+from app.core.dependencies import get_current_user, require_maintenance_or_admin
+from app.core.roles import Role
 from app.core.meeting_dependencies import get_meeting_and_authorize, require_meeting_host
 from app.db.session import get_db
 from app.models.meeting import Meeting
+from app.models.company import CompanyMember
 from app.models.user import User
 from app.schemas.recording import (
     RecordingResponse,
@@ -201,16 +204,66 @@ async def livekit_webhook(
 @router.post("/recordings/reconcile-orphans")
 def reconcile_orphans(
     max_age_minutes: int = 15,
-    current_user: User = Depends(get_current_user),
+    company_id: Optional[str] = None,
+    current_user: User = Depends(require_maintenance_or_admin),
     db: Session = Depends(get_db),
     storage: StorageService = Depends(get_storage_service),
 ):
     """
     Scan and purge unpurged audio artifacts for stalled, failed, or orphaned recording jobs.
     Enforces MeetVault's zero-retention policy for ephemeral audio.
+    Requires System Admin or Company Admin privileges.
     """
-    return reconcile_and_purge_orphaned_audio(
+    is_sys_admin = getattr(current_user, "account_type", "") == "admin"
+
+
+    scoped_company_id = company_id
+    if not is_sys_admin:
+        admin_memberships = (
+            db.query(CompanyMember)
+            .filter(
+                CompanyMember.user_id == current_user.public_id,
+                CompanyMember.role.in_([Role.COMPANY_ADMIN.value, Role.SUPER_ADMIN.value]),
+            )
+            .all()
+        )
+        allowed_company_ids = {m.company_id for m in admin_memberships}
+        if not allowed_company_ids:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to perform orphan audio reconciliation",
+            )
+        if company_id:
+            if company_id not in allowed_company_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Cannot reconcile recordings for a company you do not administer",
+                )
+            scoped_company_id = company_id
+        else:
+            if len(allowed_company_ids) == 1:
+                scoped_company_id = next(iter(allowed_company_ids))
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="company_id parameter is required when administering multiple companies",
+                )
+
+    stats = reconcile_and_purge_orphaned_audio(
         db,
         storage=storage,
+        company_id=scoped_company_id,
         max_age_minutes=max_age_minutes,
     )
+    stale_temp_stats = recover_and_cleanup_stale_temp_audio(max_age_minutes=max_age_minutes)
+    return {
+        "status": "completed",
+        "scanned": stats.get("scanned", 0),
+        "purged": stats.get("purged", 0),
+        "failed": stats.get("failed", 0),
+        "skipped_active": stats.get("skipped_active", 0),
+        "skipped_ambiguous": stats.get("skipped_ambiguous", 0),
+        "stale_temp_scanned": stale_temp_stats.get("scanned", 0),
+        "stale_temp_deleted": stale_temp_stats.get("deleted", 0),
+        "company_id": scoped_company_id,
+    }

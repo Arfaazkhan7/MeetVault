@@ -28,12 +28,19 @@ def create_user(
     email = email.lower().strip()
     if get_user_by_email(db, email):
         raise ValueError("A user with this email already exists")
+
+    # Enforce permitted account types on the server independently of client input.
+    # Privileged roles ('admin') cannot be self-assigned through public user creation.
+    resolved_type = (account_type or "personal").lower().strip()
+    if resolved_type not in ("personal", "organization"):
+        resolved_type = "personal"
+
     user = User(
         public_id=_generate_public_id(db),
         email=email,
         full_name=full_name.strip(),
         hashed_password=hash_password(plain_password),
-        account_type=account_type or "personal",
+        account_type=resolved_type,
     )
     db.add(user)
     db.flush()
@@ -42,7 +49,7 @@ def create_user(
     from app.services.company_service import create_company
     from app.services.project_service import create_project
 
-    if account_type == "organization" and organization_name and organization_name.strip():
+    if resolved_type == "organization" and organization_name and organization_name.strip():
         comp_name = f"{organization_name.strip()} Workspace"
     else:
         comp_name = f"{user.full_name}'s Personal Workspace"
@@ -50,6 +57,42 @@ def create_user(
     comp = create_company(db, comp_name, None, user)
     create_project(db, comp.public_id, "General", "Default project for meetings", user)
 
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def provision_admin_user(
+    db: Session,
+    email: str,
+    plain_password: str,
+    full_name: str = "System Administrator",
+) -> User:
+    """
+    Explicit, secure administrator provisioning function.
+    Can only be invoked via server-side CLI management tools or bootstrap commands,
+    never via public registration endpoints.
+    """
+    email = email.lower().strip()
+    user = get_user_by_email(db, email)
+    if user:
+        user.account_type = "admin"
+        if plain_password:
+            user.hashed_password = hash_password(plain_password)
+        if full_name:
+            user.full_name = full_name.strip()
+        db.commit()
+        db.refresh(user)
+        return user
+
+    user = User(
+        public_id=_generate_public_id(db),
+        email=email,
+        full_name=full_name.strip(),
+        hashed_password=hash_password(plain_password),
+        account_type="admin",
+    )
+    db.add(user)
     db.commit()
     db.refresh(user)
     return user

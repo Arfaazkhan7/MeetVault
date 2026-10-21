@@ -1,11 +1,10 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from jose import JWTError
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.core.tokens import create_token, decode_token
+from app.core.tokens import create_token, decode_token, JWTError
 from app.core.dependencies import get_current_user
 from app.services.user_service import (
     create_user,

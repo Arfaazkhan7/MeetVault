@@ -28,6 +28,9 @@ def get_or_create_recording_ai_job(
         .first()
     )
     if existing:
+        if recording.ai_job_id != existing.public_id:
+            recording.ai_job_id = existing.public_id
+            db.flush()
         return existing
 
     job = AIJob(
@@ -40,6 +43,7 @@ def get_or_create_recording_ai_job(
         provider=provider,
     )
     db.add(job)
+    recording.ai_job_id = job.public_id
     db.flush()
     return job
 

@@ -1,0 +1,43 @@
+# Auto-detect text files and normalize line endings to LF on commit
+* text=auto eol=lf
+
+# Source code files
+*.py text eol=lf
+*.dart text eol=lf
+*.js text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.md text eol=lf
+*.sh text eol=lf
+*.sql text eol=lf
+*.ini text eol=lf
+.env.example text eol=lf
+.gitignore text eol=lf
+
+# Windows batch scripts
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binary assets and media
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.pdf binary
+*.ppt binary
+*.pptx binary
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+*.mp3 binary
+*.mp4 binary
+*.wav binary
+*.webm binary
+*.m4a binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary

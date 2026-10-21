@@ -4,6 +4,7 @@ from typing import List, Dict, Optional, Any
 from abc import ABC, abstractmethod
 from sqlalchemy.orm import Session
 
+from app.core.audio_temp import managed_temp_audio_file, safe_delete_temp_file
 from app.models.meeting import Meeting
 from app.models.transcript import TranscriptSegment
 
@@ -267,13 +268,15 @@ class TranscriptionService:
             raise
         finally:
             if cleanup_audio_after and audio_path:
-                try:
-                    import os
-                    if os.path.isfile(audio_path):
-                        os.unlink(audio_path)
-                        logger.info(f"[AUDIO_CLEANUP] Discarded temporary audio file {audio_path}")
-                except Exception as cleanup_err:
-                    logger.warning(f"[AUDIO_CLEANUP_WARN] Failed to delete {audio_path}: {cleanup_err}")
+                deleted = safe_delete_temp_file(audio_path, reason="transcribe_meeting_cleanup")
+                if not deleted:
+                    try:
+                        import os
+                        if os.path.isfile(audio_path):
+                            os.unlink(audio_path)
+                            logger.info(f"[AUDIO_CLEANUP] Discarded temporary audio file {audio_path}")
+                    except Exception as cleanup_err:
+                        logger.warning(f"[AUDIO_CLEANUP_WARN] Failed to delete {audio_path}: {cleanup_err}")
 
     def transcribe_participant_audio_chunk(
         self,
@@ -283,26 +286,33 @@ class TranscriptionService:
         audio_bytes: bytes,
         language: Optional[str] = None,
         start_offset: float = 0.0,
+        end_offset: Optional[float] = None,
+        sequence_number: Optional[int] = None,
+        chunk_id: Optional[str] = None,
+        sample_rate: Optional[int] = None,
+        frame_count: Optional[int] = None,
+        chunk_duration: Optional[float] = None,
     ) -> List[TranscriptSegment]:
         """
-        Process an identified participant's short-lived audio buffer directly in-memory,
-        tagging segments to that participant with zero persistent audio storage.
+        Process an identified participant's short-lived audio buffer.
+        Audio bytes are buffered in memory and written to a short-lived ephemeral disk file
+        in MeetVault's dedicated temporary directory because underlying transcription engines
+        require a file path. The temporary file is actively tracked, unlinked immediately in a finally
+        block upon transcription completion or failure, and covered by crash recovery cleanup.
         """
-        import os
-        import tempfile
         import uuid
 
         if not audio_bytes or len(audio_bytes) == 0:
             return []
 
-        # Create short-lived ephemeral temporary file for speech-to-text processing
-        tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-        try:
-            tmp.write(audio_bytes)
-            tmp.flush()
-            tmp.close()
-
-            result = self._transcribe_with_retry(tmp.name, language)
+        # Create managed short-lived ephemeral temporary file in dedicated directory
+        with managed_temp_audio_file(
+            suffix=".wav",
+            prefix="mv_audio_chunk_",
+            meeting_id=meeting.public_id,
+            content=audio_bytes,
+        ) as tmp_audio_path:
+            result = self._transcribe_with_retry(str(tmp_audio_path), language)
 
             # Assign to participant
             speaker_uid = participant.user_id
@@ -314,10 +324,34 @@ class TranscriptionService:
                 else f"SPEAKER_{speaker_uid}"
             )
 
+            metadata = {
+                "engine": "whisper_participant_stream",
+                "chunk_id": chunk_id,
+                "sequence_number": sequence_number,
+                "chunk_start_offset": start_offset,
+                "chunk_end_offset": end_offset,
+                "chunk_duration": chunk_duration,
+                "sample_rate": sample_rate,
+                "frame_count": frame_count,
+                "timing_source": "audio_sample_clock",
+            }
+
             segments = []
-            for seg_data in result.get("segments", []):
-                s_time = round(float(seg_data["start_time"]) + start_offset, 3)
-                e_time = round(float(seg_data["end_time"]) + start_offset, 3)
+            result_segments = result.get("segments", [])
+            for seg_data in result_segments:
+                raw_s = float(seg_data.get("start_time", 0.0))
+                raw_e = float(seg_data.get("end_time", raw_s))
+
+                # Guard against negative or inverted timings
+                if raw_s < 0.0:
+                    raw_s = 0.0
+                if raw_e < raw_s:
+                    raw_e = raw_s
+                if chunk_duration and chunk_duration > 0 and raw_e > (chunk_duration + 0.2):
+                    raw_e = chunk_duration
+
+                s_time = round(raw_s + start_offset, 3)
+                e_time = round(raw_e + start_offset, 3)
                 seg_id = f"{meeting.public_id}_{part_id}_{int(s_time * 1000)}"
 
                 existing_seg = db.query(TranscriptSegment).filter(
@@ -332,6 +366,7 @@ class TranscriptionService:
                     existing_seg.language = seg_data.get("language") or language or existing_seg.language
                     existing_seg.confidence = seg_data.get("confidence") or existing_seg.confidence
                     existing_seg.words = seg_data.get("words")
+                    existing_seg.processing_metadata = metadata
                     segments.append(existing_seg)
                 else:
                     seg = TranscriptSegment(
@@ -350,20 +385,13 @@ class TranscriptionService:
                         language=seg_data.get("language") or language,
                         confidence=seg_data.get("confidence"),
                         words=seg_data.get("words"),
-                        processing_metadata={"engine": "whisper_participant_stream"},
+                        processing_metadata=metadata,
                     )
                     db.add(seg)
                     segments.append(seg)
 
             db.commit()
             return segments
-
-        finally:
-            # Strictly discard the temporary audio immediately
-            try:
-                os.unlink(tmp.name)
-            except OSError:
-                pass
     
     def _transcribe_with_retry(
         self,
@@ -430,7 +458,10 @@ class TranscriptionService:
         if participant_id:
             query = query.filter(TranscriptSegment.participant_id == participant_id)
 
-        segments = query.order_by(TranscriptSegment.start_time.asc()).all()
+        segments = query.order_by(
+            TranscriptSegment.start_time.asc(),
+            TranscriptSegment.end_time.asc(),
+        ).all()
         return segments
     
     def get_transcription_status(

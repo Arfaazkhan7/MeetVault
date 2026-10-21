@@ -16,12 +16,29 @@ def _validate_password_strength(v: str) -> str:
 
 
 # ── Registration ───────────────────────────────────────────────────────────────
+# Public registration is only allowed to produce personal or organization accounts.
+# Admin and all privileged account types are provisioned exclusively through
+# the secure CLI seed command — never through the public API.
+_PERMITTED_ACCOUNT_TYPES = frozenset({"personal", "organization"})
+
+
 class RegisterRequest(BaseModel):
     full_name: str
     email: EmailStr
     password: str
     account_type: str | None = "personal"
     organization_name: str | None = None
+
+    @field_validator("account_type", mode="before")
+    @classmethod
+    def restrict_account_type(cls, v: str | None) -> str:
+        """Reject any attempt to self-assign a privileged account type."""
+        resolved = (v or "personal").lower().strip()
+        if resolved not in _PERMITTED_ACCOUNT_TYPES:
+            raise ValueError(
+                "Invalid account_type. Permitted values: personal, organization."
+            )
+        return resolved
 
     @field_validator("password")
     @classmethod

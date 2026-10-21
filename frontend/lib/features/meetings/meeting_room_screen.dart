@@ -1,11 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:livekit_client/livekit_client.dart';
+import 'package:record/record.dart';
 import '../../core/services/api_service.dart';
+import '../../core/services/audio_chunk_delivery_queue.dart';
+
 
 class MeetingRoomScreen extends StatefulWidget {
   final String meetingId;
@@ -67,20 +71,76 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
   String? _inviteCode;
   Participant? _pinnedParticipant;
 
+  String? _participantId;
+  AudioRecorder? _audioRecorder;
+  StreamSubscription<Uint8List>? _micStreamSub;
+  final List<int> _capturedPcmBuffer = <int>[];
+  Timer? _audioPipelineTimer;
+  int _audioChunkSequence = 0;
+  bool _isStreamingAudio = false;
+  double _sessionStartOffsetSec = 0.0;
+  int _totalStreamedSamples = 0;
+  AudioChunkDeliveryQueue? _deliveryQueue;
+
   @override
   void initState() {
     super.initState();
     _inviteCode = widget.inviteCode;
+    _initDeliveryQueue();
     _connect();
+  }
+
+  void _initDeliveryQueue() {
+    _deliveryQueue?.dispose();
+    _deliveryQueue = AudioChunkDeliveryQueue(
+      uploader: (chunk) async {
+        try {
+          final response = await _api.postMultipart(
+            '/transcripts/meetings/${chunk.meetingId}/participants/${chunk.participantId}/audio-stream',
+            fileBytes: chunk.wavBytes,
+            filename: 'participant_${chunk.participantId}_seq${chunk.sequenceNumber}.wav',
+            fields: {
+              'start_offset': chunk.startOffset.toStringAsFixed(3),
+              'end_offset': chunk.endOffset.toStringAsFixed(3),
+              'sequence_number': chunk.sequenceNumber.toString(),
+              'chunk_id': chunk.chunkId,
+              'sample_rate': chunk.sampleRate.toString(),
+            },
+          );
+          return response.statusCode;
+        } on ApiException catch (e) {
+          return e.statusCode;
+        }
+      },
+      onStatusChanged: (status) {
+        if (status.isDegraded) {
+          debugPrint('[MeetingRoomScreen] Delivery degraded: ${status.queuedCount} chunks queued, ${status.droppedCount} dropped');
+        }
+      },
+      onChunkDelivered: (chunk) {
+        debugPrint('[AudioPipeline] Chunk #${chunk.sequenceNumber} acknowledged by server');
+      },
+      onChunkDropped: (chunk, reason) {
+        debugPrint('[AudioPipeline] Chunk #${chunk.sequenceNumber} dropped: $reason');
+      },
+      onPermanentFailure: (chunk, error) {
+        debugPrint('[AudioPipeline] Chunk #${chunk.sequenceNumber} permanent failure: $error');
+      },
+    );
   }
 
   @override
   void dispose() {
+    _stopAudioCapturePipeline();
+    _deliveryQueue?.dispose();
+    _deliveryQueue = null;
+    _audioRecorder?.dispose();
     _timer?.cancel();
     _listener?.dispose();
     _room?.disconnect();
     super.dispose();
   }
+
 
   Future<void> _connect() async {
     setState(() {
@@ -102,10 +162,15 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
       if (widget.livekitUrl != null && widget.token != null) {
         livekitUrl = widget.livekitUrl!;
         token = widget.token!;
+        try {
+          final connection = await _requestConnection();
+          _participantId = connection.participantId;
+        } catch (_) {}
       } else {
         final connection = await _requestConnection();
         livekitUrl = connection.livekitUrl;
         token = connection.token;
+        _participantId = connection.participantId;
       }
 
       setState(() => _connectionStatus = 'Joining room');
@@ -339,8 +404,12 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
         if (hasAudio) {
           _microphoneState = 'On';
           _microphoneErrorMessage = null;
-        } else if (_microphoneState == 'Enabling' || _microphoneState == 'On') {
-          _microphoneState = 'Off';
+          _startAudioCapturePipeline();
+        } else {
+          if (_microphoneState == 'Enabling' || _microphoneState == 'On') {
+            _microphoneState = 'Off';
+          }
+          _stopAudioCapturePipeline();
         }
 
         _cameraEnabled = hasVideo;
@@ -404,6 +473,7 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
     if (_microphoneEnabled) {
       try {
         await room.localParticipant!.setMicrophoneEnabled(false);
+        _stopAudioCapturePipeline();
         setState(() {
           _microphoneEnabled = false;
           _microphoneState = 'Off';
@@ -456,10 +526,179 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
   Future<void> _leaveMeeting() async {
     if (_isLeaving) return;
     setState(() => _isLeaving = true);
+    _stopAudioCapturePipeline();
+    _deliveryQueue?.stop();
+    _deliveryQueue?.clear();
     await _recordLeave();
     await _room?.disconnect();
     if (mounted) Navigator.of(context).maybePop();
   }
+
+  Future<void> _startAudioCapturePipeline() async {
+    if (_isStreamingAudio || _isLeaving) return;
+    _isStreamingAudio = true;
+    _audioPipelineTimer?.cancel();
+
+    try {
+      _audioRecorder ??= AudioRecorder();
+      final hasPerm = await _audioRecorder!.hasPermission();
+      if (!hasPerm) {
+        debugPrint('[AudioPipeline] Microphone permission denied for live capture');
+        _isStreamingAudio = false;
+        return;
+      }
+
+      // Record real microphone PCM stream (16kHz 16-bit mono)
+      final micStream = await _audioRecorder!.startStream(
+        const RecordConfig(
+          encoder: AudioEncoder.pcm16bits,
+          sampleRate: 16000,
+          numChannels: 1,
+        ),
+      );
+
+      _sessionStartOffsetSec = _joinedAt != null
+          ? (DateTime.now().difference(_joinedAt!).inMilliseconds / 1000.0)
+          : 0.0;
+      _totalStreamedSamples = 0;
+      _capturedPcmBuffer.clear();
+      await _micStreamSub?.cancel();
+      _micStreamSub = micStream.listen(
+        (data) {
+          if (!_microphoneEnabled || _isLeaving) return;
+          _capturedPcmBuffer.addAll(data);
+        },
+        onError: (err) {
+          debugPrint('[AudioPipeline] Microphone stream error: $err');
+        },
+      );
+
+      // Periodically slice real microphone audio and dispatch to backend
+      _audioPipelineTimer = Timer.periodic(const Duration(seconds: 4), (timer) async {
+        if (!_microphoneEnabled || _isLeaving || _participantId == null) {
+          return;
+        }
+        await _dispatchRealAudioChunk();
+      });
+    } catch (e) {
+      debugPrint('[AudioPipeline] Failed to initialize microphone stream: $e');
+      _isStreamingAudio = false;
+    }
+  }
+
+  Future<void> _stopAudioCapturePipeline() async {
+    _isStreamingAudio = false;
+    _audioPipelineTimer?.cancel();
+    _audioPipelineTimer = null;
+    await _micStreamSub?.cancel();
+    _micStreamSub = null;
+    try {
+      if (_audioRecorder != null && await _audioRecorder!.isRecording()) {
+        await _audioRecorder!.stop();
+      }
+    } catch (_) {}
+
+    // Flush remaining buffer if at least 0.25s (8000 bytes at 16kHz 16-bit mono)
+    if (_capturedPcmBuffer.length >= 8000 && _participantId != null && !_isLeaving) {
+      await _dispatchRealAudioChunk(minBytes: 8000);
+    }
+    _capturedPcmBuffer.clear();
+  }
+
+  Future<void> _dispatchRealAudioChunk({int minBytes = 16000}) async {
+    final participantId = _participantId;
+    if (participantId == null || !_microphoneEnabled || _isLeaving) return;
+    if (_capturedPcmBuffer.isEmpty) return;
+
+    // Minimum chunk of 0.5s at 16kHz 16-bit mono = 16000 bytes (32000 bytes/sec)
+    final totalBytes = _capturedPcmBuffer.length;
+    final frameBytes = totalBytes - (totalBytes % 2);
+    if (frameBytes < minBytes) return;
+
+    // Extract exact PCM frames from the buffer
+    final pcmChunk = Uint8List.fromList(_capturedPcmBuffer.sublist(0, frameBytes));
+    _capturedPcmBuffer.removeRange(0, frameBytes);
+
+    const sampleRate = 16000;
+    final samplesInChunk = frameBytes ~/ 2; // 16-bit mono = 2 bytes per sample
+    final chunkDuration = samplesInChunk / sampleRate;
+
+    // Offsets are anchored to the audio capture timeline, independent of dispatch delays
+    final captureStartOffset = _sessionStartOffsetSec + (_totalStreamedSamples / sampleRate);
+    final captureEndOffset = captureStartOffset + chunkDuration;
+    final seq = _audioChunkSequence++;
+
+    _totalStreamedSamples += samplesInChunk;
+
+    final chunkId = '${widget.meetingId}_${participantId}_seq$seq';
+    final wavBytes = _wrapPcmInWav(pcmChunk, sampleRate: sampleRate, numChannels: 1);
+
+    final chunk = AudioChunk(
+      chunkId: chunkId,
+      sequenceNumber: seq,
+      meetingId: widget.meetingId,
+      participantId: participantId,
+      wavBytes: wavBytes,
+      startOffset: captureStartOffset,
+      endOffset: captureEndOffset,
+      duration: chunkDuration,
+      sampleRate: sampleRate,
+    );
+
+    final enqueued = _deliveryQueue?.enqueue(chunk) ?? false;
+    if (enqueued) {
+      debugPrint('[AudioPipeline] Enqueued chunk #$seq ($chunkId, ${pcmChunk.length} bytes, ${captureStartOffset.toStringAsFixed(2)}s - ${captureEndOffset.toStringAsFixed(2)}s)');
+    } else {
+      debugPrint('[AudioPipeline] Dropped chunk #$seq: delivery queue stopped or unavailable');
+    }
+  }
+
+  Uint8List _wrapPcmInWav(Uint8List pcmData, {int sampleRate = 16000, int numChannels = 1}) {
+    const bitsPerSample = 16;
+    final dataSize = pcmData.length;
+    final chunkSize = 36 + dataSize;
+    final byteRate = sampleRate * numChannels * (bitsPerSample ~/ 8);
+    final blockAlign = numChannels * (bitsPerSample ~/ 8);
+
+    final header = ByteData(44);
+
+    // "RIFF"
+    header.setUint8(0, 0x52);
+    header.setUint8(1, 0x49);
+    header.setUint8(2, 0x46);
+    header.setUint8(3, 0x46);
+    header.setUint32(4, chunkSize, Endian.little);
+    // "WAVE"
+    header.setUint8(8, 0x57);
+    header.setUint8(9, 0x41);
+    header.setUint8(10, 0x56);
+    header.setUint8(11, 0x45);
+    // "fmt "
+    header.setUint8(12, 0x66);
+    header.setUint8(13, 0x6D);
+    header.setUint8(14, 0x74);
+    header.setUint8(15, 0x20);
+    header.setUint32(16, 16, Endian.little);
+    header.setUint16(20, 1, Endian.little); // PCM
+    header.setUint16(22, numChannels, Endian.little);
+    header.setUint32(24, sampleRate, Endian.little);
+    header.setUint32(28, byteRate, Endian.little);
+    header.setUint16(32, blockAlign, Endian.little);
+    header.setUint16(34, bitsPerSample, Endian.little);
+    // "data"
+    header.setUint8(36, 0x64);
+    header.setUint8(37, 0x61);
+    header.setUint8(38, 0x74);
+    header.setUint8(39, 0x61);
+    header.setUint32(40, dataSize, Endian.little);
+
+    final out = Uint8List(44 + dataSize);
+    out.setRange(0, 44, header.buffer.asUint8List());
+    out.setRange(44, 44 + dataSize, pcmData);
+    return out;
+  }
+
+
 
   void _refresh() {
     if (mounted) setState(() {});

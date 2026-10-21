@@ -73,6 +73,8 @@ SUPABASE_SERVICE_ROLE_KEY
 OPENAI_API_KEY
 ```
 
+> **Security Requirement**: `JWT_SECRET` must be at least 32 cryptographically random characters (e.g. generated via `openssl rand -hex 32`). MeetVault rejects known defaults, placeholders, and weak keys at startup in production mode (`ENVIRONMENT=production`). For key rotation and revocation workflows, see [docs/security_secret_rotation.md](docs/security_secret_rotation.md).
+
 ### Supabase database setup
 
 The application SQL data and recording files use two different Supabase connections:
