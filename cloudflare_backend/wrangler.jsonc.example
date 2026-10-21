@@ -7,7 +7,7 @@
   "compatibility_flags": ["python_workers"],
   "workers_dev": true,
   "observability": {"enabled": true, "head_sampling_rate": 1},
-  "hyperdrive": [{"binding": "HYPERDRIVE", "id": "REPLACE_WITH_HYPERDRIVE_ID"}],
+  "hyperdrive": [{"binding": "HYPERDRIVE", "id": "179b69e8363740a1afc7d8b57debc810"}],
   "queues": {
     "producers": [{"binding": "AI_JOBS", "queue": "meetvault-ai-jobs"}]
   },
