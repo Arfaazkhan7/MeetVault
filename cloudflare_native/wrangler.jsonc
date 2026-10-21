@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "meetvault-api-candidate",
+  "account_id": "a203e2da11445fcb2d0a2d88cfdc6000",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "observability": {"enabled": true, "head_sampling_rate": 1},
+  "hyperdrive": [{"binding":"HYPERDRIVE","id":"179b69e8363740a1afc7d8b57debc810"}],
+  "queues": {"producers":[{"binding":"AI_JOBS","queue":"meetvault-ai-jobs"}]},
+  "ai": {"binding":"AI"},
+  "vars": {
+    "ENVIRONMENT":"production",
+    "FIREBASE_PROJECT_ID":"ai-meet-f8fd0",
+    "FRONTEND_PUBLIC_URL":"https://ai-meet-f8fd0.web.app",
+    "API_BASE_URL":"https://meetvault-api-candidate.aeris-cloud.workers.dev/api/v1",
+    "BACKEND_CORS_ORIGINS":"https://ai-meet-f8fd0.web.app,https://ai-meet-f8fd0.firebaseapp.com",
+    "SUPABASE_STORAGE_BUCKET":"meeting-recordings",
+    "SUPABASE_DOCUMENTS_BUCKET":"meeting-documents",
+    "MAX_RECORDING_UPLOAD_BYTES":"20971520",
+    "LLM_MODEL":"@cf/meta/llama-3.1-8b-instruct-fast"
+  }
+}

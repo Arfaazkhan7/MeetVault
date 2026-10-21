@@ -9,7 +9,7 @@ class ApiService {
     'API_BASE_URL',
     // Production-safe fallback for hosted/mobile builds. Local development
     // passes --dart-define=API_BASE_URL=http://localhost:8000/api/v1.
-    defaultValue: 'https://meetvault-api.onrender.com/api/v1',
+    defaultValue: 'https://meetvault-api-candidate.aeris-cloud.workers.dev/api/v1',
   );
 
   String? _token;
@@ -298,3 +298,4 @@ class ApiException implements Exception {
   @override
   String toString() => message;
 }
+

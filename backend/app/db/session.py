@@ -5,6 +5,22 @@ from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
 
 from app.core.config import settings
+from app.core.runtime import IS_WORKERS
+from sqlalchemy.pool import NullPool
+
+
+def _worker_connect():
+    """Open a request-owned connection; Hyperdrive owns the upstream pool."""
+    import pg8000.dbapi
+    from workers import env
+
+    hd = getattr(env, "HYPERDRIVE", None)
+    if hd is None:
+        raise RuntimeError("HYPERDRIVE binding is not configured")
+    return pg8000.dbapi.connect(
+        host=hd.host, port=int(hd.port), user=hd.user,
+        password=hd.password, database=hd.database, ssl_context=False,
+    )
 
 
 def _raise_database_connection_error(exc: Exception) -> None:
@@ -22,7 +38,13 @@ def _raise_database_connection_error(exc: Exception) -> None:
 
 # Engine creation with PostgreSQL / SQLite fallback
 try:
-    if "sqlite" in settings.DATABASE_URL:
+    if IS_WORKERS:
+        # Import/snapshot must not perform I/O. Connections are created inside
+        # requests and closed after each session; never reuse sockets in isolates.
+        engine = create_engine(
+            "postgresql+pg8000://", creator=_worker_connect, poolclass=NullPool,
+        )
+    elif "sqlite" in settings.DATABASE_URL:
         logging.info("Connecting to SQLite database")
         engine = create_engine(settings.DATABASE_URL, connect_args={"check_same_thread": False})
     else:
@@ -46,7 +68,7 @@ try:
             import app.models  # noqa: F401
             Base.metadata.create_all(bind=engine)
 except Exception as e:
-    if settings.ENVIRONMENT == "production":
+    if IS_WORKERS or settings.ENVIRONMENT == "production":
         logging.exception("Production database connection failed")
         raise
     logging.warning(f"PostgreSQL connection failed ({e}). Falling back to local SQLite database.")
@@ -109,3 +131,4 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+

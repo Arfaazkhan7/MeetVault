@@ -1,6 +1,7 @@
 name = "meetvault-ai-worker"
 main = "src/index.ts"
-compatibility_date = "2026-09-28"
+compatibility_date = "2026-10-21"
+compatibility_flags = ["nodejs_compat"]
 
 [[queues.producers]]
 queue = "meetvault-ai-jobs"
@@ -15,10 +16,10 @@ max_batch_timeout = 30
 binding = "AI"
 
 [vars]
-BACKEND_API_BASE_URL = "https://meetvault-api.onrender.com/api/v1"
+BACKEND_API_BASE_URL = "https://meetvault-api-candidate.aeris-cloud.workers.dev/api/v1"
 
 # Set these with:
 # npx wrangler secret put MEETVAULT_WORKER_SECRET
 # npx wrangler secret put BACKEND_WORKER_CALLBACK_SECRET
-# Optional, for real speaker diarization labels:
-# npx wrangler secret put PYANNOTEAI_API_KEY
+# The free pipeline does not call external paid diarization services.
+

@@ -4,10 +4,18 @@ Verified orientation for future agents. Always inspect the current `main` branch
 
 ## Canonical Project
 
+- Active backend: `cloudflare_native/src/index.js` (native JavaScript Worker).
+  Read `cloudflare_native/README.md` before deploying. The old Python Worker
+  exceeded Free CPU limits; do not redeploy it over the native API.
+- Hosted browser code: `web/` plus `web/native-client.js`; Firebase deploys these
+  files. Native tests use `cd cloudflare_native && npm ci && npm test`.
+- Speaker attribution is manual/unverified by default. Paid diarization is off.
+  Vault answers must come from authorized saved evidence, never sample text.
+
 - Repository: https://github.com/GOKUL5731/meetvault
 - Remote: `origin`; primary branch: `main`
 - Production frontend: https://ai-meet-f8fd0.web.app
-- Production API: https://meetvault-api.onrender.com/api/v1
+- Production API target: https://meetvault-api-candidate.aeris-cloud.workers.dev/api/v1
 
 Never commit `.env`, passwords, API keys, Firebase service-account JSON, LiveKit credentials, Supabase service-role keys, OpenAI keys, local databases, build output, or virtual environments.
 
@@ -40,7 +48,7 @@ SETUP.md                 Local setup; DEPLOYMENT.md production setup
 ## Runtime Contracts
 
 1. Firebase authenticates the browser. The frontend stores the application token through `ApiService` and sends `Authorization: Bearer <token>` to protected API routes.
-2. Flutter receives `API_BASE_URL` at build time with `--dart-define`. Local default: `http://localhost:8000/api/v1`; production: `https://meetvault-api.onrender.com/api/v1`.
+2. Flutter receives `API_BASE_URL` at build time with `--dart-define`. Local development uses `http://localhost:8000/api/v1`; hosted default is `https://meetvault-api-candidate.aeris-cloud.workers.dev/api/v1`.
 3. Meeting creation returns a public id and `invite_code` such as `MTG-XXXXXX`.
 4. `POST /api/v1/meetings/join` with `{ "invite_code": "MTG-..." }` creates or reuses the participant and returns `meeting_id`, `room_name`, `livekit_url`, `token`, and participant data.
 5. `MeetingRoomScreen` uses that LiveKit token, or requests one from `/meetings/{meeting_id}/room/connect` for direct entry.
@@ -102,6 +110,27 @@ python -m ai_worker
 
 ## Production Deployment
 
+### Cloudflare migration candidate
+
+- `cloudflare_backend/` stages `backend/app` and `backend/worker.py` for Python Workers.
+- Read `CLOUDFLARE_BACKEND_MIGRATION.md` before changing hosts. This is a candidate,
+  not a verified production deployment or proof that every endpoint fits Workers Free.
+- Workers use Hyperdrive/pg8000 and delegate password bcrypt to existing PostgreSQL
+  pgcrypto. Keep the SHA-256/base64 prehash and cost factor 12.
+- New Worker document uploads require a private bucket; old local binaries must
+  be copied before Render is retired.
+- Firebase serves `web/` via `firebase.json`. Its deployment workflow injects
+  the Cloudflare API URL. Verify the actual workflow run and hosted output.
+- The user authorized live cutover on 2026-10-21 after Firebase token exchange,
+  profile, workspace, project, and meeting-list checks returned 200. The AI
+  worker callback now targets Cloudflare. Both Supabase buckets are private;
+  no active document records needed copying at cutover. File roundtrip, two-user
+  media, AI-job completion and workload CPU checks still require live validation.
+- Retain Render resources until those checks and backups are complete. Do not
+  interpret a passing health response as proof that every feature works.
+
+### Existing Render deployment
+
 - `render.yaml` defines Render PostgreSQL, `meetvault-api`, and `meetvault-ai-worker`. Secrets marked `sync: false` are entered in Render only.
 - API image: `backend/Dockerfile`; worker image: `ai_worker/Dockerfile`.
 - `.github/workflows/deploy-firebase-hosting.yml` runs on pushes to `main` or manual dispatch. It installs Flutter dependencies, analyzes/tests, builds with the production API URL, and deploys Firebase Hosting.
@@ -137,3 +166,4 @@ For meeting changes, verify two authenticated users can use the same code, a ful
 - Review `git status`, the relevant complete diff, and secret exclusion before committing.
 - Commit meaningful changes and push only to `origin`/`main` when authorized. Never force-push or rewrite history.
 - Never claim deployment or real-time/AI behavior without evidence.
+

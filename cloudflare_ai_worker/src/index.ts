@@ -1,3 +1,5 @@
+import { Buffer } from "node:buffer";
+
 export interface Env {
   AI_JOBS: Queue<AiJobMessage>;
   AI: Ai;
@@ -88,12 +90,15 @@ async function processJob(jobId: string, env: Env): Promise<void> {
     }
 
     const context = (await contextResponse.json()) as JobContext;
+    if ((context as JobContext & { completed?: boolean; processing?: boolean }).completed || (context as JobContext & { processing?: boolean }).processing) return;
     const audioResponse = await fetch(context.recording_url);
     if (!audioResponse.ok) {
       throw new Error(`Recording download failed ${audioResponse.status}: ${await audioResponse.text()}`);
     }
 
-    const audio = [...new Uint8Array(await audioResponse.arrayBuffer())];
+    const audioBuffer = await audioResponse.arrayBuffer();
+    if (audioBuffer.byteLength > 20971520) throw new Error("Recording exceeds the free upload limit");
+    const audio = Buffer.from(audioBuffer).toString("base64");
     const transcription = await env.AI.run("@cf/openai/whisper-large-v3-turbo", {
       audio,
       task: "transcribe",
@@ -101,8 +106,9 @@ async function processJob(jobId: string, env: Env): Promise<void> {
     } as never) as unknown as Record<string, unknown>;
 
     const parsedSegments = parseSegments(transcription, Number(context.duration_seconds || 0));
-    const speakerTurns = await diarizeRecording(context.recording_url, env);
-    const mappedSegments = alignSpeakers(parsedSegments, speakerTurns);
+    // The free pipeline does not call paid diarization providers or invent
+    // speaker identities. Hosts can map known speakers after transcription.
+    const mappedSegments = parsedSegments;
 
     const resultResponse = await fetch(
       `${env.BACKEND_API_BASE_URL}/ai-jobs/${encodeURIComponent(jobId)}/cloudflare/result`,
@@ -116,7 +122,7 @@ async function processJob(jobId: string, env: Env): Promise<void> {
           provider: "cloudflare-workers-ai",
           transcription_text: String(transcription.text || ""),
           segments: mappedSegments,
-          raw_result: transcription,
+          raw_result: { model: "@cf/openai/whisper-large-v3-turbo", speaker_attribution: "unverified" },
         }),
       },
     );
@@ -233,3 +239,4 @@ function alignSpeakers(segments: WorkerAiSegment[], speakerTurns: SpeakerTurn[])
     };
   });
 }
+

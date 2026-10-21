@@ -293,6 +293,45 @@ class MockLLMProvider(LLMProvider):
         }
 
 
+class CloudflareLLMProvider(LLMProvider):
+    """Use the Workers AI binding; never silently substitute mock analysis."""
+
+    def __init__(self, model: str):
+        self.model = model
+
+    def generate_completion(self, prompt, system_prompt=None, temperature=0.7, max_tokens=None) -> str:
+        from workers import env
+        from pyodide.ffi import run_sync
+
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        result = run_sync(env.AI.run(self.model, {
+            "messages": messages, "temperature": temperature,
+            "max_tokens": max_tokens or 2048,
+        }))
+        if hasattr(result, "to_py"):
+            result = result.to_py()
+        response = result.get("response") if isinstance(result, dict) else getattr(result, "response", None)
+        if not isinstance(response, str) or not response.strip():
+            raise RuntimeError("Workers AI returned no completion")
+        return response
+
+    def generate_structured_completion(self, prompt, system_prompt=None, schema=None, temperature=0.7) -> Dict[str, Any]:
+        instruction = (system_prompt or "") + "\nReturn only one valid JSON object, without Markdown fences."
+        if schema:
+            instruction += "\nRequired JSON schema: " + json.dumps(schema)
+        response = self.generate_completion(prompt, instruction, temperature)
+        # Some chat models wrap valid JSON in a Markdown code fence.
+        if response.strip().startswith("```"):
+            response = "\n".join(response.strip().splitlines()[1:-1])
+        result = json.loads(response)
+        if not isinstance(result, dict):
+            raise ValueError("Workers AI must return a JSON object")
+        return result
+
+
 def get_llm_provider() -> LLMProvider:
     """Factory function that returns the appropriate LLM provider based on settings."""
     from app.core.config import settings
@@ -300,6 +339,12 @@ def get_llm_provider() -> LLMProvider:
     provider_name = getattr(settings, "LLM_PROVIDER", "mock").lower()
     model = getattr(settings, "LLM_MODEL", "gpt-4o-mini")
     api_key = getattr(settings, "OPENAI_API_KEY", None)
+
+    if provider_name == "cloudflare":
+        from app.core.runtime import IS_WORKERS
+        if not IS_WORKERS:
+            raise RuntimeError("LLM_PROVIDER=cloudflare requires the Cloudflare Workers runtime")
+        return CloudflareLLMProvider(model=model)
 
     if provider_name == "openai" and api_key:
         try:

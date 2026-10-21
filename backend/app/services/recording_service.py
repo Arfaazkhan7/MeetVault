@@ -9,6 +9,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.runtime import IS_WORKERS
 from app.core.enums import RecordingProcessingStatus
 from app.models.ai_job import AIJob
 from app.models.meeting import Meeting
@@ -482,6 +483,11 @@ def _enqueue_ai_job(db: Session, job_id: str) -> None:
         return
     try:
         if queue_backend == "cloudflare":
+            if IS_WORKERS:
+                from workers import env
+                from pyodide.ffi import run_sync
+                run_sync(env.AI_JOBS.send({"job_id": job_id}))
+                return
             if not settings.CLOUDFLARE_AI_QUEUE_URL or not settings.CLOUDFLARE_AI_QUEUE_SECRET:
                 raise RuntimeError("Cloudflare AI queue URL/secret is not configured")
             response = httpx.post(
@@ -1155,3 +1161,4 @@ async def handle_livekit_webhook_event(
         return {"status": "processed", "event": "room_finished"}
 
     return {"status": "ignored", "event": event_type}
+

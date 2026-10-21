@@ -2,6 +2,8 @@ import io
 import os
 import re
 import uuid
+import zipfile
+from xml.etree.ElementTree import ParseError
 from typing import List, Optional, Tuple, Dict, Any
 
 from fastapi import HTTPException, UploadFile, status
@@ -11,6 +13,8 @@ from sqlalchemy.orm import Session
 from app.models.document import Document, DocumentPage
 from app.models.meeting import Meeting
 from app.models.project import Project
+from app.core.config import settings
+from app.core.runtime import IS_WORKERS
 
 ALLOWED_EXTENSIONS = {"pdf", "ppt", "pptx"}
 
@@ -54,6 +58,12 @@ def extract_pdf_pages(file_bytes: bytes) -> List[Dict[str, Any]]:
 
 def extract_pptx_slides(file_bytes: bytes) -> List[Dict[str, Any]]:
     """Extract text slide-by-slide from PPTX."""
+    if IS_WORKERS:
+        from app.services.pptx_text import extract_slides
+        try:
+            return extract_slides(file_bytes)
+        except (ValueError, KeyError, OSError, EOFError, RuntimeError, ParseError, zipfile.BadZipFile) as exc:
+            raise HTTPException(status_code=400, detail="Invalid or oversized PPTX presentation") from exc
     try:
         import pptx
         prs = pptx.Presentation(io.BytesIO(file_bytes))
@@ -82,6 +92,8 @@ def extract_pptx_slides(file_bytes: bytes) -> List[Dict[str, Any]]:
 def extract_ppt_slides(file_bytes: bytes) -> List[Dict[str, Any]]:
     """Extract text slide-by-slide from legacy binary PPT format."""
     # First try parsing with pptx in case it's a pptx with .ppt extension
+    if IS_WORKERS and file_bytes.startswith(b"PK"):
+        return extract_pptx_slides(file_bytes)
     try:
         import pptx
         prs = pptx.Presentation(io.BytesIO(file_bytes))
@@ -153,6 +165,19 @@ def extract_document_pages(file_bytes: bytes, file_type: str) -> List[Dict[str, 
 
 def save_private_file(company_id: str, doc_public_id: str, file_name: str, content: bytes) -> str:
     """Save document in private storage directory."""
+    if settings.DOCUMENT_STORAGE_BACKEND == "supabase":
+        from app.services.storage_service import SupabaseStorageService
+        ext = validate_document_filename(file_name)
+        object_path = f"{company_id}/{doc_public_id}.{ext}"
+        storage = SupabaseStorageService(
+            supabase_url=settings.SUPABASE_URL,
+            service_role_key=settings.SUPABASE_SERVICE_ROLE_KEY,
+            bucket=settings.SUPABASE_DOCUMENTS_BUCKET,
+        )
+        storage.upload_private_file(
+            path=object_path, content=content, content_type="application/octet-stream",
+        )
+        return f"supabase://{settings.SUPABASE_DOCUMENTS_BUCKET}/{object_path}"
     target_dir = os.path.join(STORAGE_BASE_DIR, company_id)
     os.makedirs(target_dir, exist_ok=True)
     ext = file_name.rsplit(".", 1)[-1].lower() if "." in file_name else "bin"
@@ -374,3 +399,4 @@ def search_documents_and_pages(
         doc_map[page.document_id]["matching_pages"].append(page)
 
     return list(doc_map.values())
+

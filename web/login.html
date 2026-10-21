@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <script>const pendingInvite=location.hash.match(/^#\/join\/([^/?]+)/);if(pendingInvite)sessionStorage.setItem('mv_pending_invite',pendingInvite[1]);</script>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>MeetVault | Sign In</title>
   <meta name="description" content="Sign in to MeetVault — your AI-powered smart meeting memory platform.">
@@ -391,7 +392,7 @@
     const API_BASE_URL = "__API_BASE_URL__";
     const RUNTIME_API_BASE_URL = (API_BASE_URL && !API_BASE_URL.startsWith('__'))
       ? API_BASE_URL
-      : 'https://meetvault-api.onrender.com/api/v1';
+      : 'https://meetvault-api-candidate.aeris-cloud.workers.dev/api/v1';
     const firebaseConfig = {
       apiKey: "__FIREBASE_API_KEY__",
       authDomain: "ai-meet-f8fd0.firebaseapp.com",
@@ -520,7 +521,7 @@
           return;
         }
         const detail = err && (err.name === 'TypeError' || /failed to fetch/i.test(err.message || ''))
-          ? 'Cannot reach the MeetVault API. Check the Render service and its CORS settings.'
+          ? 'Cannot reach the MeetVault API. Please try again shortly.'
           : (err.message || 'Unknown error');
         setMsg('error', 'Google sign-in failed: ' + detail);
       }
@@ -539,7 +540,7 @@
         }
       }).catch(err => {
         const detail = err && (err.name === 'TypeError' || /failed to fetch/i.test(err.message || ''))
-          ? 'Cannot reach the MeetVault API. Check the Render service and its CORS settings.'
+          ? 'Cannot reach the MeetVault API. Please try again shortly.'
           : (err.message || 'Unknown error');
         setMsg('error', 'Google sign-in failed: ' + detail);
       });
@@ -561,12 +562,12 @@
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner"></span> Signing in…';
 
-      // Try real backend authentication — longer timeout to handle cold-start on Render free tier
+      // Allow enough time for API startup and authentication provider requests.
       const BACKEND_TIMEOUT_MS = 60000; // 60 s
       try {
         const baseUrl = (typeof API_BASE_URL !== 'undefined' && API_BASE_URL && !API_BASE_URL.startsWith('__'))
           ? API_BASE_URL
-          : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000/api/v1' : 'https://meetvault-api.onrender.com/api/v1');
+          : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000/api/v1' : 'https://meetvault-api-candidate.aeris-cloud.workers.dev/api/v1');
 
         setMsg('info', '⏳ Connecting to server… (first sign-in may take up to 60 seconds)');
 
@@ -648,3 +649,4 @@
   </script>
 </body>
 </html>
+
