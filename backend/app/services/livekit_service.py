@@ -1,6 +1,5 @@
 import json
 from typing import Optional
-from livekit.api import AccessToken, VideoGrants
 from datetime import datetime, timedelta, timezone
 
 
@@ -46,6 +45,9 @@ def generate_meeting_token(
     display_name: str | None = None,
 ) -> tuple[str, datetime]:
     _validate_livekit_config()
+    # The SDK loads protobuf/API modules. Keep them out of the Python Worker
+    # startup snapshot; ordinary auth, health and data requests do not need them.
+    from livekit.api import AccessToken, VideoGrants
     
     expires_at = datetime.now(timezone.utc) + timedelta(
         minutes=settings.LIVEKIT_TOKEN_EXPIRE_MINUTES

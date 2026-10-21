@@ -31,8 +31,10 @@ free-tier workload has been verified.
   of the binaries. Downloads still require company membership.
 - Jobs use the existing `meetvault-ai-jobs` Queue binding on Workers.
 - `LLM_PROVIDER=cloudflare` uses a Workers AI binding for summaries/RAG. Provider
-  errors do not silently become mock results. Existing OpenAI configuration can
-  still be used intentionally, but incurs that provider's costs.
+  errors do not silently become mock results. The Worker artifact excludes the
+  optional OpenAI SDK to reduce snapshot memory. Keep `LLM_PROVIDER=cloudflare`
+  and leave `OPENAI_API_KEY` unset on this Worker. Native deployments retain
+  their existing optional OpenAI integration.
 - Firebase's deploy workflow reads the optional `MEETVAULT_API_BASE_URL`
   repository variable. Its default remains the existing Render URL until cutover.
 - Email-only development tokens are rejected when ENVIRONMENT is production.
@@ -52,6 +54,14 @@ still need actual Worker CPU measurements. The candidate is not evidence that
 all features fit Free. If those exceed 10 ms, move parsing to the browser and
 split/index jobs off the HTTP path, or port those routes to leaner handlers.
 Do not enable a paid Workers plan as an automatic workaround.
+
+The first live upload was rejected with code 10021, "Python startup exceeded
+memory limits"; the prior successful dry run did not validate startup. The
+retry build removes the unused OpenAI SDK and defers LiveKit's protobuf/API
+imports until needed. Run `pywrangler sync --force` after pulling this change
+to remove stale vendored packages, then deploy again. This reduction is not a
+verified fix until Cloudflare accepts the upload and real requests pass the
+runtime memory and CPU checks.
 
 The candidate caps recording uploads at 20 MiB. Existing large recordings need
 a signed direct-upload/chunked flow rather than the old 500 MiB buffered route.

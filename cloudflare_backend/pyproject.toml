@@ -3,10 +3,12 @@ name = "meetvault-cloudflare-api"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
+  # The free-tier Worker uses Workers AI; the optional OpenAI SDK remains
+  # available in native backend requirements rather than this Worker bundle.
   "fastapi", "pydantic-settings", "pydantic[email]", "sqlalchemy",
   "pg8000", "pgvector", "python-jose[cryptography]",
   "livekit-api", "httpx", "python-multipart", "pypdf", "python-pptx",
-  "python-dotenv", "openai",
+  "python-dotenv",
 ]
 
 [dependency-groups]
