@@ -28,6 +28,17 @@ transport through response-body completion. Neither change retries writes.
 Deploy the updated Worker before treating the incident as resolved; native
 regression tests do not reproduce the live Pyodide stack-switching runtime.
 
+The user deployed the runtime fix (Worker version
+`f79a9d5e-e293-49b5-982d-de6a61b6fd95`). Subsequent requests reached PostgreSQL
+and revealed an older schema: 20 model fields were missing across participants,
+recordings and transcripts. The additive SQL migration in
+`supabase/migrations/20261021140803_repair_meeting_runtime_schema.sql` was applied
+live on 2026-10-21. Schema comparison found no remaining missing model columns;
+a meeting plus host insert passed in a rolled-back transaction. Authenticated
+browser creation still needs confirmation. Existing nullable constraints,
+transcript data and access rules were not changed. Security advisors still
+report the pre-existing public-table RLS findings; review access separately.
+
 ## What changes
 
 - Existing `/api/v1` routes and SQLAlchemy models are reused.
