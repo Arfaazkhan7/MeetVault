@@ -1,0 +1,23 @@
+name: Test native Cloudflare backend
+on:
+  push:
+    branches: [main]
+    paths: ['cloudflare_native/**', 'web/**', '.github/workflows/test-native-worker.yml']
+  pull_request:
+    paths: ['cloudflare_native/**', 'web/**', '.github/workflows/test-native-worker.yml']
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cloudflare_native
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: cloudflare_native/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npx wrangler deploy --dry-run --minify

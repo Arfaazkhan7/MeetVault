@@ -977,7 +977,6 @@
     }
 
 </style>
-<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 </head>
@@ -1197,6 +1196,12 @@
             <input class="vault-input" type="text" id="vault-q" placeholder="Ask AI about past meetings…" onkeydown="if(event.key==='Enter') vaultSearch()">
             <button class="btn-blue-action" style="border-radius:8px;height:44px;" onclick="vaultSearch()">Search Vault</button>
           </div>
+          <label style="display:block;margin-bottom:16px;font-size:0.85rem;">Analyze
+            <select id="vault-scope" style="padding:8px;border:1px solid #cbd5e1;border-radius:8px;margin-left:8px;">
+              <option value="all">All my accessible meetings</option>
+              <option value="selected_meetings">Selected meetings below</option>
+            </select>
+          </label>
           <div id="vault-result" style="display:none;background:#fff;border:1px solid var(--border);border-radius:12px;padding:18px;font-size:0.9rem;line-height:1.6;margin-bottom:24px;"></div>
 
           <!-- STORED CLOUD MEETINGS IN VAULT -->
@@ -2390,7 +2395,9 @@ function showToast(msg){
   }
   const t = document.createElement('div');
   t.className = 'toast';
-  t.innerHTML = `<span>${msg}</span>`;
+  const span = document.createElement('span');
+  span.textContent = msg;
+  t.appendChild(span);
   container.appendChild(t);
   setTimeout(() => {
     t.style.opacity = '0';
@@ -2491,7 +2498,7 @@ function createParticipantTile(p) {
       </div>`;
   } else if (p.isRemotePeer) {
     mediaHTML = `
-      <video id="remote-video" autoplay playsinline style="transform:none;"></video>
+      <video id="remote-video" autoplay playsinline muted style="transform:none;"></video>
       <audio id="remote-audio" autoplay playsinline></audio>
       <div id="remote-cam-ph" class="cam-placeholder" style="display:none;">
         <div class="avatar-circle" style="background:#2563EB;">${initial}</div>
@@ -3102,8 +3109,7 @@ function vaultSearch(){
   const res = document.getElementById('vault-result');
   if(!q || !res) return;
   res.style.display='block';
-  res.innerHTML='<em style="color:#9CA3AF;">Searching for "'+q+'"…</em>';
-  setTimeout(()=>{ res.innerHTML='<strong>Result:</strong> Based on 3 recent meetings: team chose Faster-Whisper for transcription and PostgreSQL queue for async AI processing.'; }, 600);
+  res.textContent='Vault is loading. Refresh the page and try again.';
 }
 
 /* ════════════════════════════════════════════════════════
@@ -3124,7 +3130,8 @@ let weekOffset     = 0;
 let selectedOffset = 1; // Default offset MON 14
 
 function buildCalendar(){
-  const baseDate = new Date(2026, 8, 13); // Reference Sunday Sep 13
+  const baseDate = new Date();
+  baseDate.setDate(baseDate.getDate() - baseDate.getDay());
   baseDate.setDate(baseDate.getDate() + weekOffset * 7);
 
   const container = document.getElementById('cal-days-row');
@@ -3136,9 +3143,9 @@ function buildCalendar(){
     d.setDate(baseDate.getDate() + i);
 
     const diff = i;
-    const isToday    = (diff === 1); // MON 14 is active today in mockup
+    const isToday    = weekOffset === 0 && diff === new Date().getDay();
     const isSelected = (diff === selectedOffset);
-    const hasMeeting = (diff === 2 || diff === 4 || diff === 6); // TUE 15, THU 17, SAT 19
+    const hasMeeting = cachedCloudMeetings.some(m => m.scheduled_start_time && new Date(m.scheduled_start_time).toDateString() === d.toDateString());
 
     const col = document.createElement('div');
     col.className = 'cal-day' + (isToday ? ' today' : '') + (!isToday && isSelected ? ' selected' : '');
@@ -3248,7 +3255,7 @@ async function renderUpcoming(){
     const timeStr = formatDateTimeStr(m.started_at || m.created_at);
     const duration = formatDurationSec(m.duration_seconds || m.my_duration_seconds);
     const participantNames = m.participants && m.participants.length > 0
-      ? m.participants.map(p => p.full_name || p.email.split('@')[0]).join(', ')
+      ? m.participants.map(p => escapeHtml(p.full_name || (p.email||'Participant').split('@')[0])).join(', ')
       : 'Host';
     const isHost = m.my_role === 'HOST';
     const roleBadge = isHost 
@@ -3317,7 +3324,7 @@ async function renderVaultMeetings() {
       <div style="background:#fff; border:1px solid var(--border); border-radius:14px; padding:16px 20px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,0.04); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
         <div style="flex:1; min-width:240px;">
           <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
-            <span style="font-weight:700; font-size:1.05rem; color:#0f172a;">${m.title || 'Untitled Meeting'}</span>
+            <span style="font-weight:700; font-size:1.05rem; color:#0f172a;">${escapeHtml(m.title || 'Untitled Meeting')}</span>
             ${roleBadge}
           </div>
           <div style="font-size:0.83rem; color:#64748b; display:flex; gap:16px; align-items:center; margin-bottom:8px; flex-wrap:wrap;">
@@ -3355,8 +3362,8 @@ function openHistoryDetailsModal(meetingId) {
     partsContainer.innerHTML = meeting.participants.map(p => `
       <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-bottom: 1px solid #f1f5f9;">
         <div>
-          <div style="font-weight: 600; font-size: 0.88rem; color: #0f172a;">${p.name || p.email}</div>
-          <div style="font-size: 0.75rem; color: #64748b;">${p.email} • <span style="font-weight: 600;">${p.role}</span></div>
+          <div style="font-weight: 600; font-size: 0.88rem; color: #0f172a;">${escapeHtml(p.full_name || p.name || p.email)}</div>
+          <div style="font-size: 0.75rem; color: #64748b;">${escapeHtml(p.email)} • <span style="font-weight: 600;">${escapeHtml(p.role)}</span></div>
         </div>
         <div style="font-size: 0.8rem; font-weight: 600; color: #2563eb;">
           ⏱️ ${formatDurationSec(p.attendance_duration_seconds)}
@@ -3387,6 +3394,8 @@ if (document.readyState === 'loading') {
   buildCalendar();
 }
 </script>
+
+<script src="native-client.js"></script>
 
 </body>
 </html>

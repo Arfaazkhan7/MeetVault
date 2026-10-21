@@ -1,0 +1,20 @@
+{
+  "name": "meetvault-native-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "build": "esbuild src/index.js --bundle --format=esm --platform=node --target=es2022 --external:node:* --external:cloudflare:* --outfile=dist/worker.mjs",
+    "deploy": "wrangler deploy",
+    "types": "wrangler types"
+  },
+  "dependencies": {
+    "jose": "6.2.13",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.11",
+    "esbuild": "0.28.2",
+    "wrangler": "4.151.3"
+  }
+}

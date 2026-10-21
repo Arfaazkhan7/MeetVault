@@ -4,6 +4,14 @@ Verified orientation for future agents. Always inspect the current `main` branch
 
 ## Canonical Project
 
+- Active backend: `cloudflare_native/src/index.js` (native JavaScript Worker).
+  Read `cloudflare_native/README.md` before deploying. The old Python Worker
+  exceeded Free CPU limits; do not redeploy it over the native API.
+- Hosted browser code: `web/` plus `web/native-client.js`; Firebase deploys these
+  files. Native tests use `cd cloudflare_native && npm ci && npm test`.
+- Speaker attribution is manual/unverified by default. Paid diarization is off.
+  Vault answers must come from authorized saved evidence, never sample text.
+
 - Repository: https://github.com/GOKUL5731/meetvault
 - Remote: `origin`; primary branch: `main`
 - Production frontend: https://ai-meet-f8fd0.web.app
