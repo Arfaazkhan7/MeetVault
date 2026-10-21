@@ -2,6 +2,8 @@ import io
 import os
 import re
 import uuid
+import zipfile
+from xml.etree.ElementTree import ParseError
 from typing import List, Optional, Tuple, Dict, Any
 
 from fastapi import HTTPException, UploadFile, status
@@ -12,6 +14,7 @@ from app.models.document import Document, DocumentPage
 from app.models.meeting import Meeting
 from app.models.project import Project
 from app.core.config import settings
+from app.core.runtime import IS_WORKERS
 
 ALLOWED_EXTENSIONS = {"pdf", "ppt", "pptx"}
 
@@ -55,6 +58,12 @@ def extract_pdf_pages(file_bytes: bytes) -> List[Dict[str, Any]]:
 
 def extract_pptx_slides(file_bytes: bytes) -> List[Dict[str, Any]]:
     """Extract text slide-by-slide from PPTX."""
+    if IS_WORKERS:
+        from app.services.pptx_text import extract_slides
+        try:
+            return extract_slides(file_bytes)
+        except (ValueError, KeyError, OSError, EOFError, RuntimeError, ParseError, zipfile.BadZipFile) as exc:
+            raise HTTPException(status_code=400, detail="Invalid or oversized PPTX presentation") from exc
     try:
         import pptx
         prs = pptx.Presentation(io.BytesIO(file_bytes))
@@ -83,6 +92,8 @@ def extract_pptx_slides(file_bytes: bytes) -> List[Dict[str, Any]]:
 def extract_ppt_slides(file_bytes: bytes) -> List[Dict[str, Any]]:
     """Extract text slide-by-slide from legacy binary PPT format."""
     # First try parsing with pptx in case it's a pptx with .ppt extension
+    if IS_WORKERS and file_bytes.startswith(b"PK"):
+        return extract_pptx_slides(file_bytes)
     try:
         import pptx
         prs = pptx.Presentation(io.BytesIO(file_bytes))

@@ -6,8 +6,8 @@ dependencies = [
   # The free-tier Worker uses Workers AI; the optional OpenAI SDK remains
   # available in native backend requirements rather than this Worker bundle.
   "fastapi", "pydantic-settings", "pydantic[email]", "sqlalchemy",
-  "pg8000", "pgvector", "python-jose[cryptography]",
-  "livekit-api", "httpx", "python-multipart", "pypdf", "python-pptx",
+  "pg8000", "pgvector", "python-jose", "asn1crypto",
+  "livekit-api", "httpx", "python-multipart", "pypdf",
   "python-dotenv",
 ]
 

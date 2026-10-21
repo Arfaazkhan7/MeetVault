@@ -26,6 +26,9 @@ free-tier workload has been verified.
 - Firebase ID tokens use Google's signing certificates on Workers, without
   importing Firebase Admin's server-only dependency stack. Signature, audience,
   issuer, expiry, issued-at, authentication time, and subject are checked.
+  Workers verify RS256 using Web Crypto through a python-jose Key adapter;
+  asn1crypto extracts the certificate's public key. JWT signature verification
+  remains enabled. Native Firebase Admin verification is unchanged.
 - Document uploads use a private `meeting-documents` bucket on Workers. Existing
   local files must be copied before switching; database metadata is not a copy
   of the binaries. Downloads still require company membership.
@@ -55,13 +58,20 @@ all features fit Free. If those exceed 10 ms, move parsing to the browser and
 split/index jobs off the HTTP path, or port those routes to leaner handlers.
 Do not enable a paid Workers plan as an automatic workaround.
 
-The first live upload was rejected with code 10021, "Python startup exceeded
-memory limits"; the prior successful dry run did not validate startup. The
-retry build removes the unused OpenAI SDK and defers LiveKit's protobuf/API
-imports until needed. Run `pywrangler sync --force` after pulling this change
-to remove stale vendored packages, then deploy again. This reduction is not a
-verified fix until Cloudflare accepts the upload and real requests pass the
-runtime memory and CPU checks.
+Both the initial upload and the OpenAI-trimmed build were rejected with code
+10021, "Python startup exceeded memory limits". Successful dry runs did not
+validate startup. The next build removes cryptography/OpenSSL and the
+python-pptx/lxml/Pillow dependency stack from the Worker artifact, retaining
+Web Crypto RSA verification and using a bounded stdlib OOXML text reader.
+LiveKit's protobuf/API imports remain deferred until needed. Run
+`pywrangler sync --force` after pulling to remove stale vendored packages.
+This reduction is not a verified fix until Cloudflare accepts the upload and
+real requests pass the runtime memory and CPU checks.
+
+Worker PPTX extraction reads slide order, text runs, and speaker notes without
+rendering images. It rejects XML declarations, more than 200 slides, XML parts
+larger than 2 MiB, or more than 16 MiB of total uncompressed XML. Invalid or
+oversized PPTX requests return 400. Native PowerPoint extraction is unchanged.
 
 The candidate caps recording uploads at 20 MiB. Existing large recordings need
 a signed direct-upload/chunked flow rather than the old 500 MiB buffered route.

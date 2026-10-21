@@ -61,6 +61,9 @@ def _verify_portable_firebase_token(id_token: str) -> dict:
     certificate = certificates.get(header["kid"])
     if not certificate:
         raise JWTError("Unknown Firebase signing key")
+    if IS_WORKERS:
+        from app.core.workers_crypto import WorkersRSAKey
+        certificate = WorkersRSAKey(certificate)
     claims = jwt.decode(
         id_token, certificate, algorithms=["RS256"],
         audience=settings.FIREBASE_PROJECT_ID,
