@@ -1,0 +1,13 @@
+[project]
+name = "meetvault-cloudflare-api"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+  "fastapi", "pydantic-settings", "pydantic[email]", "sqlalchemy",
+  "pg8000", "pgvector", "python-jose[cryptography]",
+  "livekit-api", "httpx", "python-multipart", "pypdf", "python-pptx",
+  "python-dotenv", "openai",
+]
+
+[dependency-groups]
+dev = ["workers-py==1.17.8", "workers-runtime-sdk"]

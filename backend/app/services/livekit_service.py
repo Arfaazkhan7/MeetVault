@@ -1,4 +1,5 @@
 import json
+from typing import Optional
 from livekit.api import AccessToken, VideoGrants
 from datetime import datetime, timedelta, timezone
 
@@ -181,3 +182,4 @@ def verify_livekit_webhook(body_bytes: bytes, auth_header: str):
     verifier = TokenVerifier(settings.LIVEKIT_API_KEY, settings.LIVEKIT_API_SECRET)
     receiver = WebhookReceiver(verifier)
     return receiver.receive(body_bytes.decode("utf-8", errors="replace"), auth_header)
+

@@ -102,6 +102,22 @@ python -m ai_worker
 
 ## Production Deployment
 
+### Cloudflare migration candidate
+
+- `cloudflare_backend/` stages `backend/app` and `backend/worker.py` for Python Workers.
+- Read `CLOUDFLARE_BACKEND_MIGRATION.md` before changing hosts. This is a candidate,
+  not a verified production deployment or proof that every endpoint fits Workers Free.
+- Workers use Hyperdrive/pg8000 and delegate password bcrypt to existing PostgreSQL
+  pgcrypto. Keep the SHA-256/base64 prehash and cost factor 12.
+- New Worker document uploads require a private bucket; old local binaries must
+  be copied before Render is retired.
+- Firebase currently serves `web/` via `firebase.json`. Its workflow accepts the
+  optional `MEETVAULT_API_BASE_URL` repository variable and defaults to Render.
+- Do not change the AI worker callback URL or production frontend until the
+  candidate passes runtime, auth, file, meeting, AI-job, and CPU checks.
+
+### Existing Render deployment
+
 - `render.yaml` defines Render PostgreSQL, `meetvault-api`, and `meetvault-ai-worker`. Secrets marked `sync: false` are entered in Render only.
 - API image: `backend/Dockerfile`; worker image: `ai_worker/Dockerfile`.
 - `.github/workflows/deploy-firebase-hosting.yml` runs on pushes to `main` or manual dispatch. It installs Flutter dependencies, analyzes/tests, builds with the production API URL, and deploys Firebase Hosting.
@@ -137,3 +153,4 @@ For meeting changes, verify two authenticated users can use the same code, a ful
 - Review `git status`, the relevant complete diff, and secret exclusion before committing.
 - Commit meaningful changes and push only to `origin`/`main` when authorized. Never force-push or rewrite history.
 - Never claim deployment or real-time/AI behavior without evidence.
+
