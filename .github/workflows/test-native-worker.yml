@@ -2,9 +2,9 @@ name: Test native Cloudflare backend
 on:
   push:
     branches: [main]
-    paths: ['cloudflare_native/**', 'web/**', '.github/workflows/test-native-worker.yml']
+    paths: ['cloudflare_native/**', 'web/**', 'translation_speech/**', 'supabase/migrations/**', '.github/workflows/test-native-worker.yml']
   pull_request:
-    paths: ['cloudflare_native/**', 'web/**', '.github/workflows/test-native-worker.yml']
+    paths: ['cloudflare_native/**', 'web/**', 'translation_speech/**', 'supabase/migrations/**', '.github/workflows/test-native-worker.yml']
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -21,3 +21,6 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npx wrangler deploy --dry-run --minify
+      - name: Test shared speech service API and cache
+        working-directory: translation_speech
+        run: python3 -m unittest -v test_server.py

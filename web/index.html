@@ -1556,6 +1556,9 @@ let refreshSubscribers = [];
 // the response body has arrived, including failed responses.
 let apiRequestTail = Promise.resolve();
 function queuedApiRequest(url, options) {
+  // Native translation inference must not block host controls, attendance or
+  // authentication behind a slow audio request.
+  if (new URL(url, window.location.origin).pathname.includes('/translation')) return fetch(url, options);
   const pending = apiRequestTail.then(async () => {
     const response = await fetch(url, options);
     await response.clone().arrayBuffer();
@@ -3396,6 +3399,7 @@ if (document.readyState === 'loading') {
 </script>
 
 <script src="native-client.js"></script>
+<script src="translation-client.js"></script>
 
 </body>
 </html>

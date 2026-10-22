@@ -19,6 +19,9 @@
     "SUPABASE_STORAGE_BUCKET":"meeting-recordings",
     "SUPABASE_DOCUMENTS_BUCKET":"meeting-documents",
     "MAX_RECORDING_UPLOAD_BYTES":"20971520",
+    "LIVE_TRANSLATION_ENABLED":"true",
+    "TRANSLATION_MEETING_AUDIO_SECONDS":"300",
+    "TRANSLATION_DAILY_AUDIO_SECONDS":"600",
     "LLM_MODEL":"@cf/meta/llama-3.1-8b-instruct-fast"
   }
 }

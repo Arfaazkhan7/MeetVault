@@ -4,6 +4,7 @@ import {meetingRoutes} from './meetings.js';
 import {intelligenceRoutes} from './intelligence.js';
 import {callbackRoutes,mediaRoutes} from './media.js';
 import {extraRoutes} from './extras.js';
+import {translationRoutes} from './translation.js';
 
 export function corsHeaders(request,env){
   const origin=request.headers.get('origin'),allowed=String(env.BACKEND_CORS_ORIGINS||'').split(',').map(v=>v.trim());
@@ -33,7 +34,7 @@ export async function handle(request,env,ctx,{connect=openDb}={}){
       if(path==='/health'){await db.one('SELECT 1 AS ok');response=json({status:'ok',runtime:'cloudflare-native',features:['firebase-auth','meetings','recordings','cross-meeting-analysis']});}
       else {
         const user=publicAuth||callback?null:await currentUser(request,env,db,verifiedClaims),c={request,url,path,method,env,ctx,db,user};
-        for(const route of [callbackRoutes,accountRoutes,meetingRoutes,intelligenceRoutes,mediaRoutes,extraRoutes]){response=await route(c);if(response)break;}
+        for(const route of [callbackRoutes,accountRoutes,meetingRoutes,translationRoutes,intelligenceRoutes,mediaRoutes,extraRoutes]){response=await route(c);if(response)break;}
         if(!response)throw new HttpError(404,'Endpoint not found');
       }
     }

@@ -131,11 +131,12 @@
       await room.connect(connection.livekit_url,connection.token);
       if(stream)for(const track of stream.getTracks())await room.localParticipant.publishTrack(track,{source:track.kind==='audio'?LK.Track.Source.Microphone:LK.Track.Source.Camera});
       for(const p of room.remoteParticipants.values())syncRemote(p,LK);
+      window.MeetVaultTranslation?.connect({room,meetingId:currentMeetingId,isHost:isMeetingHost,microphone:stream});
       showToast('Connected to meeting');
     }catch(e){showToast(`Unable to connect: ${e.message}`);await endCall();}
   };
   const oldStop=stopStream;
-  stopStream=function(){const room=liveRoom;liveRoom=null;meetingConnections=[];if(room)room.disconnect();oldStop();};
+  stopStream=function(){window.MeetVaultTranslation?.stop();const room=liveRoom;liveRoom=null;meetingConnections=[];if(room)room.disconnect();oldStop();};
   broadcastLiveCaption=function(caption){if(liveRoom)liveRoom.localParticipant.publishData(new TextEncoder().encode(JSON.stringify({...caption,type:'live_caption'})),{reliable:false}).catch(()=>{});};
   const oldEnd=endCall;
   endCall=async function(endForEveryone=false){

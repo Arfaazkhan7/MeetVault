@@ -11,6 +11,10 @@ Verified orientation for future agents. Always inspect the current `main` branch
   files. Native tests use `cd cloudflare_native && npm ci && npm test`.
 - Speaker attribution is manual/unverified by default. Paid diarization is off.
   Vault answers must come from authorized saved evidence, never sample text.
+- The organization translation pilot is in `cloudflare_native/src/translation.js`
+  and `web/translation-client.js`. Read `ORGANIZATION_TRANSLATION.md` first.
+  It uses opt-in microphone capture and bounded shared AI; standard shared
+  speech requires the separate `translation_speech/` host and private key.
 
 - Repository: https://github.com/GOKUL5731/meetvault
 - Remote: `origin`; primary branch: `main`

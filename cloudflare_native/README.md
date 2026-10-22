@@ -2,6 +2,11 @@
 
 Production API: https://meetvault-api-candidate.aeris-cloud.workers.dev/api/v1
 
+The opt-in English/Tamil/Hindi translation pilot is documented in
+`../ORGANIZATION_TRANSLATION.md`. Its optional organization-owned standard
+speech service is in `../translation_speech/`; shared voice is unavailable
+until that separate host is configured. It does not enable voice cloning.
+
 This is the active backend. The older Python Worker remains in `cloudflare_backend/`
 for reference; its Python initialization and request CPU exceeded the Free plan.
 Do not deploy that entrypoint over the native API.
