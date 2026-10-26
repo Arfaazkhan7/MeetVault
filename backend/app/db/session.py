@@ -121,6 +121,18 @@ except Exception as e:
             if column not in columns:
                 conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
+        for index_sql in (
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_transcript_segment_meeting_segid ON transcript_segments(meeting_id, segment_id)",
+            "CREATE INDEX IF NOT EXISTS ix_transcript_segments_meeting_start ON transcript_segments(meeting_id, start_time)",
+            "CREATE INDEX IF NOT EXISTS ix_transcript_segments_speaker_user ON transcript_segments(meeting_id, speaker_user_id)",
+            "CREATE INDEX IF NOT EXISTS ix_transcript_segments_participant ON transcript_segments(meeting_id, participant_id)",
+        ):
+            try:
+                conn.exec_driver_sql(index_sql)
+            except Exception:
+                pass
+
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 

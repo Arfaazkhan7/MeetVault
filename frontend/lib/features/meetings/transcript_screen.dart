@@ -53,7 +53,7 @@ class TranscriptSegment {
     final attrStatus = (json['attribution_status'] ?? (isConf ? 'confirmed' : 'unknown')).toString();
 
     return TranscriptSegment(
-      segmentId: json['segment_id']?.toString(),
+      segmentId: json['segment_id']?.toString() ?? json['id']?.toString(),
       recordingId: json['recording_id']?.toString(),
       speakerLabel: json['speaker_label'] ?? 'Speaker',
       speakerUserId: speakerUid,

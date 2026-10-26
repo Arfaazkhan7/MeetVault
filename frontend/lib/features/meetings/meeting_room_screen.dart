@@ -9,6 +9,7 @@ import 'package:livekit_client/livekit_client.dart';
 import 'package:record/record.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/audio_chunk_delivery_queue.dart';
+import 'transcript_screen.dart' show TranscriptSegment;
 
 
 class MeetingRoomScreen extends StatefulWidget {
@@ -82,6 +83,15 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
   int _totalStreamedSamples = 0;
   AudioChunkDeliveryQueue? _deliveryQueue;
 
+  // Live Transcription & Captions State
+  final ScrollController _captionScrollController = ScrollController();
+  final List<TranscriptSegment> _liveCaptions = <TranscriptSegment>[];
+  final Map<String, int> _captionIndexMap = <String, int>{};
+  bool _showCaptions = true;
+  bool _isTranscribingAudio = false;
+  String? _transcriptionError;
+  AudioQueueStatus? _deliveryStatus;
+
   @override
   void initState() {
     super.initState();
@@ -95,6 +105,9 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
     _deliveryQueue = AudioChunkDeliveryQueue(
       uploader: (chunk) async {
         try {
+          if (mounted) {
+            setState(() => _isTranscribingAudio = true);
+          }
           final response = await _api.postMultipart(
             '/transcripts/meetings/${chunk.meetingId}/participants/${chunk.participantId}/audio-stream',
             fileBytes: chunk.wavBytes,
@@ -107,12 +120,52 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
               'sample_rate': chunk.sampleRate.toString(),
             },
           );
+
+          if (response.statusCode == 200 || response.statusCode == 201) {
+            try {
+              final dynamic decoded = json.decode(response.body);
+              if (decoded is List) {
+                final segments = <TranscriptSegment>[];
+                for (final item in decoded) {
+                  if (item is Map<String, dynamic>) {
+                    segments.add(TranscriptSegment.fromJson(item));
+                  }
+                }
+                if (segments.isNotEmpty && mounted) {
+                  _appendLiveCaptions(segments);
+                }
+              }
+            } catch (parseErr) {
+              debugPrint('[LiveCaptions] Error parsing transcript response: $parseErr');
+            }
+          }
           return response.statusCode;
         } on ApiException catch (e) {
+          if (mounted) {
+            setState(() {
+              _transcriptionError = 'Transcription delayed: ${e.message}';
+            });
+          }
           return e.statusCode;
+        } catch (e) {
+          if (mounted) {
+            setState(() {
+              _transcriptionError = 'Transcription error: $e';
+            });
+          }
+          rethrow;
+        } finally {
+          if (mounted) {
+            setState(() => _isTranscribingAudio = false);
+          }
         }
       },
       onStatusChanged: (status) {
+        if (mounted) {
+          setState(() {
+            _deliveryStatus = status;
+          });
+        }
         if (status.isDegraded) {
           debugPrint('[MeetingRoomScreen] Delivery degraded: ${status.queuedCount} chunks queued, ${status.droppedCount} dropped');
         }
@@ -124,9 +177,104 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
         debugPrint('[AudioPipeline] Chunk #${chunk.sequenceNumber} dropped: $reason');
       },
       onPermanentFailure: (chunk, error) {
+        if (mounted) {
+          setState(() {
+            _transcriptionError = 'Audio delivery failed permanently: $error';
+          });
+        }
         debugPrint('[AudioPipeline] Chunk #${chunk.sequenceNumber} permanent failure: $error');
       },
     );
+  }
+
+  void _appendLiveCaptions(List<TranscriptSegment> newSegments) {
+    if (!mounted || newSegments.isEmpty) return;
+
+    bool updated = false;
+    for (final seg in newSegments) {
+      final text = seg.text.trim();
+      if (text.isEmpty) continue;
+
+      // Stable deduplication key
+      final key = seg.segmentId ?? '${seg.participantId}_${(seg.startTime * 1000).toInt()}_$text';
+
+      final existingIndex = _captionIndexMap[key];
+      if (existingIndex != null && existingIndex < _liveCaptions.length) {
+        // In-place update (e.g. from retry or refreshed text)
+        _liveCaptions[existingIndex] = seg;
+        updated = true;
+      } else {
+        // Find correct chronological position based on startTime
+        int insertPos = _liveCaptions.length;
+        for (int i = _liveCaptions.length - 1; i >= 0; i--) {
+          if (_liveCaptions[i].startTime <= seg.startTime) {
+            insertPos = i + 1;
+            break;
+          } else {
+            insertPos = i;
+          }
+        }
+        _liveCaptions.insert(insertPos, seg);
+        updated = true;
+
+        // Bounded capacity to prevent unbounded memory growth during long meetings
+        const maxLiveCaptions = 150;
+        if (_liveCaptions.length > maxLiveCaptions) {
+          _liveCaptions.removeAt(0);
+        }
+
+        // Rebuild index map
+        _captionIndexMap.clear();
+        for (int i = 0; i < _liveCaptions.length; i++) {
+          final s = _liveCaptions[i];
+          final k = s.segmentId ?? '${s.participantId}_${(s.startTime * 1000).toInt()}_${s.text.trim()}';
+          _captionIndexMap[k] = i;
+        }
+      }
+    }
+
+    if (updated) {
+      _transcriptionError = null; // Clear error on successful caption
+      setState(() {});
+      _scrollToBottom();
+    }
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_captionScrollController.hasClients) {
+        _captionScrollController.animateTo(
+          _captionScrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  String _formatCaptionTimestamp(double seconds) {
+    final totalSec = seconds.toInt();
+    final h = totalSec ~/ 3600;
+    final m = (totalSec % 3600) ~/ 60;
+    final s = totalSec % 60;
+    if (h > 0) {
+      return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    }
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  String _resolveSpeakerName(TranscriptSegment segment) {
+    if (segment.userName != null && segment.userName!.trim().isNotEmpty) {
+      return segment.userName!;
+    }
+    if (segment.participantId != null && segment.participantId == _participantId) {
+      return 'You';
+    }
+    if (segment.speakerLabel.isNotEmpty && segment.speakerLabel != 'Speaker') {
+      return segment.speakerLabel;
+    }
+    return 'Speaker';
   }
 
   @override
@@ -135,6 +283,7 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
     _deliveryQueue?.dispose();
     _deliveryQueue = null;
     _audioRecorder?.dispose();
+    _captionScrollController.dispose();
     _timer?.cancel();
     _listener?.dispose();
     _room?.disconnect();
@@ -1054,7 +1203,256 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
             },
           ),
         ),
+        if (_showCaptions) _buildLiveCaptionsArea(),
       ],
+    );
+  }
+
+  Widget _buildLiveCaptionsArea() {
+    return Container(
+      height: 155,
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B).withOpacity(0.95),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF334155)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.25),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Captions Header Bar
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Color(0xFF334155), width: 0.8)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.closed_caption, size: 16, color: Color(0xFF818CF8)),
+                const SizedBox(width: 6),
+                const Text(
+                  'Live Captions',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Status Indicator
+                if (!_microphoneEnabled)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF475569).withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.mic_off, size: 11, color: Color(0xFF94A3B8)),
+                        SizedBox(width: 4),
+                        Text(
+                          'Muted',
+                          style: TextStyle(color: Color(0xFF94A3B8), fontSize: 10, fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (_isTranscribingAudio)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E3A8A).withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 8,
+                          height: 8,
+                          child: CircularProgressIndicator(strokeWidth: 1.5, color: Color(0xFF60A5FA)),
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          'Transcribing...',
+                          style: TextStyle(color: Color(0xFF93C5FD), fontSize: 10, fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (_deliveryStatus != null && _deliveryStatus!.isDegraded)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF78350F).withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.cloud_upload_outlined, size: 11, color: Color(0xFFFBBF24)),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Delayed (${_deliveryStatus!.queuedCount} queued)',
+                          style: const TextStyle(color: Color(0xFFFDE68A), fontSize: 10, fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                  ),
+                const Spacer(),
+                if (_liveCaptions.isNotEmpty)
+                  Text(
+                    '${_liveCaptions.length} segments',
+                    style: const TextStyle(color: Color(0xFF64748B), fontSize: 10),
+                  ),
+                const SizedBox(width: 6),
+                InkWell(
+                  onTap: () => setState(() => _showCaptions = false),
+                  borderRadius: BorderRadius.circular(4),
+                  child: const Padding(
+                    padding: EdgeInsets.all(2),
+                    child: Icon(Icons.close, size: 14, color: Color(0xFF94A3B8)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Transcription Error Banner
+          if (_transcriptionError != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              color: const Color(0xFF7F1D1D).withOpacity(0.7),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, size: 12, color: Color(0xFFFCA5A5)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      _transcriptionError!,
+                      style: const TextStyle(color: Color(0xFFFECACA), fontSize: 10),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () => setState(() => _transcriptionError = null),
+                    child: const Icon(Icons.close, size: 12, color: Color(0xFFFECACA)),
+                  ),
+                ],
+              ),
+            ),
+
+          // Scrollable Caption List or Empty State
+          Expanded(
+            child: _liveCaptions.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _microphoneEnabled ? Icons.closed_caption_outlined : Icons.mic_off_outlined,
+                          size: 22,
+                          color: const Color(0xFF475569),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          _microphoneEnabled
+                              ? 'Live captions will appear here as participants speak'
+                              : 'Microphone is muted. Unmute to transcribe speech.',
+                          style: const TextStyle(color: Color(0xFF64748B), fontSize: 11),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    controller: _captionScrollController,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    itemCount: _liveCaptions.length,
+                    itemBuilder: (context, index) {
+                      final segment = _liveCaptions[index];
+                      final speaker = _resolveSpeakerName(segment);
+                      final isMe = speaker == 'You';
+                      final timestamp = _formatCaptionTimestamp(segment.startTime);
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 20,
+                              height: 20,
+                              decoration: BoxDecoration(
+                                color: isMe ? const Color(0xFF2563EB) : const Color(0xFF0D9488),
+                                shape: BoxShape.circle,
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                speaker.isNotEmpty ? speaker[0].toUpperCase() : 'S',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        speaker,
+                                        style: TextStyle(
+                                          color: isMe ? const Color(0xFF93C5FD) : const Color(0xFF5EEAD4),
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        timestamp,
+                                        style: const TextStyle(
+                                          color: Color(0xFF64748B),
+                                          fontSize: 10,
+                                          fontFamily: 'monospace',
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    segment.text,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12.5,
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1092,6 +1490,13 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
               isActive: !_screenShareEnabled,
               isDestructive: _screenShareEnabled,
               onPressed: _room == null ? null : _toggleScreenShare,
+            ),
+            const SizedBox(width: 12),
+            _ControlButton(
+              icon: _showCaptions ? Icons.closed_caption : Icons.closed_caption_off,
+              label: _showCaptions ? 'Captions' : 'Captions Off',
+              isActive: _showCaptions,
+              onPressed: () => setState(() => _showCaptions = !_showCaptions),
             ),
             if (widget.isHost) ...[
               const SizedBox(width: 12),

@@ -338,7 +338,9 @@ class TranscriptionService:
 
             segments = []
             result_segments = result.get("segments", [])
-            for seg_data in result_segments:
+            batch_seg_ids = set()
+
+            for idx, seg_data in enumerate(result_segments):
                 raw_s = float(seg_data.get("start_time", 0.0))
                 raw_e = float(seg_data.get("end_time", raw_s))
 
@@ -352,7 +354,10 @@ class TranscriptionService:
 
                 s_time = round(raw_s + start_offset, 3)
                 e_time = round(raw_e + start_offset, 3)
-                seg_id = f"{meeting.public_id}_{part_id}_{int(s_time * 1000)}"
+
+                base_seg_id = f"{meeting.public_id}_{part_id}_{int(s_time * 1000)}"
+                seg_id = base_seg_id if idx == 0 and base_seg_id not in batch_seg_ids else f"{base_seg_id}_{idx}"
+                batch_seg_ids.add(seg_id)
 
                 existing_seg = db.query(TranscriptSegment).filter(
                     TranscriptSegment.meeting_id == meeting.public_id,
@@ -390,7 +395,16 @@ class TranscriptionService:
                     db.add(seg)
                     segments.append(seg)
 
-            db.commit()
+            try:
+                db.commit()
+            except Exception as commit_exc:
+                db.rollback()
+                logger.error(
+                    f"[CHUNK_PERSIST_ERROR] Database commit failed for meeting {meeting.public_id}, "
+                    f"participant {part_id}: {commit_exc}"
+                )
+                raise RuntimeError(f"Database persistence failed: {commit_exc}") from commit_exc
+
             return segments
     
     def _transcribe_with_retry(
@@ -416,6 +430,11 @@ class TranscriptionService:
             except Exception as e:
                 last_error = e
                 logger.warning(f"Transcription attempt {attempt + 1} failed: {e}")
+
+                # Fail fast on non-retryable / unrecoverable errors (e.g. file missing, invalid audio format)
+                if isinstance(e, (FileNotFoundError, ValueError)):
+                    logger.error(f"Permanent non-retryable transcription failure: {e}")
+                    raise
                 
                 if attempt < self.max_retries - 1:
                     time.sleep(self.retry_delay)

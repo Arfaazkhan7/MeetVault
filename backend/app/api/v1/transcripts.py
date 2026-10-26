@@ -190,9 +190,17 @@ async def process_participant_audio_stream(
     attributing transcript segments directly to the speaker with accurate capture offsets
     and zero durable audio storage.
     """
+    # Safe GUID resolution for participant_id across database dialects
+    guid_val = participant_id
+    try:
+        import uuid
+        guid_val = uuid.UUID(str(participant_id))
+    except (ValueError, TypeError, AttributeError):
+        pass
+
     participant = db.query(MeetingParticipant).filter(
-        MeetingParticipant.id == participant_id,
         MeetingParticipant.meeting_id == meeting.public_id,
+        (MeetingParticipant.id == guid_val) | (MeetingParticipant.id == str(participant_id)),
     ).first()
     if not participant:
         raise HTTPException(
@@ -226,6 +234,12 @@ async def process_participant_audio_stream(
             detail="sequence_number must be non-negative",
         )
 
+    if sample_rate is not None and (sample_rate < 8000 or sample_rate > 192000):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="sample_rate must be between 8000 and 192000 Hz",
+        )
+
     if end_offset is not None:
         if math.isnan(end_offset) or math.isinf(end_offset) or end_offset < start_offset:
             raise HTTPException(
@@ -239,26 +253,44 @@ async def process_participant_audio_stream(
             )
 
     content = await file.read()
-    if not content:
+    if not content or len(content) == 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Audio stream content is empty",
         )
 
-    # Inspect WAV frames and audio duration
+    # Inspect audio frames, validate WAV structure, and calculate duration
     audio_duration = 0.0
     detected_rate = sample_rate or 16000
     frame_count = 0
 
-    try:
-        with wave.open(io.BytesIO(content), "rb") as wf:
-            framerate = wf.getframerate()
-            n_frames = wf.getnframes()
-            if framerate > 0:
+    is_wav = content.startswith(b"RIFF")
+    if is_wav:
+        if len(content) < 44:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Audio chunk too small to be a valid WAV file",
+            )
+        try:
+            with wave.open(io.BytesIO(content), "rb") as wf:
+                framerate = wf.getframerate()
+                n_frames = wf.getnframes()
+                if framerate <= 0:
+                    raise wave.Error("Invalid framerate in WAV header")
                 detected_rate = framerate
                 frame_count = n_frames
                 audio_duration = round(n_frames / float(framerate), 3)
-    except Exception:
+        except (wave.Error, EOFError) as wave_err:
+            import logging
+            logging.getLogger(__name__).warning(
+                f"[AUDIO_VALIDATION_WARN] Malformed WAV file rejected for meeting {meeting.public_id}, "
+                f"participant {participant_id}: {wave_err}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Malformed or corrupted WAV audio file: {wave_err}",
+            )
+    else:
         if sample_rate and sample_rate > 0:
             frame_count = len(content) // 2
             audio_duration = round(frame_count / float(sample_rate), 3)
@@ -283,7 +315,14 @@ async def process_participant_audio_stream(
             frame_count=frame_count,
             chunk_duration=audio_duration,
         )
+    except HTTPException:
+        raise
     except Exception as exc:
+        import logging
+        logging.getLogger(__name__).error(
+            f"[AUDIO_STREAM_ERROR] Participant audio stream transcription failed for meeting {meeting.public_id}, "
+            f"participant {participant_id}: {exc}"
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Participant audio stream transcription failed: {exc}",

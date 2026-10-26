@@ -19,6 +19,7 @@ interface WorkerAiSegment {
   start_time: number;
   end_time: number;
   speaker_label: string;
+  attribution_status?: "unknown" | "unverified" | "confirmed";
   confidence?: number;
 }
 
@@ -31,7 +32,7 @@ interface JobContext {
   duration_seconds?: number;
 }
 
-interface SpeakerTurn {
+export interface SpeakerTurn {
   start: number;
   end: number;
   speaker: string;
@@ -106,9 +107,25 @@ async function processJob(jobId: string, env: Env): Promise<void> {
     } as never) as unknown as Record<string, unknown>;
 
     const parsedSegments = parseSegments(transcription, Number(context.duration_seconds || 0));
-    // The free pipeline does not call paid diarization providers or invent
-    // speaker identities. Hosts can map known speakers after transcription.
-    const mappedSegments = parsedSegments;
+
+    // Diarization: if pyannoteAI is configured, fetch real speaker turns
+    let speakerTurns: SpeakerTurn[] = [];
+    if (env.PYANNOTEAI_API_KEY) {
+      try {
+        speakerTurns = await diarizeRecording(context.recording_url, env);
+      } catch (err) {
+        console.warn("pyannoteAI diarization failed; proceeding with unassigned attribution", err);
+      }
+    }
+
+    const hasDiarization = speakerTurns.length > 0;
+    const mappedSegments = hasDiarization
+      ? alignSpeakers(parsedSegments, speakerTurns)
+      : parsedSegments.map((s) => ({
+          ...s,
+          speaker_label: "SPEAKER_UNASSIGNED",
+          attribution_status: "unknown" as const,
+        }));
 
     const resultResponse = await fetch(
       `${env.BACKEND_API_BASE_URL}/ai-jobs/${encodeURIComponent(jobId)}/cloudflare/result`,
@@ -122,7 +139,12 @@ async function processJob(jobId: string, env: Env): Promise<void> {
           provider: "cloudflare-workers-ai",
           transcription_text: String(transcription.text || ""),
           segments: mappedSegments,
-          raw_result: { model: "@cf/openai/whisper-large-v3-turbo", speaker_attribution: "unverified" },
+          raw_result: {
+            model: "@cf/openai/whisper-large-v3-turbo",
+            diarization_provider: hasDiarization ? "pyannoteAI" : "none",
+            speaker_attribution: hasDiarization ? "unverified" : "unknown",
+            turns_detected: speakerTurns.length,
+          },
         }),
       },
     );
@@ -143,7 +165,7 @@ async function processJob(jobId: string, env: Env): Promise<void> {
   }
 }
 
-function parseSegments(transcription: Record<string, unknown>, durationSeconds = 0): WorkerAiSegment[] {
+export function parseSegments(transcription: Record<string, unknown>, durationSeconds = 0): WorkerAiSegment[] {
   const rawSegments = Array.isArray(transcription.segments) ? transcription.segments : [];
   const segments = rawSegments
     .map((item): WorkerAiSegment | null => {
@@ -151,11 +173,19 @@ function parseSegments(transcription: Record<string, unknown>, durationSeconds =
       const value = item as Record<string, unknown>;
       const text = String(value.text || "").trim();
       if (!text) return null;
+      const rawStart = Number(value.start ?? value.start_time ?? 0);
+      const rawEnd = Number(value.end ?? value.end_time ?? 0);
+      const start_time = Number.isFinite(rawStart) ? Math.max(0, rawStart) : 0;
+      let end_time = Number.isFinite(rawEnd) ? Math.max(start_time, rawEnd) : start_time;
+      if (end_time === start_time && durationSeconds > start_time) {
+        end_time = durationSeconds;
+      }
       return {
         text,
-        start_time: Number(value.start ?? value.start_time ?? 0),
-        end_time: Number(value.end ?? value.end_time ?? 0) || durationSeconds,
-        speaker_label: "SPEAKER_0",
+        start_time,
+        end_time,
+        speaker_label: "SPEAKER_UNASSIGNED",
+        attribution_status: "unknown",
         confidence: typeof value.avg_logprob === "number" ? value.avg_logprob : undefined,
       };
     })
@@ -164,10 +194,10 @@ function parseSegments(transcription: Record<string, unknown>, durationSeconds =
   if (segments.length) return segments;
 
   const text = String(transcription.text || "").trim();
-  return text ? [{ text, start_time: 0, end_time: durationSeconds, speaker_label: "SPEAKER_0" }] : [];
+  return text ? [{ text, start_time: 0, end_time: Math.max(0, durationSeconds), speaker_label: "SPEAKER_UNASSIGNED", attribution_status: "unknown" }] : [];
 }
 
-async function diarizeRecording(recordingUrl: string, env: Env): Promise<SpeakerTurn[]> {
+export async function diarizeRecording(recordingUrl: string, env: Env): Promise<SpeakerTurn[]> {
   if (!env.PYANNOTEAI_API_KEY) return [];
 
   const endpoint = env.PYANNOTEAI_API_URL || "https://api.pyannote.ai/v1/diarize";
@@ -186,11 +216,27 @@ async function diarizeRecording(recordingUrl: string, env: Env): Promise<Speaker
     return [];
   }
 
-  const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
+  let payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+  // If pyannote returns an async job ID, poll until complete or timeout
+  if (payload && (payload.jobId || payload.job_id) && !payload.output && payload.status !== "succeeded") {
+    const jobId = String(payload.jobId || payload.job_id);
+    const jobsEndpoint = endpoint.replace(/\/diarize\/?$/, `/jobs/${encodeURIComponent(jobId)}`);
+    for (let attempt = 0; attempt < 30; attempt++) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const pollResp = await fetch(jobsEndpoint, {
+        headers: { "authorization": `Bearer ${env.PYANNOTEAI_API_KEY}` },
+      });
+      if (!pollResp.ok) break;
+      payload = (await pollResp.json().catch(() => null)) as Record<string, unknown> | null;
+      if (payload?.status === "succeeded" || payload?.output || payload?.diarization) break;
+      if (payload?.status === "failed") break;
+    }
+  }
+
   return parseSpeakerTurns(payload);
 }
 
-function parseSpeakerTurns(payload: Record<string, unknown> | null): SpeakerTurn[] {
+export function parseSpeakerTurns(payload: Record<string, unknown> | null): SpeakerTurn[] {
   if (!payload) return [];
   const output = payload.output && typeof payload.output === "object"
     ? payload.output as Record<string, unknown>
@@ -209,14 +255,24 @@ function parseSpeakerTurns(payload: Record<string, unknown> | null): SpeakerTurn
       const value = item as Record<string, unknown>;
       const start = Number(value.start ?? 0);
       const end = Number(value.end ?? 0);
-      const speaker = String(value.speaker || value.label || "SPEAKER_UNKNOWN");
-      return end > start ? { start, end, speaker } : null;
+      const speaker = String(value.speaker || value.label || "").trim();
+      if (!speaker || !Number.isFinite(start) || !Number.isFinite(end) || end <= start || start < 0) {
+        return null;
+      }
+      return { start, end, speaker };
     })
     .filter((item): item is SpeakerTurn => Boolean(item));
 }
 
-function alignSpeakers(segments: WorkerAiSegment[], speakerTurns: SpeakerTurn[]): WorkerAiSegment[] {
-  if (!segments.length || !speakerTurns.length) return segments;
+export function alignSpeakers(segments: WorkerAiSegment[], speakerTurns: SpeakerTurn[]): WorkerAiSegment[] {
+  if (!segments.length) return [];
+  if (!speakerTurns.length) {
+    return segments.map((s) => ({
+      ...s,
+      speaker_label: "SPEAKER_UNASSIGNED",
+      attribution_status: "unknown",
+    }));
+  }
 
   return segments.map((segment) => {
     let bestTurn: SpeakerTurn | null = null;
@@ -235,7 +291,8 @@ function alignSpeakers(segments: WorkerAiSegment[], speakerTurns: SpeakerTurn[])
 
     return {
       ...segment,
-      speaker_label: bestTurn?.speaker || segment.speaker_label || "SPEAKER_0",
+      speaker_label: bestTurn ? bestTurn.speaker : "SPEAKER_UNASSIGNED",
+      attribution_status: bestTurn ? "unverified" : "unknown",
     };
   });
 }

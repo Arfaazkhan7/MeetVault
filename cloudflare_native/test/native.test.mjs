@@ -7,6 +7,8 @@ import {Db,sign,verify,firebaseClaims} from '../src/core.js';
 import {handle} from '../src/index.js';
 import {firebaseUser} from '../src/accounts.js';
 import {filters,retrieve,askEvidence} from '../src/intelligence.js';
+import {safeCleanupRecordingAudio,purgeAudioObject} from '../src/media.js';
+import {parseSegments,parseSpeakerTurns,alignSpeakers} from '../../cloudflare_ai_worker/src/index.ts';
 
 let pg,db;const env={JWT_SECRET:'synthetic-test-secret-that-is-at-least-32-bytes',LIVEKIT_API_KEY:'synthetic',LIVEKIT_API_SECRET:'synthetic-livekit-secret-long-enough-32',SUPABASE_SERVICE_ROLE_KEY:'synthetic',SUPABASE_URL:'https://storage.invalid',SUPABASE_STORAGE_BUCKET:'meeting-recordings',SUPABASE_DOCUMENTS_BUCKET:'meeting-documents',FIREBASE_PROJECT_ID:'test-project',BACKEND_CORS_ORIGINS:'https://app.test',FRONTEND_PUBLIC_URL:'https://app.test',AI_JOBS:{send:async()=>{}}};
 const connect=async()=>new Db({query:(q,p)=>pg.query(q,p),end:async()=>{}});
@@ -139,4 +141,357 @@ test('repeated leave calls do not double-count attendance and end is host-only',
   await request(`/meetings/${first.public_id}/room/leave`,'POST',{});const p2=await db.one('SELECT attendance_duration_seconds FROM meeting_participants WHERE meeting_id=$1 AND user_id=$2',[first.public_id,users.a.public_id]);assert.equal(p1.attendance_duration_seconds,p2.attendance_duration_seconds);assert.ok(p2.attendance_duration_seconds>=10);
   assert.equal((await request(`/meetings/${first.public_id}/end`,'POST',{})).status,200);
   assert.equal((await request('/meetings/join','POST',{invite_code:first.invite_code},'b')).status,409);
+});
+
+test('speaker turn parsing and alignment support distinguishable multi-speaker intervals', async () => {
+  const turns = parseSpeakerTurns({
+    output: {
+      diarization: [
+        { speaker: 'SPEAKER_00', start: 0.0, end: 5.0 },
+        { speaker: 'SPEAKER_01', start: 5.0, end: 10.0 }
+      ]
+    }
+  });
+  assert.equal(turns.length, 2);
+  assert.equal(turns[0].speaker, 'SPEAKER_00');
+  assert.equal(turns[1].speaker, 'SPEAKER_01');
+
+  const whisperOutput = {
+    segments: [
+      { text: 'Hello everyone, welcome to the kickoff.', start: 0.5, end: 4.2 },
+      { text: 'Thanks, glad to be here.', start: 5.2, end: 9.1 },
+      { text: 'Are there any lingering questions?', start: 12.0, end: 14.0 }
+    ]
+  };
+
+  const parsed = parseSegments(whisperOutput, 15);
+  // Before diarization alignment, no speaker identity is invented
+  assert.ok(parsed.every(s => s.speaker_label === 'SPEAKER_UNASSIGNED' && s.attribution_status === 'unknown'));
+
+  const aligned = alignSpeakers(parsed, turns);
+  assert.equal(aligned[0].speaker_label, 'SPEAKER_00');
+  assert.equal(aligned[0].attribution_status, 'unverified');
+  assert.equal(aligned[1].speaker_label, 'SPEAKER_01');
+  assert.equal(aligned[1].attribution_status, 'unverified');
+  // Non-overlapping segment in gap remains unassigned
+  assert.equal(aligned[2].speaker_label, 'SPEAKER_UNASSIGNED');
+  assert.equal(aligned[2].attribution_status, 'unknown');
+  // Ensure neither segment was hardcoded to SPEAKER_0
+  assert.notEqual(aligned[0].speaker_label, aligned[1].speaker_label);
+});
+
+test('multi-speaker result callback persists segments idempotently and deletes audio under retention policy', async () => {
+  env.CLOUDFLARE_AI_CALLBACK_SECRET = 'synthetic-worker-callback-secret';
+  // Setup a test meeting with attendee
+  const mtgResp = await request('/meetings/personal', 'POST', { title: 'Retention & Diarization Meeting' });
+  const mtg = await mtgResp.json();
+  await request('/meetings/join', 'POST', { invite_code: mtg.invite_code }, 'b');
+
+  // Create recording and enqueue job
+  const recResp = await request(`/meetings/${mtg.public_id}/recordings/auto/start`, 'POST', {});
+  const rec = await recResp.json();
+  await db.update('meeting_recordings', 'id=$1', [rec.id], { file_size_bytes: 5000, processing_status: 'UPLOADED' });
+
+  const jobResp = await request(`/meetings/${mtg.public_id}/recordings/complete`, 'POST', { recording_id: rec.id });
+  const jobData = await jobResp.json();
+  const job = await db.one('SELECT * FROM ai_jobs WHERE public_id=$1', [jobData.ai_job_id]);
+
+  // Track storage calls and mock fetch for signing and deletion
+  let deletedPath = null;
+  const oldFetch = globalThis.fetch;
+  globalThis.fetch = async (url, opts) => {
+    if (String(url).includes('/storage/v1/object/sign/')) {
+      return Response.json({ signedURL: '/object/sign/meeting-recordings/test?token=synthetic' });
+    }
+    if (String(url).includes('/storage/v1/object/')) {
+      if (opts?.method === 'DELETE') {
+        deletedPath = String(url);
+        return new Response(null, { status: 204 });
+      }
+    }
+    throw new Error('Unexpected fetch in test: ' + url);
+  };
+
+  // Context request checks active recording and gives signed url
+  const ctx = await handle(
+    new Request(`https://api.test/api/v1/ai-jobs/${job.public_id}/cloudflare/context`, {
+      method: 'GET',
+      headers: { 'x-meetvault-worker-secret': env.CLOUDFLARE_AI_CALLBACK_SECRET, origin: 'https://app.test' }
+    }),
+    env, {}, { connect }
+  );
+  assert.equal(ctx.status, 200);
+
+  const oldAI = env.AI;
+  env.AI = {
+    run: async () => ({
+      response: JSON.stringify({
+        summary: 'Kickoff meeting overview.',
+        key_takeaways: ['Kickoff complete'],
+        topics: [{ name: 'Kickoff' }],
+        decisions: [],
+        tasks: []
+      })
+    })
+  };
+
+  try {
+    const payload = {
+      provider: 'cloudflare-workers-ai',
+      transcription_text: 'Hello everyone, welcome to the kickoff. Thanks, glad to be here.',
+      segments: [
+        { text: 'Hello everyone, welcome to the kickoff.', start_time: 0.5, end_time: 4.2, speaker_label: 'SPEAKER_00', attribution_status: 'unverified' },
+        { text: 'Thanks, glad to be here.', start_time: 5.2, end_time: 9.1, speaker_label: 'SPEAKER_01', attribution_status: 'unverified' }
+      ]
+    };
+
+    // First call to result callback
+    const res1 = await handle(
+      new Request(`https://api.test/api/v1/ai-jobs/${job.public_id}/cloudflare/result`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-meetvault-worker-secret': env.CLOUDFLARE_AI_CALLBACK_SECRET,
+          origin: 'https://app.test'
+        },
+        body: JSON.stringify(payload)
+      }),
+      env, {}, { connect }
+    );
+    assert.equal(res1.status, 200);
+    const data1 = await res1.json();
+    assert.equal(data1.segments, 2);
+
+    // Audio must be purged from storage
+    assert.ok(deletedPath);
+    assert.ok(deletedPath.includes(mtg.public_id) && deletedPath.includes(rec.id));
+
+    // Database record updated to purged
+    const updatedRec = await db.one('SELECT * FROM meeting_recordings WHERE id=$1', [rec.id]);
+    assert.equal(updatedRec.is_audio_purged, true);
+    assert.ok(updatedRec.audio_purged_at);
+    assert.equal(updatedRec.cleanup_error, null);
+
+    // Segments in DB are persisted correctly
+    const dbSegments = await db.rows('SELECT * FROM transcript_segments WHERE meeting_id=$1 ORDER BY start_time', [mtg.public_id]);
+    assert.equal(dbSegments.length, 2);
+    assert.equal(dbSegments[0].speaker_label, 'SPEAKER_00');
+    assert.equal(dbSegments[0].attribution_status, 'unverified');
+    assert.equal(dbSegments[1].speaker_label, 'SPEAKER_01');
+    assert.equal(dbSegments[1].attribution_status, 'unverified');
+
+    // Idempotency: duplicate result callback returns already_completed and does not duplicate segments
+    const res2 = await handle(
+      new Request(`https://api.test/api/v1/ai-jobs/${job.public_id}/cloudflare/result`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-meetvault-worker-secret': env.CLOUDFLARE_AI_CALLBACK_SECRET,
+          origin: 'https://app.test'
+        },
+        body: JSON.stringify(payload)
+      }),
+      env, {}, { connect }
+    );
+    assert.equal(res2.status, 200);
+    const data2 = await res2.json();
+    assert.equal(data2.already_completed, true);
+
+    const segmentCount = await db.one('SELECT count(*)::int AS n FROM transcript_segments WHERE meeting_id=$1', [mtg.public_id]);
+    assert.equal(segmentCount.n, 2);
+
+    // Attempting signed download on purged audio returns 410 Gone
+    const dlResp = await request(`/meetings/${mtg.public_id}/recordings/${rec.id}/signed-url`, 'POST', {});
+    assert.equal(dlResp.status, 410);
+
+    // Context request on purged recording also returns 410 Gone
+    const ctxPurged = await handle(
+      new Request(`https://api.test/api/v1/ai-jobs/${job.public_id}/cloudflare/context`, {
+        method: 'GET',
+        headers: { 'x-meetvault-worker-secret': env.CLOUDFLARE_AI_CALLBACK_SECRET, origin: 'https://app.test' }
+      }),
+      env, {}, { connect }
+    );
+    assert.equal(ctxPurged.status, 200); // Already completed returns completed: true
+
+    // Manual speaker mapping workflow: Host confirms SPEAKER_00 -> User A and SPEAKER_01 -> User B
+    const map0 = await request(`/diarization/meetings/${mtg.public_id}/speaker-mappings/SPEAKER_00`, 'PUT', { user_id: users.a.public_id, is_confirmed: true });
+    assert.equal(map0.status, 200);
+    const map1 = await request(`/diarization/meetings/${mtg.public_id}/speaker-mappings/SPEAKER_01`, 'PUT', { user_id: users.b.public_id, is_confirmed: false });
+    assert.equal(map1.status, 200);
+
+    // Confirm attribution in transcript_segments
+    const confirmedSeg0 = await db.one('SELECT * FROM transcript_segments WHERE meeting_id=$1 AND speaker_label=$2', [mtg.public_id, 'SPEAKER_00']);
+    assert.equal(confirmedSeg0.speaker_user_id, users.a.public_id);
+    assert.equal(confirmedSeg0.attribution_status, 'confirmed');
+
+    const unconfirmedSeg1 = await db.one('SELECT * FROM transcript_segments WHERE meeting_id=$1 AND speaker_label=$2', [mtg.public_id, 'SPEAKER_01']);
+    assert.equal(unconfirmedSeg1.speaker_user_id, users.b.public_id);
+    assert.equal(unconfirmedSeg1.attribution_status, 'unconfirmed');
+
+    // Cross-meeting retrieval distinguishes verified participant from unconfirmed/unverified
+    const retrieval = await retrieve(db, users.a, { question: 'kickoff' });
+    const stmt0 = retrieval.evidence.find(e => e.speaker_label === 'SPEAKER_00');
+    assert.equal(stmt0.attribution_status, 'confirmed');
+
+    const vaultAns = await askEvidence(env, retrieval);
+    const ansStmt0 = vaultAns.statements.find(s => s.speaker_name === users.a.full_name);
+    assert.ok(ansStmt0);
+    assert.equal(ansStmt0.is_verified_user, true);
+
+    const ansStmt1 = vaultAns.statements.find(s => s.speaker_name === users.b.full_name);
+    assert.ok(ansStmt1);
+    assert.equal(ansStmt1.is_verified_user, false);
+  } finally {
+    globalThis.fetch = oldFetch;
+    env.AI = oldAI;
+  }
+});
+
+test('retention cleanup failure tracking, reconcile endpoint, and terminal failure cleanup', async () => {
+  env.CLOUDFLARE_AI_CALLBACK_SECRET = 'synthetic-worker-callback-secret';
+  const mtgResp = await request('/meetings/personal', 'POST', { title: 'Retention Failure Tracking' });
+  const mtg = await mtgResp.json();
+
+  const rec = await db.insert('meeting_recordings', {
+    meeting_id: mtg.public_id,
+    company_id: `personal:${users.a.public_id}`,
+    uploaded_by_user_id: users.a.public_id,
+    storage_backend: 'supabase',
+    storage_bucket: env.SUPABASE_STORAGE_BUCKET,
+    storage_path: `${mtg.public_id}/rec-fail/test.webm`,
+    original_filename: 'test.webm',
+    file_type: 'audio/webm',
+    file_size_bytes: 4000,
+    processing_status: 'RUNNING',
+    is_audio_purged: false,
+    retention_policy: 'ephemeral_transcript_only',
+    cleanup_retry_count: 0
+  });
+
+  const job = await db.insert('ai_jobs', {
+    public_id: 'JOB-test-fail-1',
+    meeting_id: mtg.public_id,
+    recording_id: rec.id,
+    requested_by_user_id: users.a.public_id,
+    job_type: 'MEETING_AI_PIPELINE',
+    status: 'RUNNING',
+    current_stage: 'TRANSCRIBING',
+    retry_count: 1,
+    max_retries: 3,
+    provider: 'cloudflare'
+  });
+
+  // Non-permanent failure (retry_count 1 < max_retries 3) must NOT purge audio
+  const failResp1 = await handle(
+    new Request(`https://api.test/api/v1/ai-jobs/${job.public_id}/cloudflare/fail`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-meetvault-worker-secret': env.CLOUDFLARE_AI_CALLBACK_SECRET,
+        origin: 'https://app.test'
+      },
+      body: JSON.stringify({ error: 'Temporary worker timeout' })
+    }),
+    env, {}, { connect }
+  );
+  assert.equal(failResp1.status, 200);
+  const failData1 = await failResp1.json();
+  assert.equal(failData1.permanent_failure, false);
+
+  const recAfterRetry = await db.one('SELECT * FROM meeting_recordings WHERE id=$1', [rec.id]);
+  assert.equal(recAfterRetry.is_audio_purged, false);
+
+  // Update job retry_count to 3 (equal to max_retries) to test terminal failure
+  await db.update('ai_jobs', 'public_id=$1', [job.public_id], { retry_count: 3 });
+
+  let deleted = false;
+  const oldFetch = globalThis.fetch;
+  globalThis.fetch = async (url, opts) => {
+    if (opts?.method === 'DELETE') {
+      deleted = true;
+      return new Response(null, { status: 204 });
+    }
+    throw new Error('Unexpected fetch: ' + url);
+  };
+
+  try {
+    const failResp2 = await handle(
+      new Request(`https://api.test/api/v1/ai-jobs/${job.public_id}/cloudflare/fail`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-meetvault-worker-secret': env.CLOUDFLARE_AI_CALLBACK_SECRET,
+          origin: 'https://app.test'
+        },
+        body: JSON.stringify({ error: 'Permanent failure: corrupt audio' })
+      }),
+      env, {}, { connect }
+    );
+    assert.equal(failResp2.status, 200);
+    const failData2 = await failResp2.json();
+    assert.equal(failData2.permanent_failure, true);
+    assert.equal(deleted, true);
+
+    const recAfterPermanent = await db.one('SELECT * FROM meeting_recordings WHERE id=$1', [rec.id]);
+    assert.equal(recAfterPermanent.is_audio_purged, true);
+    assert.ok(recAfterPermanent.audio_purged_at);
+  } finally {
+    globalThis.fetch = oldFetch;
+  }
+
+  // Test storage failure tracking and reconcile route
+  const recUnpurged = await db.insert('meeting_recordings', {
+    meeting_id: mtg.public_id,
+    company_id: `personal:${users.a.public_id}`,
+    uploaded_by_user_id: users.a.public_id,
+    storage_backend: 'supabase',
+    storage_bucket: env.SUPABASE_STORAGE_BUCKET,
+    storage_path: `${mtg.public_id}/rec-reconcile/test.webm`,
+    original_filename: 'test.webm',
+    file_type: 'audio/webm',
+    file_size_bytes: 4000,
+    processing_status: 'COMPLETED',
+    is_audio_purged: false,
+    retention_policy: 'ephemeral_transcript_only',
+    cleanup_retry_count: 0
+  });
+
+  // Simulate storage 500 failure during cleanup
+  globalThis.fetch = async () => new Response('Internal storage error', { status: 500 });
+  try {
+    const cleanFail = await safeCleanupRecordingAudio(db, env, recUnpurged, mtg.public_id);
+    assert.equal(cleanFail.purged, false);
+    assert.ok(cleanFail.error);
+
+    const checkedRec = await db.one('SELECT * FROM meeting_recordings WHERE id=$1', [recUnpurged.id]);
+    assert.equal(checkedRec.is_audio_purged, false);
+    assert.equal(checkedRec.cleanup_retry_count, 1);
+    assert.ok(checkedRec.cleanup_error.includes('500'));
+  } finally {
+    globalThis.fetch = oldFetch;
+  }
+
+  // Now reconcile via endpoint when storage is available
+  let reconcileDeleted = false;
+  globalThis.fetch = async (url, opts) => {
+    if (opts?.method === 'DELETE') {
+      reconcileDeleted = true;
+      return new Response(null, { status: 204 });
+    }
+    throw new Error('Unexpected fetch: ' + url);
+  };
+  try {
+    const reconResp = await request(`/meetings/${mtg.public_id}/recordings/reconcile-cleanup`, 'POST', {});
+    assert.equal(reconResp.status, 200);
+    const reconData = await reconResp.json();
+    assert.equal(reconData.reconciled, 1);
+    assert.equal(reconcileDeleted, true);
+
+    const finalRec = await db.one('SELECT * FROM meeting_recordings WHERE id=$1', [recUnpurged.id]);
+    assert.equal(finalRec.is_audio_purged, true);
+    assert.equal(finalRec.cleanup_error, null);
+  } finally {
+    globalThis.fetch = oldFetch;
+  }
 });

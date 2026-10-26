@@ -41,6 +41,17 @@
         summary.textContent=`[${citation.citation_id}] ${citation.meeting_title||citation.meeting_id}${citation.start_time!=null?' · '+Math.floor(citation.start_time/60)+':'+String(Math.floor(citation.start_time%60)).padStart(2,'0'):''}`;
         quote.textContent=citation.text||'';details.append(summary,quote);result.append(details);
       }
+      if(answer.statements?.length){
+        const stmtDetails=document.createElement('details'),stmtSummary=document.createElement('summary'),stmtList=document.createElement('ul');
+        stmtSummary.textContent=`Attributed statements (${answer.statements.length})`;
+        for(const st of answer.statements){
+          const li=document.createElement('li');
+          const badge=st.is_verified_user?' (confirmed identity)':' (unverified speaker)';
+          li.textContent=`${st.speaker_name}${badge}: "${st.text}"`;
+          stmtList.append(li);
+        }
+        stmtDetails.append(stmtSummary,stmtList);result.append(stmtDetails);
+      }
       if(answer.insufficient_evidence){const help=document.createElement('p');help.textContent='Finish a recorded meeting or upload a recording to create transcripts, then ask again.';result.append(help);}
     }catch(error){result.textContent=error.message;}finally{asking=false;result.removeAttribute('aria-busy');}
   };
@@ -63,7 +74,14 @@
         apiFetch(`/meetings/${encodeURIComponent(meeting.meeting_id)}/full-analysis`).then(checked)]);
       result.replaceChildren();const title=document.createElement('h3');title.textContent=meeting.title;result.append(title);
       const summary=document.createElement('p');summary.style.whiteSpace='pre-wrap';summary.textContent=analysis.summary?.summary_text||'No summary yet.';result.append(summary);
-      const details=document.createElement('details'),heading=document.createElement('summary'),transcriptText=document.createElement('p');heading.textContent='Transcript';transcriptText.style.whiteSpace='pre-wrap';transcriptText.textContent=(transcript.segments||[]).map(s=>`${Math.floor(s.start_time/60)}:${String(Math.floor(s.start_time%60)).padStart(2,'0')} ${s.speaker_label}: ${s.text}`).join('\n')||'No transcript saved yet.';details.append(heading,transcriptText);result.append(details);
+      const details=document.createElement('details'),heading=document.createElement('summary'),transcriptText=document.createElement('p');heading.textContent='Transcript';transcriptText.style.whiteSpace='pre-wrap';
+      transcriptText.textContent=(transcript.segments||[]).map(s=>{
+        const time=`${Math.floor(s.start_time/60)}:${String(Math.floor(s.start_time%60)).padStart(2,'0')}`;
+        const isVerified=['verified','confirmed'].includes(s.attribution_status);
+        const badge=isVerified?' [confirmed]':s.speaker_label&&s.speaker_label!=='SPEAKER_UNASSIGNED'?' [unverified]':' [unassigned]';
+        const speaker=s.speaker_name||s.speaker_label||'SPEAKER_UNASSIGNED';
+        return `${time} ${speaker}${badge}: ${s.text}`;
+      }).join('\n')||'No transcript saved yet.';details.append(heading,transcriptText);result.append(details);
       if(meeting.my_role==='HOST'){
         const analyze=document.createElement('button');analyze.className='btn-blue-action';analyze.textContent='Generate summary';analyze.disabled=!transcript.segments?.length;
         analyze.onclick=async()=>{analyze.disabled=true;try{await checked(await apiFetch(`/meetings/${encodeURIComponent(meeting.meeting_id)}/analyze`,{method:'POST'}));await showIntelligence(meeting);}catch(e){showToast(e.message);analyze.disabled=false;}};
