@@ -29,3 +29,13 @@ class RecordingProcessingStatus(str, Enum):
     PROCESSING = "PROCESSING"
     COMPLETED  = "COMPLETED"
     FAILED     = "FAILED"
+
+
+class TranscriptionStatus(str, Enum):
+    PENDING    = "pending"
+    QUEUED     = "queued"
+    PROCESSING = "processing"
+    PARTIAL    = "partial"
+    COMPLETED  = "completed"
+    FAILED     = "failed"
+

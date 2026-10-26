@@ -8,7 +8,7 @@ import string
 from app.models.meeting import Meeting, MeetingParticipant
 from app.models.project import Project
 from app.models.user import User
-from app.core.enums import MeetingStatus, ParticipantStatus, MeetingRole, MeetingType
+from app.core.enums import MeetingStatus, ParticipantStatus, MeetingRole, MeetingType, TranscriptionStatus
 
 
 def _next_meeting_id(db: Session) -> str:
@@ -470,6 +470,14 @@ def end_meeting(db: Session, meeting: Meeting, user: User) -> Meeting:
             if join_time.tzinfo is None:
                 join_time = join_time.replace(tzinfo=timezone.utc)
             p.attendance_duration_seconds = max(0, int((now - join_time).total_seconds()))
+
+    # Finalize transcription status upon meeting completion (transitions partial/processing/pending -> completed)
+    if meeting.transcription_status in (
+        TranscriptionStatus.PARTIAL.value,
+        TranscriptionStatus.PROCESSING.value,
+        TranscriptionStatus.PENDING.value,
+    ):
+        meeting.transcription_status = TranscriptionStatus.COMPLETED.value
 
     db.commit()
     db.refresh(meeting)

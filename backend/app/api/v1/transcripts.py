@@ -299,6 +299,14 @@ async def process_participant_audio_stream(
     if resolved_end_offset is None and audio_duration > 0.0:
         resolved_end_offset = round(start_offset + audio_duration, 3)
 
+    # Stage 4: Update status to processing on first accepted chunk if pending
+    if meeting.transcription_status == "pending":
+        meeting.transcription_status = "processing"
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+
     transcription_service = TranscriptionService()
     try:
         segments = transcription_service.transcribe_participant_audio_chunk(
@@ -323,6 +331,21 @@ async def process_participant_audio_stream(
             f"[AUDIO_STREAM_ERROR] Participant audio stream transcription failed for meeting {meeting.public_id}, "
             f"participant {participant_id}: {exc}"
         )
+        try:
+            # Stage 4: Retain partial status if valid existing segments exist so existing data is not masked
+            existing_seg_count = db.query(TranscriptSegment).filter(
+                TranscriptSegment.meeting_id == meeting.public_id
+            ).count()
+            if existing_seg_count > 0:
+                meeting.transcription_status = "partial"
+            else:
+                meeting.transcription_status = "failed"
+            meeting.transcription_error = str(exc)
+            db.commit()
+        except Exception as status_err:
+            db.rollback()
+            logging.getLogger(__name__).warning(f"Could not persist transcription error status: {status_err}")
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Participant audio stream transcription failed: {exc}",

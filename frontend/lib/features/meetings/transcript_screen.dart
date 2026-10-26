@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 
@@ -124,6 +125,10 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
   Map<String, dynamic>? _meetingMetadata;
 
   bool _isLoading = true;
+  bool _isFetching = false;
+  Timer? _pollingTimer;
+  static const Duration _pollingInterval = Duration(seconds: 4);
+
   String? _errorMessage;
   int? _errorStatusCode;
   String _transcriptionStatus = 'unknown';
@@ -139,41 +144,71 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
     _loadTranscript();
   }
 
-  Future<void> _loadTranscript() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-      _errorStatusCode = null;
+  @override
+  void dispose() {
+    _stopPolling();
+    super.dispose();
+  }
+
+  void _startPolling() {
+    if (_pollingTimer != null && _pollingTimer!.isActive) return;
+    _pollingTimer = Timer.periodic(_pollingInterval, (_) {
+      if (mounted && !_isFetching) {
+        _loadTranscript(isPolling: true);
+      }
     });
+  }
+
+  void _stopPolling() {
+    _pollingTimer?.cancel();
+    _pollingTimer = null;
+  }
+
+  Future<void> _loadTranscript({bool isPolling = false}) async {
+    if (_isFetching) return;
+    _isFetching = true;
+
+    if (!isPolling) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+        _errorStatusCode = null;
+      });
+    }
 
     try {
       final api = ApiService();
 
       // 1. Fetch meeting metadata (optional, best-effort)
-      try {
-        final mtgResp = await api.get('/meetings/${widget.meetingId}');
-        if (mtgResp.statusCode == 200) {
-          _meetingMetadata = json.decode(mtgResp.body);
-        }
-      } catch (_) {}
+      if (!isPolling || _meetingMetadata == null) {
+        try {
+          final mtgResp = await api.get('/meetings/${widget.meetingId}');
+          if (mtgResp.statusCode == 200) {
+            _meetingMetadata = json.decode(mtgResp.body);
+          }
+        } catch (_) {}
+      }
 
       // 2. Fetch authenticated participant list (scoped to meeting)
-      try {
-        final partsResp = await api.get('/meetings/${widget.meetingId}/participants');
-        if (partsResp.statusCode == 200) {
-          final dynamic partsData = json.decode(partsResp.body);
-          if (partsData is List) {
-            _participants = partsData
-                .map((p) => MeetingParticipantItem.fromJson(p as Map<String, dynamic>))
-                .toList();
+      if (!isPolling || _participants.isEmpty) {
+        try {
+          final partsResp = await api.get('/meetings/${widget.meetingId}/participants');
+          if (partsResp.statusCode == 200) {
+            final dynamic partsData = json.decode(partsResp.body);
+            if (partsData is List) {
+              _participants = partsData
+                  .map((p) => MeetingParticipantItem.fromJson(p as Map<String, dynamic>))
+                  .toList();
+            }
           }
-        }
-      } catch (_) {}
+        } catch (_) {}
+      }
 
       // 3. Fetch transcription processing status
       final statusResp = await api.get('/transcripts/meetings/${widget.meetingId}/status');
 
       if (statusResp.statusCode == 401) {
+        _stopPolling();
         if (!mounted) return;
         setState(() {
           _isLoading = false;
@@ -184,6 +219,7 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
       }
 
       if (statusResp.statusCode == 403) {
+        _stopPolling();
         if (!mounted) return;
         setState(() {
           _isLoading = false;
@@ -194,6 +230,7 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
       }
 
       if (statusResp.statusCode == 404) {
+        _stopPolling();
         if (!mounted) return;
         setState(() {
           _isLoading = false;
@@ -220,68 +257,59 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
       _transcriptionStatus = status;
       _transcriptionError = err;
 
-      // 4. Fetch the segments from the backend
-      if (status == 'completed' || status == 'partial') {
-        final transcriptResp = await api.get('/transcripts/meetings/${widget.meetingId}');
-        if (transcriptResp.statusCode == 200) {
-          final data = json.decode(transcriptResp.body);
-          final rawSegments = (data['segments'] as List?) ?? [];
-          final parsed = rawSegments
-              .map((s) => TranscriptSegment.fromJson(s as Map<String, dynamic>))
-              .toList();
-
-          // Ensure strict chronological sorting by start time
-          parsed.sort((a, b) => a.startTime.compareTo(b.startTime));
-
-          if (!mounted) return;
-          setState(() {
-            _segments = parsed;
-            _isLoading = false;
-          });
-          return;
-        } else if (transcriptResp.statusCode == 401) {
-          if (!mounted) return;
-          setState(() {
-            _isLoading = false;
-            _errorStatusCode = 401;
-            _errorMessage = 'Session expired. Please sign in again.';
-          });
-          return;
-        } else if (transcriptResp.statusCode == 403) {
-          if (!mounted) return;
-          setState(() {
-            _isLoading = false;
-            _errorStatusCode = 403;
-            _errorMessage = 'Access denied. You are not authorized to view this meeting transcript.';
-          });
-          return;
-        } else {
-          if (!mounted) return;
-          setState(() {
-            _isLoading = false;
-            _errorStatusCode = transcriptResp.statusCode;
-            _errorMessage = 'Failed to load transcript data (${transcriptResp.statusCode}).';
-          });
-          return;
-        }
+      // Stop polling on terminal states; start/continue polling on active states
+      const terminalStates = {'completed', 'failed'};
+      if (terminalStates.contains(status)) {
+        _stopPolling();
+      } else {
+        _startPolling();
       }
 
-      if (status == 'failed') {
+      // 4. Fetch the segments from the backend (always attempt fetch so saved live segments display even in progress)
+      final transcriptResp = await api.get('/transcripts/meetings/${widget.meetingId}');
+      if (transcriptResp.statusCode == 200) {
+        final data = json.decode(transcriptResp.body);
+        final rawSegments = (data['segments'] as List?) ?? [];
+        final parsed = rawSegments
+            .map((s) => TranscriptSegment.fromJson(s as Map<String, dynamic>))
+            .toList();
+
+        // Ensure strict chronological sorting by start time
+        parsed.sort((a, b) => a.startTime.compareTo(b.startTime));
+
+        if (!mounted) return;
+        setState(() {
+          _segments = parsed;
+          _isLoading = false;
+        });
+        return;
+      } else if (transcriptResp.statusCode == 401) {
+        _stopPolling();
         if (!mounted) return;
         setState(() {
           _isLoading = false;
-          _errorMessage = _transcriptionError != null && _transcriptionError!.isNotEmpty
-              ? 'Transcription failed: $_transcriptionError'
-              : 'Transcription processing failed for this recording.';
+          _errorStatusCode = 401;
+          _errorMessage = 'Session expired. Please sign in again.';
+        });
+        return;
+      } else if (transcriptResp.statusCode == 403) {
+        _stopPolling();
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+          _errorStatusCode = 403;
+          _errorMessage = 'Access denied. You are not authorized to view this meeting transcript.';
+        });
+        return;
+      } else {
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+          _errorStatusCode = transcriptResp.statusCode;
+          _errorMessage = 'Failed to load transcript data (${transcriptResp.statusCode}).';
         });
         return;
       }
-
-      // If pending, queued, or processing
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-      });
     } catch (e) {
       if (!mounted) return;
       final errStr = e.toString().toLowerCase();
@@ -297,8 +325,13 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
       }
       setState(() {
         _isLoading = false;
-        _errorMessage = userFriendlyMessage;
+        // On background polling, do not wipe out existing segments with error card
+        if (!isPolling || _segments.isEmpty) {
+          _errorMessage = userFriendlyMessage;
+        }
       });
+    } finally {
+      _isFetching = false;
     }
   }
 
@@ -398,7 +431,7 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh Vault',
-            onPressed: _isLoading ? null : _loadTranscript,
+            onPressed: _isLoading ? null : () => _loadTranscript(isPolling: false),
           ),
         ],
       ),
@@ -495,8 +528,8 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
       );
     }
 
-    // General Error / Offline State with Safe Retry
-    if (_errorMessage != null) {
+    // General Error / Offline State with Safe Retry (only when no segments loaded)
+    if (_errorMessage != null && _segments.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -521,7 +554,7 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
               ),
               const SizedBox(height: 24),
               FilledButton.icon(
-                onPressed: _loadTranscript,
+                onPressed: () => _loadTranscript(isPolling: false),
                 icon: const Icon(Icons.refresh),
                 label: const Text('Retry'),
               ),
@@ -531,132 +564,25 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
       );
     }
 
-    // Queued / Processing / Pending States
-    if (_transcriptionStatus == 'pending' ||
-        _transcriptionStatus == 'queued' ||
-        _transcriptionStatus == 'processing' ||
-        _transcriptionStatus == 'waiting') {
-      final isQueued = _transcriptionStatus == 'queued';
-      final isPending = _transcriptionStatus == 'pending' || _transcriptionStatus == 'waiting';
-      final title = isPending
-          ? 'Waiting for Transcription'
-          : isQueued
-              ? 'Transcription Queued'
-              : 'Transcribing Audio...';
-      final subtitle = isPending
-          ? 'Meeting audio is queued. Recognized transcript segments will appear here as soon as processing completes.'
-          : isQueued
-              ? 'Recording is in queue for speech recognition processing.'
-              : 'AI is processing speech and speaker diarization. Zero audio will be permanently stored.';
+    // If segments exist, ALWAYS show the transcript with live/completed status header
+    if (_segments.isNotEmpty) {
+      final filtered = _filteredSegments;
+      return RefreshIndicator(
+        onRefresh: () => _loadTranscript(isPolling: false),
+        child: Column(
+          children: [
+            // Status Banner (Live in progress, Complete, or Chunk Error Notice)
+            _buildStatusBanner(),
 
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: const BorderSide(color: Color(0xFFFDE68A)),
-            ),
-            color: const Color(0xFFFFFBEB),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(
-                    width: 48,
-                    height: 48,
-                    child: CircularProgressIndicator(strokeWidth: 3, color: Color(0xFFB45309)),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF92400E),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    subtitle,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 13, color: Color(0xFFB45309)),
-                  ),
-                  const SizedBox(height: 20),
-                  FilledButton.tonalIcon(
-                    onPressed: _loadTranscript,
-                    icon: const Icon(Icons.refresh, size: 18),
-                    label: const Text('Refresh Status'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
+            // AI Intelligence Quick Access Toolbar
+            _buildAiQuickLinksBar(),
 
-    // Empty Transcript State (No Speech Detected)
-    if (_segments.isEmpty) {
-      return Column(
-        children: [
-          _buildAiQuickLinksBar(),
-          Expanded(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: const BoxDecoration(color: Color(0xFFF1F5F9), shape: BoxShape.circle),
-                      child: const Icon(Icons.record_voice_over_outlined, size: 48, color: Color(0xFF94A3B8)),
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      'No Speech Detected',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Transcription completed, but no spoken audio segments were detected for this meeting.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 14, color: Color(0xFF64748B)),
-                    ),
-                    const SizedBox(height: 24),
-                    OutlinedButton.icon(
-                      onPressed: _loadTranscript,
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Check Again'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
+            // Speaker Filter Bar
+            _buildSpeakerFilterBar(),
 
-    final filtered = _filteredSegments;
-
-    // Completed Transcript with Speaker Filters & AI Quick Links
-    return RefreshIndicator(
-      onRefresh: _loadTranscript,
-      child: Column(
-        children: [
-          // AI Intelligence Quick Access Toolbar
-          _buildAiQuickLinksBar(),
-
-          // Speaker Filter Bar
-          _buildSpeakerFilterBar(),
-
-          // Active Filter Banner (if filtered)
-          if (_selectedSpeakerUserId != null || _filterUnknownOnly)
-            _buildActiveFilterBanner(),
+            // Active Filter Banner (if filtered)
+            if (_selectedSpeakerUserId != null || _filterUnknownOnly)
+              _buildActiveFilterBanner(),
 
           // Transcript Segments List
           Expanded(
@@ -701,9 +627,268 @@ class _TranscriptScreenState extends State<TranscriptScreen> {
     );
   }
 
+    // When _segments is empty, handle terminal failure, in-progress processing, and empty completed states
+    if (_transcriptionStatus == 'failed') {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: const BoxDecoration(color: Color(0xFFFEF2F2), shape: BoxShape.circle),
+                child: const Icon(Icons.error_outline, size: 48, color: Color(0xFFDC2626)),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Transcription Failed',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _transcriptionError != null && _transcriptionError!.isNotEmpty
+                    ? _transcriptionError!
+                    : (_errorMessage ?? 'Transcription processing failed for this recording.'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 14, color: Color(0xFF64748B)),
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: () => _loadTranscript(isPolling: false),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_transcriptionStatus == 'pending' ||
+        _transcriptionStatus == 'queued' ||
+        _transcriptionStatus == 'processing' ||
+        _transcriptionStatus == 'partial' ||
+        _transcriptionStatus == 'waiting') {
+      final isQueued = _transcriptionStatus == 'queued';
+      final isPending = _transcriptionStatus == 'pending' || _transcriptionStatus == 'waiting';
+      final title = isPending
+          ? 'Waiting for Transcription'
+          : isQueued
+              ? 'Transcription Queued'
+              : 'Transcribing Audio...';
+      final subtitle = isPending
+          ? 'Meeting audio is queued. Recognized transcript segments will appear here automatically.'
+          : isQueued
+              ? 'Recording is in queue for speech recognition processing.'
+              : 'AI is actively transcribing speech. Saved segments will refresh automatically.';
+
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: const BorderSide(color: Color(0xFFFDE68A)),
+            ),
+            color: const Color(0xFFFFFBEB),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: CircularProgressIndicator(strokeWidth: 3, color: Color(0xFFB45309)),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF92400E),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    subtitle,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 13, color: Color(0xFFB45309)),
+                  ),
+                  const SizedBox(height: 20),
+                  FilledButton.tonalIcon(
+                    onPressed: () => _loadTranscript(isPolling: false),
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('Refresh Status'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Completed Transcript with 0 speech detected
+    return Column(
+      children: [
+        _buildAiQuickLinksBar(),
+        Expanded(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: const BoxDecoration(color: Color(0xFFF1F5F9), shape: BoxShape.circle),
+                    child: const Icon(Icons.record_voice_over_outlined, size: 48, color: Color(0xFF94A3B8)),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'No Speech Detected',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _transcriptionError != null && _transcriptionError!.isNotEmpty
+                        ? 'Transcription completed with notice: $_transcriptionError'
+                        : 'Transcription completed, but no spoken audio segments were detected for this meeting.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 14, color: Color(0xFF64748B)),
+                  ),
+                  const SizedBox(height: 24),
+                  OutlinedButton.icon(
+                    onPressed: () => _loadTranscript(isPolling: false),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Check Again'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // Sub-widgets
   // ---------------------------------------------------------------------------
+
+  Widget _buildStatusBanner() {
+    final isLive = _transcriptionStatus == 'partial' ||
+        _transcriptionStatus == 'processing' ||
+        _transcriptionStatus == 'queued' ||
+        _transcriptionStatus == 'pending' ||
+        _transcriptionStatus == 'waiting';
+
+    if (isLive) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: const BoxDecoration(
+          color: Color(0xFFEFF6FF),
+          border: Border(bottom: BorderSide(color: Color(0xFFBFDBFE))),
+        ),
+        child: Row(
+          children: [
+            const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2563EB)),
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'Live transcription in progress • Auto-refreshing',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF1E40AF),
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFFDBEAFE),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                'LIVE',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1D4ED8),
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_transcriptionStatus == 'completed') {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        decoration: const BoxDecoration(
+          color: Color(0xFFF0FDF4),
+          border: Border(bottom: BorderSide(color: Color(0xFFBBF7D0))),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.check_circle_outline, size: 14, color: Color(0xFF16A34A)),
+            SizedBox(width: 8),
+            Text(
+              'Transcript finalized',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF15803D),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_transcriptionError != null && _transcriptionError!.isNotEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        decoration: const BoxDecoration(
+          color: Color(0xFFFFFBEB),
+          border: Border(bottom: BorderSide(color: Color(0xFFFDE68A))),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, size: 14, color: Color(0xFFD97706)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Notice: $_transcriptionError',
+                style: const TextStyle(fontSize: 12, color: Color(0xFF92400E)),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
 
   Widget _buildAiQuickLinksBar() {
     return Container(

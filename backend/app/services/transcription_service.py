@@ -395,6 +395,18 @@ class TranscriptionService:
                     db.add(seg)
                     segments.append(seg)
 
+            # Stage 4: Represent meeting as partial/in-progress while live transcription is active
+            has_segments = len(segments) > 0 or db.query(TranscriptSegment).filter(
+                TranscriptSegment.meeting_id == meeting.public_id
+            ).count() > 0
+
+            if meeting.transcription_status != "completed":
+                if has_segments:
+                    meeting.transcription_status = "partial"
+                else:
+                    meeting.transcription_status = "processing"
+                meeting.transcription_error = None
+
             try:
                 db.commit()
             except Exception as commit_exc:
@@ -499,11 +511,23 @@ class TranscriptionService:
             Dictionary with status information
         """
         from app.services.meeting_service import get_meeting_by_public_id
+        from app.core.enums import MeetingStatus, TranscriptionStatus
         
         meeting = get_meeting_by_public_id(db, meeting_id)
         if not meeting:
             raise ValueError(f"Meeting not found: {meeting_id}")
         
+        # Stage 4: Safely finalize partial status if meeting has ended
+        if (
+            meeting.status == MeetingStatus.COMPLETED.value
+            and meeting.transcription_status == TranscriptionStatus.PARTIAL.value
+        ):
+            meeting.transcription_status = TranscriptionStatus.COMPLETED.value
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
+
         segment_count = db.query(TranscriptSegment).filter(
             TranscriptSegment.meeting_id == meeting.public_id
         ).count()
