@@ -8,6 +8,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    if: ${{ secrets.FIREBASE_API_KEY != '' && secrets.FIREBASE_SERVICE_ACCOUNT_AI_MEET_F8FD0 != '' }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
