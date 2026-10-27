@@ -378,6 +378,9 @@ async def process_participant_audio_stream(
             detail=f"Participant audio stream transcription failed: {exc}",
         )
 
+    # Resolve display name for the speaker from participant or current_user
+    resolved_user_name = participant.display_name or (current_user.full_name if current_user else None) or (current_user.email if current_user else None) or participant.livekit_identity
+
     return [
         TranscriptSegmentResponse(
             id=str(s.id),
@@ -393,6 +396,8 @@ async def process_participant_audio_stream(
             language=s.language,
             confidence=s.confidence,
             words=s.words,
+            user_name=resolved_user_name,
+            speaker_confirmed=s.speaker_confirmed,
             processing_metadata=s.processing_metadata,
         )
         for s in segments

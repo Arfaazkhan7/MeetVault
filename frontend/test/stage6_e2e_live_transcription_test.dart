@@ -1,6 +1,4 @@
-import 'dart:convert';
 import 'dart:typed_data';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ai_meeting_system/core/services/audio_chunk_delivery_queue.dart';
 import 'package:ai_meeting_system/features/meetings/transcript_screen.dart';
@@ -197,6 +195,7 @@ void main() {
       expect(deliveredChunks.contains('chunk_good'), isTrue);
       expect(queue.status.failedCount, 1);
       expect(queue.status.deliveredCount, 1);
+      expect(uploadCalls, greaterThanOrEqualTo(2));
 
       queue.dispose();
     });

@@ -5,6 +5,7 @@ from typing import Optional, List
 from app.db.session import get_db
 from app.core.dependencies import get_current_user
 from app.models.user import User
+from app.models.meeting import Meeting
 from app.services.diarization_service import DiarizationService, MockDiarizationEngine
 from app.services.speaker_mapping_service import SpeakerMappingService
 from app.services.meeting_service import get_meeting_by_public_id

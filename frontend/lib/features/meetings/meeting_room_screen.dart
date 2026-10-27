@@ -265,11 +265,24 @@ class _MeetingRoomScreenState extends State<MeetingRoomScreen> {
   }
 
   String _resolveSpeakerName(TranscriptSegment segment) {
-    if (segment.userName != null && segment.userName!.trim().isNotEmpty) {
-      return segment.userName!;
-    }
     if (segment.participantId != null && segment.participantId == _participantId) {
       return 'You';
+    }
+    if (segment.userName != null && segment.userName!.trim().isNotEmpty && segment.userName != 'Speaker') {
+      return segment.userName!.trim();
+    }
+    // Resolve display name from in-memory room participants without extra network calls
+    if (_room != null) {
+      for (final p in _participants) {
+        if (segment.participantId != null && p.identity.contains(segment.participantId!)) {
+          final name = p.name.trim();
+          if (name.isNotEmpty) return name;
+        }
+        if (segment.speakerUserId != null && p.identity.startsWith('${segment.speakerUserId}:')) {
+          final name = p.name.trim();
+          if (name.isNotEmpty) return name;
+        }
+      }
     }
     if (segment.speakerLabel.isNotEmpty && segment.speakerLabel != 'Speaker') {
       return segment.speakerLabel;

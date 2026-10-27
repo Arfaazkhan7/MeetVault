@@ -557,12 +557,18 @@ def test_scenario_12_temporary_audio_cleanup_verified(client: TestClient, e2e_se
     assert not os.path.exists(created_paths[0]), "Managed temporary audio file must be deleted immediately after completion"
 
 
-# ── Performance & Benchmark Tests ─────────────────────────────────────────────
+# ── Simulated Performance & Telemetry Validation Tests ─────────────────────────
+# NOTE: The tests below use mocked transcription engines with controlled time delays
+# to validate server pipeline telemetry accounting (processing_time_sec, sequence tracking)
+# and request queueing dynamics. Real hardware Whisper inference performance remains
+# unverified in this test suite due to whisper/GPU dependency requirements.
 
-def test_performance_latency_measurement_and_telemetry(client: TestClient, e2e_setup):
+def test_simulated_performance_latency_measurement_and_telemetry(client: TestClient, e2e_setup):
     """
-    Measure upload-to-transcription-response latency, chunk duration, Whisper processing time,
-    and verify Real-Time Factor (RTF) telemetry.
+    Simulated Performance Test:
+    Measures upload-to-transcription-response round-trip latency, chunk duration,
+    and validates that the server accurately records processing_time_sec telemetry
+    under controlled simulated inference durations (mocked Whisper).
     """
     mtg_id = e2e_setup["meeting"].public_id
     part1_id = e2e_setup["part1"].id
@@ -615,10 +621,11 @@ def test_performance_latency_measurement_and_telemetry(client: TestClient, e2e_s
         assert r["rtf"] <= 0.20  # Fast simulated RTF
 
 
-def test_performance_multi_participant_concurrency_impact(client: TestClient, e2e_setup):
+def test_simulated_multi_participant_concurrency_impact(client: TestClient, e2e_setup):
     """
-    Evaluate the latency impact when two participants submit audio chunks concurrently.
-    Demonstrates sequential vs concurrent queueing dynamics.
+    Simulated Concurrency Test:
+    Evaluates server round-trip timing when two participants submit audio chunks sequentially/concurrently,
+    using a mocked 50ms inference delay to verify endpoint throughput and attribution isolation.
     """
     mtg_id = e2e_setup["meeting"].public_id
     part1_id = e2e_setup["part1"].id

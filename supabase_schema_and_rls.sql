@@ -78,7 +78,7 @@ CREATE POLICY "Owners can update their meetings"
 
 -- 3. Meeting Participants Table
 CREATE TABLE IF NOT EXISTS public.meeting_participants (
-    id BIGSERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id VARCHAR(255) NOT NULL REFERENCES public.users(public_id) ON DELETE CASCADE,
     meeting_id VARCHAR(255) NOT NULL REFERENCES public.meetings(public_id) ON DELETE CASCADE,
     role VARCHAR(50) NOT NULL DEFAULT 'ATTENDEE',
