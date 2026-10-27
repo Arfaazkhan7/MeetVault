@@ -334,6 +334,8 @@ class TranscriptionService:
                 "sample_rate": sample_rate,
                 "frame_count": frame_count,
                 "timing_source": "audio_sample_clock",
+                "processing_time_sec": result.get("processing_time"),
+                "retry_count": result.get("retry_count", 0),
             }
 
             segments = []
@@ -438,7 +440,10 @@ class TranscriptionService:
         
         for attempt in range(self.max_retries):
             try:
-                return self.engine.transcribe(audio_path, language)
+                res = self.engine.transcribe(audio_path, language)
+                if isinstance(res, dict) and "retry_count" not in res:
+                    res["retry_count"] = attempt
+                return res
             except Exception as e:
                 last_error = e
                 logger.warning(f"Transcription attempt {attempt + 1} failed: {e}")

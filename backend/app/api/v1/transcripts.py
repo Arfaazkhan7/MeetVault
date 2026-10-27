@@ -7,6 +7,7 @@ import math
 import wave
 import io
 
+from app.core.config import settings
 from app.core.audio_temp import create_temp_audio_file, safe_delete_temp_file
 from app.db.session import get_db
 from app.core.dependencies import get_current_user
@@ -20,6 +21,9 @@ from app.services.speaker_mapping_service import SpeakerMappingService
 from app.workers import submit_transcription_job
 
 router = APIRouter(prefix="/transcripts", tags=["transcripts"])
+
+# 25 MB max per audio chunk in live streaming (sufficient for up to 5 mins of 48kHz stereo)
+MAX_AUDIO_CHUNK_BYTES: int = 25 * 1024 * 1024
 
 
 @router.get("/meetings/{meeting_id}")
@@ -62,7 +66,7 @@ def get_transcript(
 
             part_record = db.query(MeetingParticipant).filter(
                 MeetingParticipant.meeting_id == meeting.public_id,
-                MeetingParticipant.id == guid_val,
+                (MeetingParticipant.id == guid_val) | (MeetingParticipant.id == str(participant_id)),
             ).first()
             if not part_record:
                 raise HTTPException(
@@ -234,6 +238,12 @@ async def process_participant_audio_stream(
             detail="sequence_number must be non-negative",
         )
 
+    if chunk_id is not None and len(chunk_id) > 128:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="chunk_id exceeds maximum allowed length of 128 characters",
+        )
+
     if sample_rate is not None and (sample_rate < 8000 or sample_rate > 192000):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -257,6 +267,12 @@ async def process_participant_audio_stream(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Audio stream content is empty",
+        )
+
+    if len(content) > MAX_AUDIO_CHUNK_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=f"Audio chunk exceeds maximum allowed size of 25MB ({len(content)} bytes)",
         )
 
     # Inspect audio frames, validate WAV structure, and calculate duration
@@ -294,6 +310,17 @@ async def process_participant_audio_stream(
         if sample_rate and sample_rate > 0:
             frame_count = len(content) // 2
             audio_duration = round(frame_count / float(sample_rate), 3)
+
+    if audio_duration > 300.0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Audio chunk duration exceeds maximum allowed limit of 300 seconds",
+        )
+    if (start_offset + audio_duration) > 86400.0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Audio chunk end offset exceeds maximum meeting bounds (24 hours)",
+        )
 
     resolved_end_offset = end_offset
     if resolved_end_offset is None and audio_duration > 0.0:
@@ -377,19 +404,19 @@ async def upload_recording(
     meeting_id: str,
     file: UploadFile = File(...),
     language: Optional[str] = None,
-    meeting: Meeting = Depends(get_meeting_and_authorize),
+    meeting: Meeting = Depends(require_meeting_host),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
-    Upload meeting recording for transcription.
+    Upload meeting recording for transcription (Host only).
 
     Accepts audio file and submits it for async transcription processing.
     Supported formats: wav, mp3, m4a, flac, ogg
     """
     # Validate file type
     allowed_extensions = {".wav", ".mp3", ".m4a", ".flac", ".ogg"}
-    file_ext = os.path.splitext(file.filename)[1].lower()
+    file_ext = os.path.splitext(file.filename or "")[1].lower()
 
     if file_ext not in allowed_extensions:
         raise HTTPException(
@@ -401,6 +428,18 @@ async def upload_recording(
     temp_file_path = None
     try:
         content = await file.read()
+        if not content or len(content) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Uploaded recording file is empty",
+            )
+
+        if len(content) > settings.MAX_RECORDING_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=f"Recording file exceeds maximum allowed size ({len(content)} > {settings.MAX_RECORDING_UPLOAD_BYTES} bytes)",
+            )
+
         created_file = create_temp_audio_file(
             suffix=f".{file_ext}",
             prefix="recording_",
